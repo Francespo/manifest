@@ -1,16 +1,15 @@
-import { Entity, PrimaryGeneratedColumn } from 'typeorm'
+import { PrimaryGeneratedColumn } from 'typeorm'
 
+import { CaseEntity } from '../decorators/case-entity.decorator'
 import { CaseProp } from '../decorators/case-prop.decorator'
 import { PropType } from '../dynamic-entity/prop-types/prop-type.enum'
 
-@Entity()
+@CaseEntity({
+  nameSingular: 'cat',
+  namePlural: 'cats',
+  slug: 'cat'
+})
 export class Cat {
-  public static definition = {
-    nameSingular: 'cat',
-    namePlural: 'cats',
-    slug: 'cat'
-  }
-
   @PrimaryGeneratedColumn()
   id: number
 
