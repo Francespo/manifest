@@ -5,7 +5,7 @@ import { PropertyDescription } from '~shared/interfaces/property-description.int
   selector: 'app-text-input',
   template: `<input
     class="input form-control"
-    type="string"
+    type="text"
     (change)="onChange($event)"
   />`,
   styleUrls: ['./text-input.component.scss']
