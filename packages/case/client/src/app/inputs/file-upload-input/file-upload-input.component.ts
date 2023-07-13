@@ -13,6 +13,7 @@ import { PropertyDescription } from '../../../../../shared/interfaces/property-d
 import { FileOptions } from '../../../../../shared/interfaces/property-options/file-options.interface'
 import { FlashMessageService } from '../../services/flash-message.service'
 import { UploadService } from '../../services/upload.service'
+import { environment } from '../../../environments/environment'
 
 @Component({
   selector: 'app-file-upload-input',
@@ -29,8 +30,7 @@ export class FileUploadInputComponent implements OnInit {
 
   @ViewChild('fileInput', { static: false }) fileInputEl: ElementRef
 
-  // TODO: Manage storagePath
-  storagePath: string = 'storage'
+  storagePath: string = environment.storagePath
 
   filePath: string
   fileContent: any
@@ -51,7 +51,7 @@ export class FileUploadInputComponent implements OnInit {
   fileInputEvent(event: any) {
     this.loading = true
     this.fileContent = this.fileInputEl.nativeElement.files.item(0)
-    this.uploadService.upload(this.prop.propName, this.fileContent).then(
+    this.uploadService.uploadFile(this.prop.propName, this.fileContent).then(
       (res: { path: string }) => {
         this.loading = false
         this.filePath = res.path
