@@ -8,7 +8,7 @@ import {
 } from '../decorators/entity-events.decorators'
 import { Entity } from '../decorators/entity.decorator'
 import { Prop } from '../decorators/prop.decorator'
-import { CaseEntity } from './case.entity'
+import { BaseEntity } from './base-entity'
 
 @Entity({
   nameSingular: 'user',
@@ -16,7 +16,7 @@ import { CaseEntity } from './case.entity'
   slug: 'users',
   propIdentifier: 'name'
 })
-export class User extends CaseEntity {
+export class User extends BaseEntity {
   @Prop({
     seed: () => faker.person.firstName()
   })
