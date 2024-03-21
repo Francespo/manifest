@@ -7,7 +7,7 @@ import {
   Output,
   SimpleChanges
 } from '@angular/core'
-import { PropType } from '~shared/enums/prop-type.enum'
+import { PropType } from '@casejs/types'
 import { PropertyDescription } from '~shared/interfaces/property-description.interface'
 
 import { BooleanInputComponent } from './boolean-input/boolean-input.component'
