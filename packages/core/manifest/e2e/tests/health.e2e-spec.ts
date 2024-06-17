@@ -4,26 +4,22 @@ import supertest from 'supertest'
 
 import TestAgent from 'supertest/lib/agent'
 import { AppModule } from '../../src/app.module'
+import { TypeOrmModule } from '@nestjs/typeorm'
+import { YamlService } from '../../src/manifest/services/yaml/yaml.service'
 
 describe('Health (e2e)', () => {
   let app: INestApplication
   let request: TestAgent
 
-  let originalConsoleLog
-
-  beforeAll(() => {
-    originalConsoleLog = console.log
-    console.log = jest.fn()
-  })
-
-  afterAll(() => {
-    console.log = originalConsoleLog
-  })
-
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule]
-    }).compile()
+    })
+      .overrideProvider(YamlService)
+      .useValue(global.MockYamlService)
+      .overrideModule(TypeOrmModule)
+      .useModule(TypeOrmModule.forRootAsync(global.mockTypeOrmOptions))
+      .compile()
 
     app = moduleFixture.createNestApplication()
     request = supertest(app.getHttpServer())
