@@ -32,7 +32,6 @@ export class FileInputComponent {
   storageBaseUrl = environment.storageBaseUrl
 
   fileContent: any
-  required: boolean
   loading: boolean
 
   constructor(
