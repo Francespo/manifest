@@ -44,7 +44,6 @@ beforeAll(async () => {
   process.env.DB_USERNAME = 'test'
   process.env.DB_PASSWORD = 'test'
   process.env.DB_DATABASE = 'test'
-  process.env.DB_TYPE = 'postgres'
 
   // Start the NestJS application mocking some services.
   const moduleFixture: TestingModule = await Test.createTestingModule({
