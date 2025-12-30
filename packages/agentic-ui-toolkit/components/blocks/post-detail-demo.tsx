@@ -1,8 +1,9 @@
 'use client'
 
 import { FullscreenModal } from '@/components/layout/fullscreen-modal'
+import { HostAPIProvider, DisplayMode } from '@/lib/host-api'
 import { PostDetail, PostDetailProps } from '@/registry/blogging/post-detail'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
 interface PostDetailDemoProps {
   data?: PostDetailProps['data']
@@ -11,27 +12,45 @@ interface PostDetailDemoProps {
   appUrl?: string
 }
 
+/**
+ * Demo wrapper for PostDetail that handles display mode switching.
+ * This simulates how the host (ChatGPT, Claude) would handle fullscreen requests.
+ *
+ * The PostDetail component calls `hostAPI.requestDisplayMode('fullscreen')` when
+ * "Read more" is clicked, and this wrapper receives that request and shows
+ * the fullscreen modal.
+ */
 export function PostDetailDemo({
   appName = 'Blog App',
-  appUrl = 'https://example.com',
+  appUrl,
   data,
   appearance
 }: PostDetailDemoProps) {
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('inline')
+
+  const handleDisplayModeRequest = useCallback((mode: DisplayMode) => {
+    setDisplayMode(mode)
+  }, [])
 
   return (
-    <>
-      <PostDetail
-        data={data}
-        appearance={{ ...appearance, displayMode: 'inline' }}
-        actions={{ onReadMore: () => setIsFullscreen(true) }}
-      />
+    <HostAPIProvider
+      displayMode={displayMode}
+      onDisplayModeRequest={handleDisplayModeRequest}
+    >
+      {/* Inline mode - PostDetail will call requestDisplayMode when "Read more" is clicked */}
+      {displayMode === 'inline' && (
+        <PostDetail
+          data={data}
+          appearance={{ ...appearance, displayMode: 'inline' }}
+        />
+      )}
 
-      {isFullscreen && (
+      {/* Fullscreen mode - wrapped in our preview modal */}
+      {displayMode === 'fullscreen' && (
         <FullscreenModal
           appName={appName}
           appUrl={appUrl}
-          onClose={() => setIsFullscreen(false)}
+          onClose={() => setDisplayMode('inline')}
         >
           <PostDetail
             data={data}
@@ -39,6 +58,6 @@ export function PostDetailDemo({
           />
         </FullscreenModal>
       )}
-    </>
+    </HostAPIProvider>
   )
 }
