@@ -581,7 +581,7 @@ const categories: Category[] = [
     ]
   },
   {
-    id: 'data',
+    id: 'list',
     name: 'List',
     blocks: [
       {
@@ -1633,7 +1633,7 @@ function BlocksContent() {
                   {category.blocks.map((block) => (
                     <Link
                       key={block.id}
-                      href={`/blocks?block=${block.id}`}
+                      href={`/blocks/${category.id}/${block.id}`}
                       className={cn(
                         'block my-1 text-xs rounded-sm transition-colors py-1 px-2',
                         blockId === block.id
