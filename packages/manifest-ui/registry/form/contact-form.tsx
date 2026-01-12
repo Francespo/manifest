@@ -28,6 +28,7 @@ export interface ContactFormProps {
     title?: string
     subtitle?: string
     submitLabel?: string
+    initialValues?: Partial<ContactFormData>
   }
   actions?: {
     onSubmit?: (data: ContactFormData) => void
@@ -162,7 +163,8 @@ export function ContactForm({
   const {
     title = 'Contact Us',
     subtitle = "Fill out the form below and we'll get back to you as soon as possible.",
-    submitLabel = 'Send Message'
+    submitLabel = 'Send Message',
+    initialValues
   } = data ?? {}
   const { onSubmit } = actions ?? {}
   const { showTitle = true } = appearance ?? {}
@@ -171,14 +173,14 @@ export function ContactForm({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [formData, setFormData] = useState<ContactFormData>({
-    firstName: '',
-    lastName: '',
-    countryId: 'us',
-    countryCode: '+1',
-    phoneNumber: '',
-    email: '',
-    message: '',
-    attachment: null
+    firstName: initialValues?.firstName ?? '',
+    lastName: initialValues?.lastName ?? '',
+    countryId: initialValues?.countryId ?? 'us',
+    countryCode: initialValues?.countryCode ?? '+1',
+    phoneNumber: initialValues?.phoneNumber ?? '',
+    email: initialValues?.email ?? '',
+    message: initialValues?.message ?? '',
+    attachment: initialValues?.attachment ?? null
   })
   const [countrySearch, setCountrySearch] = useState('')
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false)
