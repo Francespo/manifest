@@ -1,4 +1,5 @@
 import { Entity, Column, PrimaryColumn } from 'typeorm';
+import { timestampType } from '../common/utils/sql-dialect';
 
 @Entity('model_pricing')
 export class ModelPricing {
@@ -14,6 +15,6 @@ export class ModelPricing {
   @Column('varchar', { default: '' })
   provider!: string;
 
-  @Column('varchar', { nullable: true })
-  updated_at!: string | null;
+  @Column(timestampType(), { nullable: true })
+  updated_at!: Date | null;
 }
