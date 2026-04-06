@@ -213,11 +213,17 @@ export function providerIcon(id: string, size: number = 20): JSX.Element | null 
 
 const CUSTOM_PROVIDER_LOGOS: Record<string, string> = {
   cohere: '/icons/cohere.svg',
+  gemini: '/icons/gemini.svg',
 };
 
-const BASE_URL_TO_PROVIDER: [RegExp, string][] = [[/cohere\.ai/i, 'cohere']];
+const BASE_URL_TO_PROVIDER: [RegExp, string][] = [
+  [/cohere\.ai/i, 'cohere'],
+  [/generativelanguage\.googleapis\.com/i, 'gemini'],
+];
 
-function resolveCustomLogo(name: string, baseUrl?: string): string | null {
+const MODEL_NAME_TO_PROVIDER: [RegExp, string][] = [[/gemini/i, 'gemini']];
+
+function resolveCustomLogo(name: string, baseUrl?: string, modelName?: string): string | null {
   const byName = CUSTOM_PROVIDER_LOGOS[name.toLowerCase()];
   if (byName) return byName;
   if (baseUrl) {
@@ -225,19 +231,25 @@ function resolveCustomLogo(name: string, baseUrl?: string): string | null {
       if (pattern.test(baseUrl)) return CUSTOM_PROVIDER_LOGOS[key] ?? null;
     }
   }
+  if (modelName) {
+    for (const [pattern, key] of MODEL_NAME_TO_PROVIDER) {
+      if (pattern.test(modelName)) return CUSTOM_PROVIDER_LOGOS[key] ?? null;
+    }
+  }
   return null;
 }
 
 /**
  * Returns an <img> icon for a custom provider if a known logo exists,
- * or null if no logo is available. Matches by name or base URL.
+ * or null if no logo is available. Matches by name, base URL, or model name.
  */
 export function customProviderLogo(
   name: string,
   size: number = 16,
   baseUrl?: string,
+  modelName?: string,
 ): JSX.Element | null {
-  const logo = resolveCustomLogo(name, baseUrl);
+  const logo = resolveCustomLogo(name, baseUrl, modelName);
   if (!logo) return null;
   return (
     <img

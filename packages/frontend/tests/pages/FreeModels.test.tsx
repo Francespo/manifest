@@ -35,6 +35,7 @@ describe('FreeModels', () => {
     render(() => <FreeModels />);
     expect(screen.getByText('Get your free API key from the provider website')).toBeDefined();
     expect(screen.getByText('Hit the provider Connect button, paste your key, and validate the connection')).toBeDefined();
+    expect(screen.getByText(/Done! The provider models are now included in your routing/)).toBeDefined();
   });
 
   it('renders Cohere provider card with name and logo', () => {
@@ -47,7 +48,7 @@ describe('FreeModels', () => {
   it('renders provider tags', () => {
     render(() => <FreeModels />);
     expect(screen.getByText('Up to 1,000 calls/month')).toBeDefined();
-    expect(screen.getByText('No credit card required')).toBeDefined();
+    expect(screen.getAllByText('No credit card required').length).toBe(2);
   });
 
   it('renders Get API key link', () => {
@@ -70,7 +71,7 @@ describe('FreeModels', () => {
 
   it('renders base URL with copy button', () => {
     render(() => <FreeModels />);
-    expect(screen.getByText('Base URL:')).toBeDefined();
+    expect(screen.getAllByText('Base URL:').length).toBe(2);
     expect(screen.getByText('https://api.cohere.ai/compatibility/v1')).toBeDefined();
   });
 
@@ -87,13 +88,71 @@ describe('FreeModels', () => {
     expect(screen.getByText(/Trial keys cannot be used/)).toBeDefined();
   });
 
+  it('renders Gemini provider card with name and logo', () => {
+    const { container } = render(() => <FreeModels />);
+    expect(screen.getByText('Gemini')).toBeDefined();
+    const img = container.querySelector('img[src="/icons/gemini.svg"]');
+    expect(img).not.toBeNull();
+  });
+
+  it('renders Gemini tags', () => {
+    render(() => <FreeModels />);
+    expect(screen.getByText('250K TPM (Tokens / Minute) shared across models')).toBeDefined();
+  });
+
+  it('renders Gemini API key link', () => {
+    const { container } = render(() => <FreeModels />);
+    const link = container.querySelector('a[href="https://aistudio.google.com/apikey"]');
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute('target')).toBe('_blank');
+  });
+
+  it('renders Gemini Connect button', () => {
+    render(() => <FreeModels />);
+    const connectBtn = screen.getByText('Connect Gemini');
+    expect(connectBtn.tagName).toBe('A');
+    const href = connectBtn.getAttribute('href')!;
+    expect(href).toContain('name=Gemini');
+  });
+
+  it('renders Gemini base URL', () => {
+    render(() => <FreeModels />);
+    expect(screen.getByText('https://generativelanguage.googleapis.com/v1beta/openai/')).toBeDefined();
+  });
+
+  it('renders Gemini stable models', () => {
+    render(() => <FreeModels />);
+    expect(screen.getByText('gemini-2.5-pro')).toBeDefined();
+    expect(screen.getByText('gemini-2.5-flash')).toBeDefined();
+    expect(screen.getByText('gemini-2.5-flash-lite')).toBeDefined();
+  });
+
+  it('renders Gemini preview models', () => {
+    render(() => <FreeModels />);
+    expect(screen.getByText('gemini-3-flash-preview')).toBeDefined();
+    expect(screen.getByText('gemini-3.1-flash-lite-preview')).toBeDefined();
+  });
+
+  it('renders Gemini warning about data usage', () => {
+    render(() => <FreeModels />);
+    expect(screen.getByText(/Rate limits apply per Google Cloud project/)).toBeDefined();
+  });
+
+  it('renders Gemini rate limits per model', () => {
+    render(() => <FreeModels />);
+    expect(screen.getByText('5 req / min')).toBeDefined();
+    expect(screen.getByText('10 req / min')).toBeDefined();
+    expect(screen.getByText('15 req / min')).toBeDefined();
+    expect(screen.getAllByText('Preview limits').length).toBe(2);
+  });
+
   it('toggles model visibility when clicking toggle button', () => {
     const { container } = render(() => <FreeModels />);
-    const toggleBtn = screen.getByText('Hide models');
-    fireEvent.click(toggleBtn);
+    const toggleBtns = screen.getAllByText('Hide models');
+    fireEvent.click(toggleBtns[0]);
     expect(screen.getByText('Show models (2)')).toBeDefined();
     fireEvent.click(screen.getByText('Show models (2)'));
-    expect(screen.getByText('Hide models')).toBeDefined();
+    expect(screen.getAllByText('Hide models').length).toBe(2);
   });
 
   it('copies base URL to clipboard on Copy click', async () => {
@@ -101,7 +160,7 @@ describe('FreeModels', () => {
     Object.assign(navigator, { clipboard: { writeText: mockWriteText } });
 
     render(() => <FreeModels />);
-    fireEvent.click(screen.getByText('Copy'));
+    fireEvent.click(screen.getAllByText('Copy')[0]);
 
     await vi.waitFor(() => {
       expect(mockWriteText).toHaveBeenCalledWith('https://api.cohere.ai/compatibility/v1');
@@ -114,7 +173,7 @@ describe('FreeModels', () => {
     Object.assign(navigator, { clipboard: { writeText: mockWriteText } });
 
     render(() => <FreeModels />);
-    fireEvent.click(screen.getByText('Copy'));
+    fireEvent.click(screen.getAllByText('Copy')[0]);
 
     await vi.waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Failed to copy');

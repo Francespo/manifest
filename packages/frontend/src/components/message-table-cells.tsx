@@ -17,7 +17,7 @@ import {
   stripCustomPrefix,
 } from '../services/routing-utils.js';
 import { getModelDisplayName } from '../services/model-display.js';
-import { providerIcon } from './ProviderIcon.jsx';
+import { providerIcon, customProviderLogo } from './ProviderIcon.jsx';
 import { authBadgeFor, authLabel } from './AuthBadge.js';
 
 const MONO = 'font-family: var(--font-mono);';
@@ -151,6 +151,8 @@ export function ModelCell(
         {item.model && inferProviderFromModel(item.model) === 'custom' ? (
           (() => {
             const provName = customProviderName(item.model!);
+            const logo = customProviderLogo(provName ?? '', 16, undefined, item.model ?? undefined);
+            if (logo) return logo;
             const letter = (provName ?? stripCustomPrefix(item.model!)).charAt(0).toUpperCase();
             return (
               <span
@@ -180,7 +182,11 @@ export function ModelCell(
             {authBadgeFor(item.auth_type, 8)}
           </span>
         ) : null}
-        {item.model ? getModelDisplayName(item.model) : '\u2014'}
+        {item.model
+          ? item.model.startsWith('custom:')
+            ? `custom:${customProviderName(item.model) ?? 'Custom'}/${stripCustomPrefix(item.model)}`
+            : getModelDisplayName(item.model)
+          : '\u2014'}
         {item.routing_tier && (
           <span class={`tier-badge tier-badge--${item.routing_tier}`}>{item.routing_tier}</span>
         )}

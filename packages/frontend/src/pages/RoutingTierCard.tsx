@@ -197,7 +197,9 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
                             props.customProviders()?.find((c) => `custom:${c.id}` === provId());
                           const logo = () => {
                             const c = cp();
-                            return c ? customProviderLogo(c.name, 16, c.base_url) : null;
+                            return c
+                              ? customProviderLogo(c.name, 16, c.base_url, modelName())
+                              : null;
                           };
                           return (
                             <span class="routing-card__override-icon">

@@ -103,4 +103,37 @@ describe("customProviderLogo", () => {
     const img = container.querySelector("img");
     expect(img).toBeNull();
   });
+
+  it("returns gemini logo for provider name 'Gemini'", () => {
+    const { container } = render(() => <div>{customProviderLogo("Gemini")}</div>);
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute("src")).toBe("/icons/gemini.svg");
+  });
+
+  it("resolves gemini logo by googleapis base URL", () => {
+    const { container } = render(() => (
+      <div>{customProviderLogo("my-provider", 16, "https://generativelanguage.googleapis.com/v1beta/openai/")}</div>
+    ));
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute("src")).toBe("/icons/gemini.svg");
+  });
+
+  it("resolves gemini logo by model name containing 'gemini'", () => {
+    const { container } = render(() => (
+      <div>{customProviderLogo("custom", 16, "https://example.com", "gemini-2.5-pro")}</div>
+    ));
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute("src")).toBe("/icons/gemini.svg");
+  });
+
+  it("returns null when model name does not match any pattern", () => {
+    const { container } = render(() => (
+      <div>{customProviderLogo("custom", 16, "https://example.com", "gpt-4o")}</div>
+    ));
+    const img = container.querySelector("img");
+    expect(img).toBeNull();
+  });
 });

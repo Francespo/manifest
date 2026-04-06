@@ -50,6 +50,53 @@ const PROVIDERS: FreeProvider[] = [
       },
     ],
   },
+  {
+    name: 'Gemini',
+    logo: '/icons/gemini.svg',
+    description: '',
+    tags: ['250K TPM (Tokens / Minute) shared across models', 'No credit card required'],
+    apiKeyUrl: 'https://aistudio.google.com/apikey',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    warning:
+      'Rate limits apply per Google Cloud project, not per API key. On the free tier, prompts and responses may be used to improve Google products.',
+    models: [
+      {
+        model_id: 'gemini-2.5-pro',
+        context: '1M',
+        max_output: '64K',
+        modality: 'Text',
+        trial_rate_limit: '5 req / min',
+      },
+      {
+        model_id: 'gemini-2.5-flash',
+        context: '1M',
+        max_output: '64K',
+        modality: 'Text',
+        trial_rate_limit: '10 req / min',
+      },
+      {
+        model_id: 'gemini-2.5-flash-lite',
+        context: '1M',
+        max_output: '64K',
+        modality: 'Text',
+        trial_rate_limit: '15 req / min',
+      },
+      {
+        model_id: 'gemini-3-flash-preview',
+        context: '1M',
+        max_output: '64K',
+        modality: 'Text',
+        trial_rate_limit: 'Preview limits',
+      },
+      {
+        model_id: 'gemini-3.1-flash-lite-preview',
+        context: '1M',
+        max_output: '64K',
+        modality: 'Text',
+        trial_rate_limit: 'Preview limits',
+      },
+    ],
+  },
 ];
 
 const ExternalLinkIcon = () => (
@@ -147,6 +194,15 @@ const FreeModels: Component = () => {
             Hit the provider Connect button, paste your key, and validate the connection
           </span>
         </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-size: var(--font-size-xs); font-weight: 600; flex-shrink: 0;">
+            3
+          </span>
+          <span style="font-size: var(--font-size-sm); color: hsl(var(--muted-foreground));">
+            Done! The provider models are now included in your routing. Customize tiers and
+            preferences from the routing page.
+          </span>
+        </div>
       </div>
 
       <For each={PROVIDERS}>
@@ -216,8 +272,18 @@ const FreeModels: Component = () => {
                   >
                     <div>
                       <Show when={provider.warning}>
-                        <div style="display: flex; align-items: flex-start; gap: 8px; padding: 10px 14px; border-radius: var(--radius); background: hsl(var(--chart-5) / 0.1); margin-top: 16px; margin-bottom: 16px; font-size: var(--font-size-sm);">
-                          <span style="flex-shrink: 0; color: hsl(var(--chart-5));">&#9888;</span>
+                        <div style="display: flex; align-items: flex-start; gap: 8px; padding: 10px 14px; border-radius: var(--radius); background: hsl(var(--primary) / 0.08); margin-top: 16px; margin-bottom: 16px; font-size: var(--font-size-sm);">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                            style="flex-shrink: 0; color: hsl(var(--primary)); margin-top: 1px;"
+                          >
+                            <path d="M12 17c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1s-1 .45-1 1v4c0 .55.45 1 1 1M12 7a1 1 0 1 0 0 2 1 1 0 1 0 0-2" />
+                            <path d="M12 22c5.51 0 10-4.49 10-10S17.51 2 12 2 2 6.49 2 12s4.49 10 10 10m0-18c4.41 0 8 3.59 8 8s-3.59 8-8 8-8-3.59-8-8 3.59-8 8-8" />
+                          </svg>
                           <span style="color: hsl(var(--foreground) / 0.8);">
                             {provider.warning}
                           </span>
@@ -226,8 +292,15 @@ const FreeModels: Component = () => {
 
                       <table
                         class="data-table"
-                        style={provider.warning ? undefined : 'margin-top: 16px;'}
+                        style={`table-layout: fixed; width: 100%;${provider.warning ? '' : ' margin-top: 16px;'}`}
                       >
+                        <colgroup>
+                          <col style="width: 36%" />
+                          <col style="width: 12%" />
+                          <col style="width: 14%" />
+                          <col style="width: 16%" />
+                          <col style="width: 22%" />
+                        </colgroup>
                         <thead>
                           <tr>
                             <th>Model Name</th>

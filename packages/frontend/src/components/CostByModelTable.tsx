@@ -1,6 +1,6 @@
 import { createMemo, For, type Component } from 'solid-js';
 import { authBadgeFor, authLabel } from './AuthBadge.js';
-import { providerIcon } from './ProviderIcon.jsx';
+import { providerIcon, customProviderLogo } from './ProviderIcon.jsx';
 import { customProviderColor, formatCost, formatNumber } from '../services/formatters.js';
 import { getModelDisplayName } from '../services/model-display.js';
 import {
@@ -52,6 +52,13 @@ const CostByModelTable: Component<CostByModelTableProps> = (props) => {
                     {row.model && inferProviderFromModel(row.model) === 'custom' ? (
                       (() => {
                         const provName = props.customProviderName(row.model);
+                        const logo = customProviderLogo(
+                          provName ?? '',
+                          16,
+                          undefined,
+                          row.model ?? undefined,
+                        );
+                        if (logo) return logo;
                         const letter = (provName ?? stripCustomPrefix(row.model))
                           .charAt(0)
                           .toUpperCase();
@@ -82,7 +89,11 @@ const CostByModelTable: Component<CostByModelTableProps> = (props) => {
                         {authBadgeFor(row.auth_type, 8)}
                       </span>
                     ) : null}
-                    {row.model ? row.display_name || getModelDisplayName(row.model) : row.model}
+                    {row.model
+                      ? row.model.startsWith('custom:')
+                        ? `custom:${props.customProviderName(row.model) ?? 'Custom'}/${stripCustomPrefix(row.model)}`
+                        : row.display_name || getModelDisplayName(row.model)
+                      : row.model}
                   </span>
                 </td>
                 <td>{formatNumber(row.tokens)}</td>
