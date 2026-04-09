@@ -1,5 +1,30 @@
 # manifest
 
+## 5.45.1
+
+### Patch Changes
+
+- 34c015d: Add error observability for diagnosing HTTP 400 spikes
+  - Add Express-level HTTP error logging middleware that logs all 4xx/5xx responses with request metadata (method, URL, status, user-agent, IP)
+  - Add `error_http_status` column to `agent_messages` table so proxy errors record the upstream HTTP status code (400, 500, 503, etc.) for queryable diagnostics
+  - Remove `forbidNonWhitelisted: true` from the global ValidationPipe — `whitelist: true` already strips unknown fields silently, the `forbidNonWhitelisted` setting was rejecting requests with extra fields as 400 errors
+  - Expand proxy error log line to include provider, model, and tier context (up from 200 to 500 chars of error body)
+
+- 9d3fb2e: fix: start embedded server eagerly instead of deferring to OpenClaw callback
+
+  The plugin previously only registered a deferred `start()` callback via
+  `api.registerService()`, relying on OpenClaw to invoke it. Newer OpenClaw
+  versions may not invoke the callback, causing the server to never bind.
+
+  Now the server starts eagerly during `register()`, with the existing
+  `checkExistingServer()` health-check guard preventing double-starts if
+  OpenClaw also calls the callback.
+
+  The dashboard banner is now only logged after the server is confirmed
+  running via health check, instead of prematurely during registration.
+
+  Closes #1472, closes #1474.
+
 ## 5.45.0
 
 ### Minor Changes
