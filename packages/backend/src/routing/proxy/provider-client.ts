@@ -131,12 +131,18 @@ export class ProviderClient {
     const timeoutSignal = AbortSignal.timeout(PROVIDER_TIMEOUT_MS);
     const fetchSignal = signal ? AbortSignal.any([timeoutSignal, signal]) : timeoutSignal;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody),
-      signal: fetchSignal,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+        signal: fetchSignal,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(message.replace(/key=[^&\s]+/gi, 'key=***'));
+    }
 
     return { response, isGoogle, isAnthropic, isChatGpt };
   }

@@ -182,6 +182,84 @@ describe('ProxyRateLimiter', () => {
     });
   });
 
+  describe('checkIpLimit', () => {
+    it('allows requests within the IP limit', () => {
+      for (let i = 0; i < 500; i++) {
+        expect(() => limiter.checkIpLimit('192.168.1.1')).not.toThrow();
+      }
+    });
+
+    it('throws 429 when IP rate exceeded', () => {
+      for (let i = 0; i < 500; i++) {
+        limiter.checkIpLimit('192.168.1.1');
+      }
+
+      expect(() => limiter.checkIpLimit('192.168.1.1')).toThrow(HttpException);
+    });
+
+    it('throws with correct status and message on IP rate exceeded', () => {
+      for (let i = 0; i < 500; i++) {
+        limiter.checkIpLimit('192.168.1.1');
+      }
+
+      try {
+        limiter.checkIpLimit('192.168.1.1');
+        fail('Expected HttpException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(HttpException);
+        expect((err as HttpException).getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+        expect((err as HttpException).message).toBe(
+          'Too many requests from this IP — wait a few seconds and retry.',
+        );
+      }
+    });
+
+    it('resets after window expires', () => {
+      jest.useFakeTimers();
+
+      for (let i = 0; i < 500; i++) {
+        limiter.checkIpLimit('192.168.1.1');
+      }
+      expect(() => limiter.checkIpLimit('192.168.1.1')).toThrow(HttpException);
+
+      jest.advanceTimersByTime(60_001);
+
+      expect(() => limiter.checkIpLimit('192.168.1.1')).not.toThrow();
+      jest.useRealTimers();
+    });
+
+    it('isolates different IPs', () => {
+      for (let i = 0; i < 500; i++) {
+        limiter.checkIpLimit('192.168.1.1');
+      }
+
+      expect(() => limiter.checkIpLimit('192.168.1.1')).toThrow(HttpException);
+      expect(() => limiter.checkIpLimit('10.0.0.1')).not.toThrow();
+    });
+  });
+
+  describe('evictExpired cleans ipRates', () => {
+    it('removes expired IP entries when evictExpired is called', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ipRates = (limiter as any).ipRates as Map<
+        string,
+        { count: number; windowStart: number }
+      >;
+
+      ipRates.set('old-ip', { count: 5, windowStart: Date.now() - 120_000 });
+      ipRates.set('fresh-ip', { count: 2, windowStart: Date.now() });
+
+      expect(ipRates.size).toBe(2);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (limiter as any).evictExpired();
+
+      expect(ipRates.has('old-ip')).toBe(false);
+      expect(ipRates.has('fresh-ip')).toBe(true);
+      expect(ipRates.size).toBe(1);
+    });
+  });
+
   describe('acquireSlot / releaseSlot', () => {
     it('allows up to 10 concurrent slots', () => {
       for (let i = 0; i < 10; i++) {

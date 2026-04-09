@@ -1,5 +1,5 @@
-import { For, onMount, onCleanup, type Component } from "solid-js";
-import { toasts, dismissToast, type Toast } from "../services/toast-store.js";
+import { For, onMount, onCleanup, type Component } from 'solid-js';
+import { toasts, dismissToast, type Toast } from '../services/toast-store.js';
 
 const icons: Record<string, string> = {
   error:
@@ -20,11 +20,7 @@ const ToastItem: Component<{ toast: Toast }> = (props) => {
   onCleanup(() => clearTimeout(timer));
 
   return (
-    <div
-      class={`toast toast--${props.toast.type}`}
-      role="alert"
-      aria-live="assertive"
-    >
+    <div class={`toast toast--${props.toast.type}`} role="alert" aria-live="assertive">
       <svg
         class="toast__icon"
         width="18"
@@ -36,7 +32,7 @@ const ToastItem: Component<{ toast: Toast }> = (props) => {
         stroke-linecap="round"
         stroke-linejoin="round"
         aria-hidden="true"
-        innerHTML={icons[props.toast.type]}
+        innerHTML={icons[props.toast.type] ?? ''}
       />
       <span class="toast__message">{props.toast.message}</span>
       <button
@@ -66,9 +62,7 @@ const ToastItem: Component<{ toast: Toast }> = (props) => {
 const ToastContainer: Component = () => {
   return (
     <div class="toast-container" aria-live="polite" aria-relevant="additions removals">
-      <For each={toasts()}>
-        {(t) => <ToastItem toast={t} />}
-      </For>
+      <For each={toasts()}>{(t) => <ToastItem toast={t} />}</For>
     </div>
   );
 };

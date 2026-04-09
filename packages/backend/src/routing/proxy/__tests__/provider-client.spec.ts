@@ -1440,5 +1440,48 @@ describe('ProviderClient', () => {
         }),
       ).rejects.toThrow('Network error');
     });
+
+    it('sanitizes Google API key from fetch error messages', async () => {
+      mockFetch.mockRejectedValue(
+        new Error('getaddrinfo ENOTFOUND generativelanguage.googleapis.com key=AIzaSySecret123'),
+      );
+
+      await expect(
+        client.forward({
+          provider: 'google',
+          apiKey: 'AIzaSySecret123',
+          model: 'gemini-2.0-flash',
+          body,
+          stream: false,
+        }),
+      ).rejects.toThrow('key=***');
+
+      // Verify the secret key is NOT in the error
+      try {
+        await client.forward({
+          provider: 'google',
+          apiKey: 'AIzaSySecret123',
+          model: 'gemini-2.0-flash',
+          body,
+          stream: false,
+        });
+      } catch (err) {
+        expect((err as Error).message).not.toContain('AIzaSySecret123');
+      }
+    });
+
+    it('sanitizes non-Error fetch exceptions', async () => {
+      mockFetch.mockRejectedValue('key=LEAKED_SECRET fetch failed');
+
+      await expect(
+        client.forward({
+          provider: 'google',
+          apiKey: 'LEAKED_SECRET',
+          model: 'gemini-2.0-flash',
+          body,
+          stream: false,
+        }),
+      ).rejects.toThrow('key=***');
+    });
   });
 });

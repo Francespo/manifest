@@ -31,7 +31,10 @@ export async function bootstrap() {
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
           frameAncestors: process.env['FRAME_ANCESTORS']
-            ? process.env['FRAME_ANCESTORS'].split(',')
+            ? process.env['FRAME_ANCESTORS']
+                .split(',')
+                .map((v) => v.trim())
+                .filter((v) => v !== '*')
             : ["'none'"],
         },
       },
@@ -106,6 +109,14 @@ export async function bootstrap() {
   const host = process.env['BIND_ADDRESS'] ?? '127.0.0.1';
   await app.listen(port, host);
   logger.log(`Server running on http://${host}:${port}`);
+
+  if (isDev && host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
+    logger.warn(
+      `Development mode with BIND_ADDRESS=${host} — auth guards are relaxed for loopback IPs. ` +
+        'Ensure this server is not exposed to untrusted networks.',
+    );
+  }
+
   return app;
 }
 

@@ -247,4 +247,49 @@ describe('httpErrorLogger', () => {
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('strips control characters from user-agent', () => {
+    const req = mockReq({
+      headers: { 'user-agent': 'evil\x00bot\x1f/1.0' },
+    });
+    const res = mockRes(400);
+    const next = jest.fn();
+
+    httpErrorLogger(req, res, next);
+    (res as unknown as EventEmitter).emit('finish');
+
+    const logMessage = warnSpy.mock.calls[0][0] as string;
+    expect(logMessage).toContain('ua=evilbot/1.0');
+    expect(logMessage).not.toMatch(/[\x00-\x1f\x7f]/);
+  });
+
+  it('strips control characters from forwarded IP', () => {
+    const req = mockReq({
+      headers: { 'user-agent': 'ua', 'x-forwarded-for': '1.2.3.4\x0d\x0a' },
+    });
+    const res = mockRes(400);
+    const next = jest.fn();
+
+    httpErrorLogger(req, res, next);
+    (res as unknown as EventEmitter).emit('finish');
+
+    const logMessage = warnSpy.mock.calls[0][0] as string;
+    expect(logMessage).toContain('ip=1.2.3.4');
+    expect(logMessage).not.toMatch(/[\x00-\x1f\x7f]/);
+  });
+
+  it('strips control characters from array x-forwarded-for', () => {
+    const req = mockReq({
+      headers: { 'user-agent': 'ua', 'x-forwarded-for': ['5.6\x007.8', '9.0.1.2'] },
+    });
+    const res = mockRes(400);
+    const next = jest.fn();
+
+    httpErrorLogger(req, res, next);
+    (res as unknown as EventEmitter).emit('finish');
+
+    const logMessage = warnSpy.mock.calls[0][0] as string;
+    expect(logMessage).toContain('ip=5.67.8');
+    expect(logMessage).not.toMatch(/[\x00-\x1f\x7f]/);
+  });
 });

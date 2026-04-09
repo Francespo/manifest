@@ -68,6 +68,7 @@ export class ProxyController {
 
     try {
       this.rateLimiter.checkLimit(userId);
+      this.rateLimiter.checkIpLimit(req.ip ?? '');
       this.rateLimiter.acquireSlot(userId);
       slotAcquired = true;
       const { forward, meta, failedFallbacks } = await this.proxyService.proxyRequest({

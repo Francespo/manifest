@@ -83,6 +83,7 @@ describe('SessionGuard', () => {
     expect(result).toBe(true);
     expect(request['user']).toEqual(mockSession.user);
     expect(request['session']).toEqual(mockSession.session);
+    expect(request['authMethod']).toBe('session');
   });
 
   it('returns true even when no session found', async () => {
@@ -94,6 +95,7 @@ describe('SessionGuard', () => {
 
     expect(result).toBe(true);
     expect(request['user']).toBeUndefined();
+    expect(request['authMethod']).toBeUndefined();
   });
 
   it('returns true and leaves user undefined when getSession throws', async () => {
@@ -105,5 +107,6 @@ describe('SessionGuard', () => {
 
     expect(result).toBe(true);
     expect(request['user']).toBeUndefined();
+    expect(request['authMethod']).toBeUndefined();
   });
 });

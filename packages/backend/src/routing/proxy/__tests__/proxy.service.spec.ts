@@ -150,6 +150,21 @@ describe('ProxyService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('throws BadRequestException when messages array exceeds 1000', async () => {
+    const messages = Array.from({ length: 1001 }, (_, i) => ({
+      role: 'user',
+      content: `msg-${i}`,
+    }));
+    await expect(
+      service.proxyRequest({
+        agentId: 'agent-1',
+        userId: 'user-1',
+        body: { messages },
+        sessionKey: 'default',
+      }),
+    ).rejects.toThrow('messages array exceeds maximum length of 1000');
+  });
+
   it('sanitizes null content fields before forwarding', async () => {
     resolveService.resolve.mockResolvedValue({
       tier: 'simple',

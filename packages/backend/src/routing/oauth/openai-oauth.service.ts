@@ -167,8 +167,8 @@ export class OpenaiOauthService {
       this.logger.log(`OpenAI OAuth token refreshed for agent=${agentId}`);
       return refreshed.t;
     } catch (err) {
-      this.logger.error(`Failed to refresh OpenAI token: ${err}`);
-      return blob.t;
+      this.logger.error(`Failed to refresh OpenAI token for agent=${agentId}: ${err}`);
+      return null;
     }
   }
 
@@ -259,8 +259,18 @@ export class OpenaiOauthService {
       });
   }
 
+  private isAllowedRedirectOrigin(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      const hostname = parsed.hostname;
+      return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+    } catch {
+      return false;
+    }
+  }
+
   private sendDoneResponse(res: ServerResponse, success: boolean, appUrl: string): void {
-    if (appUrl) {
+    if (appUrl && this.isAllowedRedirectOrigin(appUrl)) {
       const ok = success ? '1' : '0';
       res.writeHead(302, { Location: `${appUrl}/api/v1/oauth/openai/done?ok=${ok}` });
       res.end();
