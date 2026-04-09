@@ -56,6 +56,7 @@ function mockRequest(
     },
     body,
     headers,
+    ip: '127.0.0.1',
   };
 }
 
@@ -64,6 +65,7 @@ describe('ProxyController', () => {
   let proxyService: { proxyRequest: jest.Mock };
   let rateLimiter: {
     checkLimit: jest.Mock;
+    checkIpLimit: jest.Mock;
     recordSuccess: jest.Mock;
     acquireSlot: jest.Mock;
     releaseSlot: jest.Mock;
@@ -95,6 +97,7 @@ describe('ProxyController', () => {
     proxyService = { proxyRequest: jest.fn() };
     rateLimiter = {
       checkLimit: jest.fn(),
+      checkIpLimit: jest.fn(),
       recordSuccess: jest.fn(),
       acquireSlot: jest.fn(),
       releaseSlot: jest.fn(),

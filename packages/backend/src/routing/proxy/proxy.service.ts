@@ -75,6 +75,11 @@ export class ProxyService {
     }
     sanitizeNullContent(messages as Record<string, unknown>[]);
 
+    // Basic payload size guard — reject absurdly large message arrays
+    if (messages.length > 1000) {
+      throw new BadRequestException('messages array exceeds maximum length of 1000');
+    }
+
     const limitMessage = await this.enforceLimits(tenantId, agentName);
     if (limitMessage) {
       return buildFriendlyResponse(limitMessage, body.stream === true, 'limit_exceeded');

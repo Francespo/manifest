@@ -169,7 +169,25 @@ describe('ApiKeyGuard', () => {
     expect(mockFind).not.toHaveBeenCalled();
   });
 
-  it('skips API key validation when request.user is already set', async () => {
+  it('skips API key validation when authMethod is session', async () => {
+    const ctx = {
+      switchToHttp: () => ({
+        getRequest: () => ({
+          headers: {},
+          ip: '127.0.0.1',
+          authMethod: 'session',
+        }),
+      }),
+      getHandler: () => ({}),
+      getClass: () => ({}),
+    } as unknown as ExecutionContext;
+
+    const result = await guard.canActivate(ctx);
+    expect(result).toBe(true);
+    expect(mockFind).not.toHaveBeenCalled();
+  });
+
+  it('does not skip API key validation when user is set but authMethod is missing', async () => {
     const ctx = {
       switchToHttp: () => ({
         getRequest: () => ({
@@ -182,8 +200,6 @@ describe('ApiKeyGuard', () => {
       getClass: () => ({}),
     } as unknown as ExecutionContext;
 
-    const result = await guard.canActivate(ctx);
-    expect(result).toBe(true);
-    expect(mockFind).not.toHaveBeenCalled();
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 });

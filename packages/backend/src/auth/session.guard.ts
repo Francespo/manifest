@@ -34,6 +34,7 @@ export class SessionGuard implements CanActivate {
       if (session) {
         (request as Request & { user: unknown }).user = session.user;
         (request as Request & { session: unknown }).session = session.session;
+        (request as Request & { authMethod: string }).authMethod = 'session';
       }
     } catch (err) {
       this.logger.warn(`Session lookup failed: ${(err as Error).message}`);

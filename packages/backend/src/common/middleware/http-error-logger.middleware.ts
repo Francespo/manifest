@@ -18,6 +18,10 @@ function isSuppressed(url: string, status: number): boolean {
   return false;
 }
 
+function stripControlChars(str: string): string {
+  return str.replace(/[\x00-\x1f\x7f]/g, '');
+}
+
 export function httpErrorLogger(req: Request, res: Response, next: NextFunction): void {
   const start = Date.now();
 
@@ -26,9 +30,9 @@ export function httpErrorLogger(req: Request, res: Response, next: NextFunction)
     if (isSuppressed(req.originalUrl, res.statusCode)) return;
 
     const elapsed = Date.now() - start;
-    const ua = (req.headers['user-agent'] ?? '').slice(0, 120);
+    const ua = stripControlChars((req.headers['user-agent'] ?? '').slice(0, 120));
     const ip = req.headers['x-forwarded-for'] ?? req.ip ?? '';
-    const forwardedIp = Array.isArray(ip) ? ip[0] : ip;
+    const forwardedIp = stripControlChars(Array.isArray(ip) ? ip[0] : ip);
 
     logger.warn(
       `${res.statusCode} ${req.method} ${req.originalUrl} ${elapsed}ms ip=${forwardedIp} ua=${ua}`,

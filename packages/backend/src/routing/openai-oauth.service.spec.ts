@@ -309,7 +309,7 @@ describe('OpenaiOauthService', () => {
       expect(result).toBe('fresh-access');
     });
 
-    it('returns existing token when refresh fails', async () => {
+    it('returns null when refresh fails', async () => {
       const blob: OAuthTokenBlob = {
         t: 'stale-access',
         r: 'bad-refresh',
@@ -322,7 +322,7 @@ describe('OpenaiOauthService', () => {
       });
 
       const result = await service.unwrapToken(JSON.stringify(blob), 'agent-1', 'user-1');
-      expect(result).toBe('stale-access');
+      expect(result).toBeNull();
     });
   });
 
@@ -636,6 +636,125 @@ describe('OpenaiOauthService', () => {
       // No backendUrl → inline error HTML, not a redirect
       expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'text/html' });
       expect(res.end).toHaveBeenCalledWith(expect.stringContaining('manifest-oauth-error'));
+    });
+
+    it('redirects to localhost backendUrl on success', async () => {
+      let requestHandler: (req: unknown, res: unknown) => void;
+      createServerMock.mockImplementationOnce((handler: (req: unknown, res: unknown) => void) => {
+        requestHandler = handler;
+        return {
+          listen: jest.fn((_p: number, _h: string, cb?: () => void) => cb?.()),
+          close: jest.fn(),
+          on: jest.fn(),
+          unref: jest.fn(),
+        };
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (service as any).callbackServer = null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (service as any).serverReady = null;
+      const url = await service.generateAuthorizationUrl(
+        'agent-1',
+        'user-1',
+        'http://localhost:3001',
+      );
+      const state = new URL(url).searchParams.get('state')!;
+
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: 'tok',
+          refresh_token: 'ref',
+          expires_in: 3600,
+        }),
+      });
+
+      const res = { writeHead: jest.fn(), end: jest.fn() };
+      requestHandler!({ url: `/auth/callback?code=the-code&state=${state}` }, res);
+
+      await new Promise((r) => setTimeout(r, 50));
+      expect(res.writeHead).toHaveBeenCalledWith(302, {
+        Location: 'http://localhost:3001/api/v1/oauth/openai/done?ok=1',
+      });
+    });
+
+    it('falls back to HTML when backendUrl is an external origin', async () => {
+      let requestHandler: (req: unknown, res: unknown) => void;
+      createServerMock.mockImplementationOnce((handler: (req: unknown, res: unknown) => void) => {
+        requestHandler = handler;
+        return {
+          listen: jest.fn((_p: number, _h: string, cb?: () => void) => cb?.()),
+          close: jest.fn(),
+          on: jest.fn(),
+          unref: jest.fn(),
+        };
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (service as any).callbackServer = null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (service as any).serverReady = null;
+      const url = await service.generateAuthorizationUrl(
+        'agent-1',
+        'user-1',
+        'https://evil.example.com',
+      );
+      const state = new URL(url).searchParams.get('state')!;
+
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: 'tok',
+          refresh_token: 'ref',
+          expires_in: 3600,
+        }),
+      });
+
+      const res = { writeHead: jest.fn(), end: jest.fn() };
+      requestHandler!({ url: `/auth/callback?code=the-code&state=${state}` }, res);
+
+      await new Promise((r) => setTimeout(r, 50));
+      // Should NOT redirect to external URL — falls back to HTML
+      expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'text/html' });
+      expect(res.end).toHaveBeenCalledWith(expect.stringContaining('manifest-oauth-success'));
+    });
+
+    it('falls back to HTML when backendUrl is an invalid URL', async () => {
+      let requestHandler: (req: unknown, res: unknown) => void;
+      createServerMock.mockImplementationOnce((handler: (req: unknown, res: unknown) => void) => {
+        requestHandler = handler;
+        return {
+          listen: jest.fn((_p: number, _h: string, cb?: () => void) => cb?.()),
+          close: jest.fn(),
+          on: jest.fn(),
+          unref: jest.fn(),
+        };
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (service as any).callbackServer = null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (service as any).serverReady = null;
+      const url = await service.generateAuthorizationUrl('agent-1', 'user-1', 'not-a-valid-url');
+      const state = new URL(url).searchParams.get('state')!;
+
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: 'tok',
+          refresh_token: 'ref',
+          expires_in: 3600,
+        }),
+      });
+
+      const res = { writeHead: jest.fn(), end: jest.fn() };
+      requestHandler!({ url: `/auth/callback?code=the-code&state=${state}` }, res);
+
+      await new Promise((r) => setTimeout(r, 50));
+      // Invalid URL → falls back to HTML
+      expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'text/html' });
+      expect(res.end).toHaveBeenCalledWith(expect.stringContaining('manifest-oauth-success'));
     });
   });
 });

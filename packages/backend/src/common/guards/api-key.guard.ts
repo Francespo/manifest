@@ -35,8 +35,8 @@ export class ApiKeyGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<Request>();
 
-    // Skip if already authenticated via session
-    if ((request as Request & { user?: unknown }).user) return true;
+    // Skip if already authenticated via session (explicit flag prevents accidental bypass)
+    if ((request as Request & { authMethod?: string }).authMethod === 'session') return true;
 
     const apiKey = request.headers['x-api-key'];
 
