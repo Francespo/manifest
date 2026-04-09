@@ -5,11 +5,15 @@ const logger = new Logger('HttpErrors');
 
 /** Paths from old OTLP clients that are expected 410s — don't log them. */
 const SUPPRESSED_PREFIXES = ['/otlp/', '/api/v1/otlp/'];
+const SUPPRESSED_EXACT = ['/v1/metrics', '/v1/traces', '/v1/logs'];
 
 function isSuppressed(url: string, status: number): boolean {
   if (status !== 410 && status !== 404) return false;
   for (const prefix of SUPPRESSED_PREFIXES) {
     if (url.startsWith(prefix)) return true;
+  }
+  for (const path of SUPPRESSED_EXACT) {
+    if (url === path) return true;
   }
   return false;
 }

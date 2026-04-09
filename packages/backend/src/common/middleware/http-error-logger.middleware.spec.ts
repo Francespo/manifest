@@ -193,6 +193,39 @@ describe('httpErrorLogger', () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
+  it('suppresses 410 on /v1/metrics (stripped OTLP prefix)', () => {
+    const req = mockReq({ originalUrl: '/v1/metrics' });
+    const res = mockRes(410);
+    const next = jest.fn();
+
+    httpErrorLogger(req, res, next);
+    (res as unknown as EventEmitter).emit('finish');
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('suppresses 410 on /v1/traces (stripped OTLP prefix)', () => {
+    const req = mockReq({ originalUrl: '/v1/traces' });
+    const res = mockRes(410);
+    const next = jest.fn();
+
+    httpErrorLogger(req, res, next);
+    (res as unknown as EventEmitter).emit('finish');
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not suppress /v1/chat/completions errors', () => {
+    const req = mockReq({ originalUrl: '/v1/chat/completions' });
+    const res = mockRes(400);
+    const next = jest.fn();
+
+    httpErrorLogger(req, res, next);
+    (res as unknown as EventEmitter).emit('finish');
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('does not suppress non-OTLP 410 responses', () => {
     const req = mockReq({ originalUrl: '/api/v1/some-endpoint' });
     const res = mockRes(410);
