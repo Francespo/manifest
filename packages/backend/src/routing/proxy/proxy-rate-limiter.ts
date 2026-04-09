@@ -75,6 +75,7 @@ export class ProxyRateLimiter implements OnModuleDestroy {
 
     entry.count++;
     this.ipRates.set(ip, entry);
+    this.evictIpLruIfNeeded();
   }
 
   acquireSlot(userId: string): void {
@@ -115,6 +116,13 @@ export class ProxyRateLimiter implements OnModuleDestroy {
     while (this.rates.size > MAX_RATE_ENTRIES) {
       const oldest = this.rates.keys().next().value as string;
       this.rates.delete(oldest);
+    }
+  }
+
+  private evictIpLruIfNeeded(): void {
+    while (this.ipRates.size > MAX_RATE_ENTRIES) {
+      const oldest = this.ipRates.keys().next().value as string;
+      this.ipRates.delete(oldest);
     }
   }
 }
