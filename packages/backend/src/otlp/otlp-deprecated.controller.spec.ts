@@ -70,4 +70,56 @@ describe('OtlpDeprecatedController', () => {
     expect(traces).toBe(metrics);
     expect(metrics).toBe(logs);
   });
+
+  describe('misrouted OTLP variants', () => {
+    const expectedGone = {
+      error: expect.objectContaining({
+        type: 'gone',
+        status: 410,
+        message: expect.stringContaining('/v1/chat/completions'),
+      }),
+    };
+
+    it('misroutedTraces returns 410 with migration message', () => {
+      expect(controller.misroutedTraces()).toEqual(expectedGone);
+    });
+
+    it('misroutedMetrics returns 410 with migration message', () => {
+      expect(controller.misroutedMetrics()).toEqual(expectedGone);
+    });
+
+    it('misroutedLogs returns 410 with migration message', () => {
+      expect(controller.misroutedLogs()).toEqual(expectedGone);
+    });
+
+    it('strippedMetrics returns 410 with migration message', () => {
+      expect(controller.strippedMetrics()).toEqual(expectedGone);
+    });
+
+    it('strippedTraces returns 410 with migration message', () => {
+      expect(controller.strippedTraces()).toEqual(expectedGone);
+    });
+
+    it('strippedLogs returns 410 with migration message', () => {
+      expect(controller.strippedLogs()).toEqual(expectedGone);
+    });
+  });
+
+  describe('wrong chat completions path', () => {
+    it('returns 404 with redirect hint', () => {
+      const result = controller.wrongChatPath();
+      expect(result.error.status).toBe(404);
+      expect(result.error.message).toContain('/v1/chat/completions');
+    });
+
+    it('has invalid_request_error type', () => {
+      const result = controller.wrongChatPath();
+      expect(result.error.type).toBe('invalid_request_error');
+    });
+
+    it('includes the correct baseURL hint', () => {
+      const result = controller.wrongChatPath();
+      expect(result.error.message).toContain('https://app.manifest.build/v1');
+    });
+  });
 });
