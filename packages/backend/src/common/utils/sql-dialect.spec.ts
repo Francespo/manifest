@@ -10,7 +10,6 @@ import {
   portableSql,
   sqlCastInterval,
   sqlSanitizeCost,
-  sqlJsonField,
 } from './sql-dialect';
 
 describe('sql-dialect', () => {
@@ -221,27 +220,6 @@ describe('sql-dialect', () => {
     it('works with different column names', () => {
       const result = sqlSanitizeCost('cost');
       expect(result).toBe('CASE WHEN cost >= 0 THEN cost ELSE NULL END');
-    });
-  });
-
-  describe('sqlJsonField', () => {
-    it('emits Postgres ::jsonb ->> syntax', () => {
-      expect(sqlJsonField('t.attr', 'sdk', 'postgres')).toBe("(t.attr::jsonb ->> 'sdk')");
-    });
-
-    it('emits SQLite json_extract syntax', () => {
-      expect(sqlJsonField('t.attr', 'appName', 'sqlite')).toBe("json_extract(t.attr, '$.appName')");
-    });
-
-    it('rejects keys with non-identifier characters to prevent injection', () => {
-      expect(() => sqlJsonField('t.attr', "x'; DROP TABLE", 'postgres')).toThrow(/invalid key/);
-      expect(() => sqlJsonField('t.attr', '', 'postgres')).toThrow(/invalid key/);
-      expect(() => sqlJsonField('t.attr', '1bad', 'postgres')).toThrow(/invalid key/);
-    });
-
-    it('accepts identifier-style keys', () => {
-      expect(sqlJsonField('t.c', 'foo_bar', 'postgres')).toContain('foo_bar');
-      expect(sqlJsonField('t.c', '_x', 'sqlite')).toContain('_x');
     });
   });
 });

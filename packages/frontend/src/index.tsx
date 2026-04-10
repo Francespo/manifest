@@ -14,7 +14,6 @@ import type { ParentComponent } from 'solid-js';
 import './styles/theme.css';
 
 const Overview = lazy(() => import('./pages/Overview.jsx'));
-const Callers = lazy(() => import('./pages/Callers.jsx'));
 const MessageLog = lazy(() => import('./pages/MessageLog.jsx'));
 const Settings = lazy(() => import('./pages/Settings.jsx'));
 const Routing = lazy(() => import('./pages/Routing.jsx'));
@@ -57,7 +56,6 @@ render(
           <Route path="/" component={Workspace} />
           <Route path="/agents/:agentName" component={AgentGuard}>
             <Route path="/" component={Overview} />
-            <Route path="/callers" component={Callers} />
             <Route path="/messages" component={MessageLog} />
             <Route path="/settings/*" component={Settings} />
             <Route path="/routing" component={Routing} />

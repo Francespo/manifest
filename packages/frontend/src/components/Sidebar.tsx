@@ -45,14 +45,6 @@ const Sidebar: Component = () => {
         >
           Messages
         </A>
-        <A
-          href={path('/callers')}
-          class="sidebar__link"
-          classList={{ active: isActive('/callers') }}
-          aria-current={isActive('/callers') ? 'page' : undefined}
-        >
-          Callers
-        </A>
 
         <div class="sidebar__section-label">MANAGE</div>
         <A

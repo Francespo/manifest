@@ -83,24 +83,6 @@ export function sqlSanitizeCost(col: string): string {
 }
 
 /**
- * Returns a SQL expression that extracts a top-level JSON field from a
- * text column containing JSON. Safe against SQL injection because `key`
- * is validated against a strict whitelist before being interpolated.
- *
- * Postgres: `(col::jsonb ->> 'key')`
- * SQLite (json1): `json_extract(col, '$.key')`
- */
-export function sqlJsonField(col: string, key: string, dialect: DbDialect): string {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
-    throw new Error(`sqlJsonField: invalid key ${JSON.stringify(key)}`);
-  }
-  if (dialect === 'sqlite') {
-    return `json_extract(${col}, '$.${key}')`;
-  }
-  return `(${col}::jsonb ->> '${key}')`;
-}
-
-/**
  * Convert Postgres-style $1, $2 placeholders to ? for SQLite.
  * Pass-through for Postgres.
  */

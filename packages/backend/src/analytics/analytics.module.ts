@@ -14,14 +14,12 @@ import { TimeseriesQueriesService } from './services/timeseries-queries.service'
 import { MessagesQueryService } from './services/messages-query.service';
 import { MessageDetailsService } from './services/message-details.service';
 import { AgentAnalyticsService } from './services/agent-analytics.service';
-import { CallersQueryService } from './services/callers-query.service';
 import { OverviewController } from './controllers/overview.controller';
 import { TokensController } from './controllers/tokens.controller';
 import { CostsController } from './controllers/costs.controller';
 import { MessagesController } from './controllers/messages.controller';
 import { AgentsController } from './controllers/agents.controller';
 import { AgentAnalyticsController } from './controllers/agent-analytics.controller';
-import { CallersController } from './controllers/callers.controller';
 
 @Module({
   imports: [
@@ -36,7 +34,6 @@ import { CallersController } from './controllers/callers.controller';
     MessagesController,
     AgentsController,
     AgentAnalyticsController,
-    CallersController,
   ],
   providers: [
     AggregationService,
@@ -45,7 +42,6 @@ import { CallersController } from './controllers/callers.controller';
     MessagesQueryService,
     MessageDetailsService,
     AgentAnalyticsService,
-    CallersQueryService,
   ],
 })
 export class AnalyticsModule {}
