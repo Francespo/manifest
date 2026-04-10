@@ -10,6 +10,7 @@ import { FailedFallback } from './proxy-fallback.service';
 import { StreamUsage } from './stream-writer';
 import { ProxyMessageDedup } from './proxy-message-dedup';
 import { computeTokenCost } from '../../common/utils/cost-calculator';
+import { CallerAttribution } from './caller-classifier';
 
 export interface ProviderErrorOpts {
   model?: string;
@@ -19,6 +20,7 @@ export interface ProviderErrorOpts {
   fallbackIndex?: number;
   authType?: string;
   specificityCategory?: string;
+  callerAttribution?: CallerAttribution | null;
 }
 
 export interface FallbackSuccessOpts {
@@ -28,6 +30,7 @@ export interface FallbackSuccessOpts {
   timestamp?: string;
   authType?: string;
   usage?: StreamUsage;
+  callerAttribution?: CallerAttribution | null;
 }
 
 export interface SuccessMessageOpts {
@@ -36,6 +39,7 @@ export interface SuccessMessageOpts {
   sessionKey?: string;
   durationMs?: number;
   specificityCategory?: string;
+  callerAttribution?: CallerAttribution | null;
 }
 
 @Injectable()
@@ -76,6 +80,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       fallbackIndex,
       authType,
       specificityCategory,
+      callerAttribution,
     } = opts ?? {};
 
     if (httpStatus === 429) {
@@ -115,6 +120,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       auth_type: authType ?? null,
       user_id: ctx.userId,
       specificity_category: specificityCategory ?? null,
+      caller_attribution: callerAttribution ?? null,
     });
     this.eventBus.emit(ctx.userId);
   }
@@ -130,9 +136,17 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       markHandled?: boolean;
       lastAsError?: boolean;
       authType?: string;
+      callerAttribution?: CallerAttribution | null;
     },
   ): Promise<void> {
-    const { traceId, baseTimeMs, markHandled = false, lastAsError = false, authType } = opts ?? {};
+    const {
+      traceId,
+      baseTimeMs,
+      markHandled = false,
+      lastAsError = false,
+      authType,
+      callerAttribution,
+    } = opts ?? {};
     for (let i = 0; i < failures.length; i++) {
       const f = failures[i];
       const ts = baseTimeMs
@@ -165,6 +179,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
         fallback_index: f.fallbackIndex,
         auth_type: authType ?? null,
         user_id: ctx.userId,
+        caller_attribution: callerAttribution ?? null,
       });
     }
     this.eventBus.emit(ctx.userId);
@@ -177,6 +192,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
     errorBody: string,
     timestamp: string,
     authType?: string,
+    opts?: { callerAttribution?: CallerAttribution | null },
   ): Promise<void> {
     await this.messageRepo.insert({
       id: uuid(),
@@ -197,6 +213,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       fallback_index: null,
       auth_type: authType ?? null,
       user_id: ctx.userId,
+      caller_attribution: opts?.callerAttribution ?? null,
     });
     this.eventBus.emit(ctx.userId);
   }
@@ -207,7 +224,15 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
     tier: string,
     opts?: FallbackSuccessOpts,
   ): Promise<void> {
-    const { traceId, fallbackFromModel, fallbackIndex, timestamp, authType, usage } = opts ?? {};
+    const {
+      traceId,
+      fallbackFromModel,
+      fallbackIndex,
+      timestamp,
+      authType,
+      usage,
+      callerAttribution,
+    } = opts ?? {};
 
     const inputTokens = usage?.prompt_tokens ?? 0;
     const outputTokens = usage?.completion_tokens ?? 0;
@@ -239,6 +264,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       fallback_from_model: fallbackFromModel ?? null,
       fallback_index: fallbackIndex ?? null,
       user_id: ctx.userId,
+      caller_attribution: callerAttribution ?? null,
     });
     this.eventBus.emit(ctx.userId);
   }
@@ -251,7 +277,8 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
     usage: StreamUsage,
     opts?: SuccessMessageOpts,
   ): Promise<void> {
-    const { traceId, authType, sessionKey, durationMs, specificityCategory } = opts ?? {};
+    const { traceId, authType, sessionKey, durationMs, specificityCategory, callerAttribution } =
+      opts ?? {};
 
     const costUsd = computeTokenCost({
       inputTokens: usage.prompt_tokens,
@@ -295,6 +322,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
               user_id: ctx.userId,
               duration_ms: durationMs ?? null,
               specificity_category: specificityCategory ?? null,
+              caller_attribution: callerAttribution ?? null,
             };
             if (normalizedSessionKey) updatePayload.session_key = normalizedSessionKey;
 
@@ -326,6 +354,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
             user_id: ctx.userId,
             duration_ms: durationMs ?? null,
             specificity_category: specificityCategory ?? null,
+            caller_attribution: callerAttribution ?? null,
           });
           wrote = true;
         });
