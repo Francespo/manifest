@@ -231,6 +231,28 @@ describe('PROVIDER_ENDPOINTS', () => {
       'Content-Type': 'application/json',
     });
   });
+
+  it('zai-subscription uses Coding Plan base URL', () => {
+    const ep = PROVIDER_ENDPOINTS['zai-subscription'];
+    expect(ep.baseUrl).toBe('https://open.bigmodel.cn/api/coding/paas/v4');
+  });
+
+  it('zai-subscription builds /chat/completions path', () => {
+    const path = PROVIDER_ENDPOINTS['zai-subscription'].buildPath('glm-5.1');
+    expect(path).toBe('/chat/completions');
+  });
+
+  it('zai-subscription uses openai format', () => {
+    expect(PROVIDER_ENDPOINTS['zai-subscription'].format).toBe('openai');
+  });
+
+  it('zai-subscription uses Bearer auth headers', () => {
+    const headers = PROVIDER_ENDPOINTS['zai-subscription'].buildHeaders('zai-api-key');
+    expect(headers).toEqual({
+      Authorization: 'Bearer zai-api-key',
+      'Content-Type': 'application/json',
+    });
+  });
 });
 
 describe('buildEndpointOverride', () => {

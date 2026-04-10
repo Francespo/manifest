@@ -45,6 +45,7 @@ const anthropicBearerHeaders = (apiKey: string): Record<string, string> => ({
  */
 const CHATGPT_SUBSCRIPTION_BASE = 'https://chatgpt.com/backend-api';
 const MINIMAX_SUBSCRIPTION_BASE = 'https://api.minimax.io/anthropic';
+const ZAI_SUBSCRIPTION_BASE = 'https://open.bigmodel.cn/api/coding/paas/v4';
 const chatgptSubscriptionHeaders = (apiKey: string) => ({
   Authorization: `Bearer ${apiKey}`,
   'Content-Type': 'application/json',
@@ -117,6 +118,12 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
     baseUrl: 'https://api.z.ai',
     buildHeaders: openaiHeaders,
     buildPath: () => '/api/paas/v4/chat/completions',
+    format: 'openai',
+  },
+  'zai-subscription': {
+    baseUrl: ZAI_SUBSCRIPTION_BASE,
+    buildHeaders: openaiHeaders,
+    buildPath: () => '/chat/completions',
     format: 'openai',
   },
   google: {
