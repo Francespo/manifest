@@ -1,4 +1,17 @@
-import { toGoogleRequest, fromGoogleResponse, transformGoogleStreamChunk } from '../google-adapter';
+import {
+  toGoogleRequest,
+  fromGoogleResponse,
+  transformGoogleStreamChunk as transformGoogleStreamChunkRaw,
+} from '../google-adapter';
+
+/**
+ * Test helper: most tests below only care about the SSE chunk string produced
+ * by the transform, not the signature side-channel. This wrapper keeps the
+ * old string-returning shape so those tests don't need to destructure.
+ */
+function transformGoogleStreamChunk(chunk: string, model: string): string | null {
+  return transformGoogleStreamChunkRaw(chunk, model).chunk;
+}
 
 describe('Google Adapter', () => {
   describe('toGoogleRequest', () => {
@@ -420,7 +433,7 @@ describe('Google Adapter', () => {
       });
     });
 
-    it('passes through thought_signature in tool_calls to functionCall parts', () => {
+    it('passes through thought_signature as Part-level thoughtSignature', () => {
       const body = {
         messages: [
           { role: 'user', content: 'Read my file' },
@@ -438,16 +451,67 @@ describe('Google Adapter', () => {
           },
         ],
       };
-      const result = toGoogleRequest(body, 'gemini-3-flash-preview');
+      const result = toGoogleRequest(body, 'gemini-3-pro-preview');
       const contents = result.contents as Array<{ parts: Array<Record<string, unknown>> }>;
-      expect(contents[1].parts[0].functionCall).toEqual({
-        name: 'read_file',
-        args: { path: 'a.txt' },
-        thought_signature: 'sig_abc123',
+      // The signature MUST be a sibling of functionCall on the Part, not
+      // nested inside functionCall — Gemini 3 rejects the nested form.
+      expect(contents[1].parts[0]).toEqual({
+        functionCall: { name: 'read_file', args: { path: 'a.txt' } },
+        thoughtSignature: 'sig_abc123',
       });
+      expect(
+        (contents[1].parts[0].functionCall as Record<string, unknown>).thoughtSignature,
+      ).toBeUndefined();
     });
 
-    it('omits thought_signature when not present in tool_calls', () => {
+    it('re-injects cached signatures via signatureLookup', () => {
+      const body = {
+        messages: [
+          { role: 'user', content: 'Read my file' },
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'read_file', arguments: '{}' },
+              },
+            ],
+          },
+        ],
+      };
+      const lookup = jest.fn().mockReturnValue('cached_sig');
+      const result = toGoogleRequest(body, 'gemini-3-pro-preview', lookup);
+      const contents = result.contents as Array<{ parts: Array<Record<string, unknown>> }>;
+      expect(lookup).toHaveBeenCalledWith('call_1');
+      expect(contents[1].parts[0].thoughtSignature).toBe('cached_sig');
+    });
+
+    it('prefers client-echoed signature over cache when both exist', () => {
+      const body = {
+        messages: [
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'noop', arguments: '{}' },
+                thought_signature: 'from_client',
+              },
+            ],
+          },
+        ],
+      };
+      const lookup = jest.fn().mockReturnValue('from_cache');
+      const result = toGoogleRequest(body, 'gemini-3-pro-preview', lookup);
+      const contents = result.contents as Array<{ parts: Array<Record<string, unknown>> }>;
+      expect(contents[0].parts[0].thoughtSignature).toBe('from_client');
+    });
+
+    it('omits thoughtSignature when neither client nor cache provides one', () => {
       const body = {
         messages: [
           {
@@ -465,7 +529,8 @@ describe('Google Adapter', () => {
       };
       const result = toGoogleRequest(body, 'gemini-2.0-flash');
       const contents = result.contents as Array<{ parts: Array<Record<string, unknown>> }>;
-      expect(contents[0].parts[0].functionCall).toEqual({ name: 'noop', args: {} });
+      expect(contents[0].parts[0]).toEqual({ functionCall: { name: 'noop', args: {} } });
+      expect(contents[0].parts[0].thoughtSignature).toBeUndefined();
     });
   });
 
@@ -792,18 +857,15 @@ describe('Google Adapter', () => {
       expect(usage.cache_read_tokens).toBe(0);
     });
 
-    it('preserves thought_signature on function call response', () => {
+    it('extracts Part-level thoughtSignature from functionCall response', () => {
       const google = {
         candidates: [
           {
             content: {
               parts: [
                 {
-                  functionCall: {
-                    name: 'read_file',
-                    args: { path: 'a.txt' },
-                    thought_signature: 'sig_xyz789',
-                  },
+                  functionCall: { name: 'read_file', args: { path: 'a.txt' } },
+                  thoughtSignature: 'sig_xyz789',
                 },
               ],
             },
@@ -812,14 +874,43 @@ describe('Google Adapter', () => {
         ],
       };
 
-      const result = fromGoogleResponse(google, 'gemini-3-flash-preview');
+      const result = fromGoogleResponse(google, 'gemini-3-pro-preview');
       const choices = result.choices as Array<{ message: Record<string, unknown> }>;
       const toolCalls = choices[0].message.tool_calls as Array<Record<string, unknown>>;
       expect(toolCalls).toHaveLength(1);
       expect(toolCalls[0].thought_signature).toBe('sig_xyz789');
+
+      // The extracted signature is also surfaced via _extractedSignatures so
+      // the response handler can cache it for the next turn.
+      const extracted = (result as Record<string, unknown>)._extractedSignatures as Array<{
+        toolCallId: string;
+        signature: string;
+      }>;
+      expect(extracted).toHaveLength(1);
+      expect(extracted[0].signature).toBe('sig_xyz789');
+      expect(extracted[0].toolCallId).toBe(toolCalls[0].id);
     });
 
-    it('omits thought_signature when not in function call response', () => {
+    it('drops thought text parts from assistant content', () => {
+      const google = {
+        candidates: [
+          {
+            content: {
+              parts: [
+                { text: 'Internal reasoning...', thought: true },
+                { text: 'User-facing answer.' },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+      };
+      const result = fromGoogleResponse(google, 'gemini-3-pro-preview');
+      const choices = result.choices as Array<{ message: Record<string, unknown> }>;
+      expect(choices[0].message.content).toBe('User-facing answer.');
+    });
+
+    it('omits thought_signature when the Part has no signature', () => {
       const google = {
         candidates: [
           {
@@ -1007,27 +1098,56 @@ describe('Google Adapter', () => {
       expect(data.choices[0].delta.tool_calls[1].function.name).toBe('tool_b');
     });
 
-    it('preserves thought_signature on streaming functionCall', () => {
+    it('preserves Part-level thoughtSignature on streaming functionCall', () => {
       const chunk = JSON.stringify({
         candidates: [
           {
             content: {
               parts: [
                 {
-                  functionCall: {
-                    name: 'read_file',
-                    args: { path: 'a.txt' },
-                    thought_signature: 'sig_stream_456',
-                  },
+                  functionCall: { name: 'read_file', args: { path: 'a.txt' } },
+                  thoughtSignature: 'sig_stream_456',
                 },
               ],
             },
           },
         ],
       });
-      const result = transformGoogleStreamChunk(chunk, 'gemini-3-flash-preview');
+      const { chunk: result, signatures } = transformGoogleStreamChunkRaw(
+        chunk,
+        'gemini-3-pro-preview',
+      );
       const data = JSON.parse(result!.split('\n\n')[0].replace('data: ', ''));
       expect(data.choices[0].delta.tool_calls[0].thought_signature).toBe('sig_stream_456');
+      expect(signatures).toHaveLength(1);
+      expect(signatures[0].signature).toBe('sig_stream_456');
+      expect(signatures[0].toolCallId).toBe(data.choices[0].delta.tool_calls[0].id);
+    });
+
+    it('returns empty signatures array when stream chunk has no thoughtSignature', () => {
+      const chunk = JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'hi' }] } }],
+      });
+      const { signatures } = transformGoogleStreamChunkRaw(chunk, 'gemini-2.0-flash');
+      expect(signatures).toEqual([]);
+    });
+
+    it('drops thought text parts from streaming content', () => {
+      const chunk = JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [
+                { text: 'thinking', thought: true },
+                { text: 'answer' },
+              ],
+            },
+          },
+        ],
+      });
+      const result = transformGoogleStreamChunk(chunk, 'gemini-3-pro-preview');
+      const data = JSON.parse(result!.split('\n\n')[0].replace('data: ', ''));
+      expect(data.choices[0].delta.content).toBe('answer');
     });
 
     it('handles functionCall with null args', () => {

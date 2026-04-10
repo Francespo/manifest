@@ -480,7 +480,6 @@ describe('proxy-response-handler', () => {
       const sessionKey = 'sess-123';
 
       // The transformer is captured by pipeStream — we need to invoke it manually.
-      // Capture the transform function passed to pipeStream.
       let capturedTransform: ((chunk: string) => string | null) | undefined;
       pipeStreamSpy.mockImplementation(
         async (_body: unknown, _res: unknown, transform?: (chunk: string) => string | null) => {
@@ -489,7 +488,15 @@ describe('proxy-response-handler', () => {
         },
       );
 
-      client.convertGoogleStreamChunk.mockImplementation((chunk: string) => chunk);
+      // convertGoogleStreamChunk now returns structured { chunk, signatures }
+      // so the handler can cache signatures without scraping the output.
+      client.convertGoogleStreamChunk.mockReturnValue({
+        chunk: 'data: {}\n\n',
+        signatures: [
+          { toolCallId: 'call_abc', signature: 'sig_xyz' },
+          { toolCallId: 'call_def', signature: 'sig_uvw' },
+        ],
+      });
 
       await handleStreamResponse(
         res as any,
@@ -502,12 +509,36 @@ describe('proxy-response-handler', () => {
       );
 
       expect(capturedTransform).toBeDefined();
+      const out = capturedTransform!('{}');
+      expect(out).toBe('data: {}\n\n');
 
-      // Simulate a chunk with thought_signature and id fields
-      const chunk = '{"id":"call_abc","thought_signature":"sig_xyz"}';
-      capturedTransform!(chunk);
-
+      expect(signatureCache.store).toHaveBeenCalledTimes(2);
       expect(signatureCache.store).toHaveBeenCalledWith('sess-123', 'call_abc', 'sig_xyz');
+      expect(signatureCache.store).toHaveBeenCalledWith('sess-123', 'call_def', 'sig_uvw');
+    });
+
+    it('should not cache when signatureCache is absent', async () => {
+      const { res } = mockResponse();
+      const forward = mockForward({ isGoogle: true });
+      const client = mockProviderClient();
+      const meta = makeMeta();
+
+      let capturedTransform: ((chunk: string) => string | null) | undefined;
+      pipeStreamSpy.mockImplementation(
+        async (_body: unknown, _res: unknown, transform?: (chunk: string) => string | null) => {
+          capturedTransform = transform;
+          return null;
+        },
+      );
+      client.convertGoogleStreamChunk.mockReturnValue({
+        chunk: 'data: {}\n\n',
+        signatures: [{ toolCallId: 'call_abc', signature: 'sig_xyz' }],
+      });
+
+      await handleStreamResponse(res as any, forward as any, meta, {}, client as any);
+
+      // Should not throw — just drops the signatures silently.
+      expect(() => capturedTransform!('{}')).not.toThrow();
     });
   });
 

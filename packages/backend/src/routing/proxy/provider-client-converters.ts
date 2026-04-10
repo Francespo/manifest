@@ -1,4 +1,9 @@
-import { toGoogleRequest, fromGoogleResponse, transformGoogleStreamChunk } from './google-adapter';
+import {
+  toGoogleRequest,
+  fromGoogleResponse,
+  transformGoogleStreamChunk,
+  type GoogleStreamChunkResult,
+} from './google-adapter';
 import {
   toAnthropicRequest,
   fromAnthropicResponse,
@@ -34,7 +39,10 @@ export function convertGoogleResponse(
 }
 
 /** Convert a Google SSE chunk to OpenAI SSE format. */
-export function convertGoogleStreamChunk(chunk: string, model: string): string | null {
+export function convertGoogleStreamChunk(
+  chunk: string,
+  model: string,
+): GoogleStreamChunkResult {
   return transformGoogleStreamChunk(chunk, model);
 }
 
@@ -58,7 +66,7 @@ export function createAnthropicTransformer(model: string): (chunk: string) => st
 
 // Re-export adapter functions used by ProviderClient.forward()
 export { toGoogleRequest, toAnthropicRequest, toResponsesRequest, collectChatGptSseResponse };
-export type { ExtractedSignature } from './google-adapter';
+export type { ExtractedSignature, GoogleStreamChunkResult } from './google-adapter';
 export type { SignatureLookup } from './proxy-types';
 
 // ─── OpenAI body sanitization (used by ProviderClient.forward) ───────────────

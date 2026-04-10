@@ -15,8 +15,12 @@ interface GeminiContent {
 
 interface GeminiPart {
   text?: string;
-  functionCall?: { name: string; args: Record<string, unknown>; [key: string]: unknown };
+  functionCall?: { name: string; args: Record<string, unknown> };
   functionResponse?: { name: string; response: Record<string, unknown> };
+  // Google attaches thoughtSignature at the Part level (sibling of functionCall),
+  // not inside the functionCall object. Gemini 3 rejects tool-use follow-ups
+  // that don't round-trip this field.
+  thoughtSignature?: string;
 }
 
 /**
@@ -109,15 +113,15 @@ function messageToContent(
         name: tc.function.name,
         args: safeParseArgs(tc.function.arguments),
       };
-      // Preserve thought_signature from the client, or re-inject from cache
-      const sig = (tc as Record<string, unknown>).thought_signature;
-      if (sig) {
-        functionCall!.thought_signature = sig;
-      } else if (signatureLookup) {
-        const cached = signatureLookup(tc.id);
-        if (cached) functionCall!.thought_signature = cached;
-      }
-      parts.push({ functionCall });
+      const part: GeminiPart = { functionCall };
+      // Preserve thought_signature from the client (if it echoed it back), or
+      // re-inject it from the cache. On the Google wire, the field lives at
+      // the Part level as `thoughtSignature`, not inside functionCall.
+      const echoed = (tc as Record<string, unknown>).thought_signature;
+      const cached = signatureLookup ? signatureLookup(tc.id) : null;
+      const signature = typeof echoed === 'string' ? echoed : cached;
+      if (signature) part.thoughtSignature = signature;
+      parts.push(part);
     }
   }
 
@@ -233,38 +237,32 @@ export function fromGoogleResponse(
 
   let textContent = '';
   const toolCalls: Record<string, unknown>[] = [];
+  const extractedSignatures: ExtractedSignature[] = [];
 
   for (const part of parts) {
-    if (part.text) textContent += part.text;
+    // Thinking summaries come back as text parts with `thought: true`. Skip
+    // them — the OpenAI-compat surface doesn't expose them, and including
+    // them in `content` would leak chain-of-thought into the assistant reply.
+    if (part.text && !part.thought) textContent += part.text;
     if (part.functionCall) {
-      const fc = part.functionCall as {
-        name: string;
-        args: Record<string, unknown>;
-        thought_signature?: string;
-      };
+      const fc = part.functionCall as { name: string; args: Record<string, unknown> };
+      const toolCallId = `call_${randomUUID()}`;
       const toolCall: Record<string, unknown> = {
-        id: `call_${randomUUID()}`,
+        id: toolCallId,
         type: 'function',
         function: { name: fc.name, arguments: JSON.stringify(fc.args) },
       };
-      if (fc.thought_signature) toolCall.thought_signature = fc.thought_signature;
+      const sig = part.thoughtSignature;
+      if (typeof sig === 'string' && sig) {
+        toolCall.thought_signature = sig;
+        extractedSignatures.push({ toolCallId, signature: sig });
+      }
       toolCalls.push(toolCall);
     }
   }
 
   const message: Record<string, unknown> = { role: 'assistant', content: textContent || null };
   if (toolCalls.length > 0) message.tool_calls = toolCalls;
-
-  // Extract thought_signatures for caching
-  const extractedSignatures: ExtractedSignature[] = [];
-  for (const tc of toolCalls) {
-    if (tc.thought_signature && typeof tc.id === 'string') {
-      extractedSignatures.push({
-        toolCallId: tc.id as string,
-        signature: tc.thought_signature as string,
-      });
-    }
-  }
 
   const usage = googleResp.usageMetadata as Record<string, number> | undefined;
 
@@ -305,37 +303,58 @@ function mapFinishReason(candidate: Record<string, unknown>, hasToolCalls = fals
 
 /* ── Stream chunk conversion ── */
 
-export function transformGoogleStreamChunk(chunk: string, model: string): string | null {
-  if (!chunk.trim()) return null;
+/**
+ * Result of transforming one Google SSE chunk. `chunk` is the OpenAI-formatted
+ * SSE text to forward to the client (null when the input chunk produced no
+ * output). `signatures` lists any thoughtSignature values extracted from
+ * functionCall parts in this chunk, which the caller should cache so they can
+ * be re-injected on the next turn (Gemini 3 requires this).
+ */
+export interface GoogleStreamChunkResult {
+  chunk: string | null;
+  signatures: ExtractedSignature[];
+}
+
+export function transformGoogleStreamChunk(
+  chunk: string,
+  model: string,
+): GoogleStreamChunkResult {
+  const empty: GoogleStreamChunkResult = { chunk: null, signatures: [] };
+  if (!chunk.trim()) return empty;
 
   let data: Record<string, unknown>;
   try {
     data = JSON.parse(chunk);
   } catch {
-    return null;
+    return empty;
   }
 
   const candidates = (data.candidates as Array<Record<string, unknown>>) || [];
   const candidate = candidates[0];
   const content = candidate?.content as { parts?: Array<Record<string, unknown>> } | undefined;
   const parts = content?.parts || [];
-  const text = parts.map((p) => p.text || '').join('');
+  const text = parts
+    .filter((p) => !p.thought)
+    .map((p) => p.text || '')
+    .join('');
 
   const toolCalls: Record<string, unknown>[] = [];
+  const signatures: ExtractedSignature[] = [];
   for (const part of parts) {
     if (part.functionCall) {
-      const fc = part.functionCall as {
-        name: string;
-        args?: Record<string, unknown>;
-        thought_signature?: string;
-      };
+      const fc = part.functionCall as { name: string; args?: Record<string, unknown> };
+      const toolCallId = `call_${randomUUID()}`;
       const toolCall: Record<string, unknown> = {
         index: toolCalls.length,
-        id: `call_${randomUUID()}`,
+        id: toolCallId,
         type: 'function',
         function: { name: fc.name, arguments: JSON.stringify(fc.args ?? {}) },
       };
-      if (fc.thought_signature) toolCall.thought_signature = fc.thought_signature;
+      const sig = part.thoughtSignature;
+      if (typeof sig === 'string' && sig) {
+        toolCall.thought_signature = sig;
+        signatures.push({ toolCallId, signature: sig });
+      }
       toolCalls.push(toolCall);
     }
   }
@@ -382,5 +401,5 @@ export function transformGoogleStreamChunk(chunk: string, model: string): string
     })}\n\n`;
   }
 
-  return result || null;
+  return { chunk: result || null, signatures };
 }

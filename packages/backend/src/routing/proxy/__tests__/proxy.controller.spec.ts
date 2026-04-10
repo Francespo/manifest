@@ -1892,9 +1892,10 @@ describe('ProxyController', () => {
         },
       });
 
-      providerClient.convertGoogleStreamChunk.mockReturnValue(
-        'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
-      );
+      providerClient.convertGoogleStreamChunk.mockReturnValue({
+        chunk: 'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
+        signatures: [],
+      });
 
       const req = mockRequest({
         messages: [{ role: 'user', content: 'test' }],

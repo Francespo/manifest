@@ -190,18 +190,16 @@ export async function handleStreamResponse(
 
   if (forward.isGoogle) {
     return pipeStream(forward.response.body!, res, (chunk) => {
-      const result = providerClient.convertGoogleStreamChunk(chunk, meta.model);
-      // Cache thought_signatures from streamed tool calls
-      if (signatureCache && sessionKey && result) {
-        const sigRe = /"thought_signature"\s*:\s*"([^"]+)"/g;
-        const idRe = /"id"\s*:\s*"([^"]+)"/g;
-        const ids = [...result.matchAll(idRe)].map((m) => m[1]);
-        const sigs = [...result.matchAll(sigRe)].map((m) => m[1]);
-        for (let i = 0; i < Math.min(ids.length, sigs.length); i++) {
-          signatureCache.store(sessionKey, ids[i], sigs[i]);
+      const { chunk: out, signatures } = providerClient.convertGoogleStreamChunk(
+        chunk,
+        meta.model,
+      );
+      if (signatureCache && sessionKey) {
+        for (const s of signatures) {
+          signatureCache.store(sessionKey, s.toolCallId, s.signature);
         }
       }
-      return result;
+      return out;
     });
   }
   if (forward.isAnthropic) {

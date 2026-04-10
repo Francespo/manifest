@@ -14,6 +14,7 @@ import {
   convertAnthropicResponse as anthropicResponseConverter,
   convertAnthropicStreamChunk as anthropicStreamChunkConverter,
   createAnthropicTransformer,
+  type GoogleStreamChunkResult,
 } from './provider-client-converters';
 import { ForwardOptions } from './proxy-types';
 
@@ -166,7 +167,7 @@ export class ProviderClient {
   }
 
   /** Convert a Google SSE chunk to OpenAI SSE format. */
-  convertGoogleStreamChunk(chunk: string, model: string): string | null {
+  convertGoogleStreamChunk(chunk: string, model: string): GoogleStreamChunkResult {
     return googleStreamChunkConverter(chunk, model);
   }
 
