@@ -364,6 +364,7 @@ describe('proxy-response-handler', () => {
         'Provider returned HTTP 503',
         expect.any(String),
         undefined,
+        { callerAttribution: undefined },
       );
     });
 
@@ -380,6 +381,7 @@ describe('proxy-response-handler', () => {
         'Provider returned HTTP 500',
         expect.any(String),
         undefined,
+        { callerAttribution: undefined },
       );
     });
   });

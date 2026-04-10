@@ -1,5 +1,6 @@
 import { Entity, Column, PrimaryColumn, Index } from 'typeorm';
 import { timestampType } from '../common/utils/sql-dialect';
+import type { CallerAttribution } from '../routing/proxy/caller-classifier';
 
 @Entity('agent_messages')
 @Index(['tenant_id', 'agent_id', 'timestamp'])
@@ -93,4 +94,7 @@ export class AgentMessage {
 
   @Column('varchar', { nullable: true })
   specificity_category!: string | null;
+
+  @Column('simple-json', { nullable: true })
+  caller_attribution!: CallerAttribution | null;
 }
