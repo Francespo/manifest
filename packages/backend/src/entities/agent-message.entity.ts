@@ -72,6 +72,9 @@ export class AgentMessage {
   model!: string | null;
 
   @Column('varchar', { nullable: true })
+  provider!: string | null;
+
+  @Column('varchar', { nullable: true })
   routing_tier!: string | null;
 
   @Column('varchar', { nullable: true })

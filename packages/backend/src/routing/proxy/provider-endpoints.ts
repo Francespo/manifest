@@ -1,4 +1,4 @@
-import { OLLAMA_HOST } from '../../common/constants/ollama';
+import { OLLAMA_CLOUD_HOST, OLLAMA_HOST } from '../../common/constants/ollama';
 import { PROVIDER_BY_ID_OR_ALIAS } from '../../common/constants/providers';
 import { normalizeProviderBaseUrl } from '../provider-base-url';
 import { getQwenCompatibleBaseUrl } from '../qwen-region';
@@ -151,6 +151,12 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
   ollama: {
     baseUrl: OLLAMA_HOST,
     buildHeaders: () => ({ 'Content-Type': 'application/json' }),
+    buildPath: openaiPath,
+    format: 'openai',
+  },
+  'ollama-cloud': {
+    baseUrl: OLLAMA_CLOUD_HOST,
+    buildHeaders: openaiHeaders,
     buildPath: openaiPath,
     format: 'openai',
   },

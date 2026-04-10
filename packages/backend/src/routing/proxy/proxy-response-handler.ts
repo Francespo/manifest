@@ -70,6 +70,7 @@ export async function handleProviderError(
   recorder
     .recordProviderError(ctx, errorStatus, errorBody, {
       model: meta.model,
+      provider: meta.provider,
       tier: meta.tier,
       traceId,
       fallbackFromModel: meta.fallbackFromModel,
@@ -121,6 +122,7 @@ function handleFallbackExhausted(
   const primaryTs = new Date(baseTime + (failedFallbacks.length + 1) * 100).toISOString();
   recorder
     .recordPrimaryFailure(ctx, meta.tier, meta.model, errorBody, primaryTs, meta.auth_type, {
+      provider: meta.provider,
       callerAttribution,
     })
     .catch((e) => logger.warn(`Failed to record primary failure: ${e}`));
@@ -169,7 +171,12 @@ export function recordFallbackFailures(
       meta.primaryErrorBody ?? `Provider returned HTTP ${meta.primaryErrorStatus ?? 500}`,
       new Date(fallbackBaseTime).toISOString(),
       meta.auth_type,
-      { callerAttribution },
+      {
+        // Use the primary provider explicitly — meta.provider holds the
+        // succeeding fallback's provider in this flow, not the primary's.
+        provider: meta.primaryProvider,
+        callerAttribution,
+      },
     )
     .catch((e) => logger.warn(`Failed to record primary failure: ${e}`));
 
@@ -301,6 +308,7 @@ export function recordSuccess(
     recorder
       .recordFallbackSuccess(ctx, meta.model, meta.tier, {
         traceId,
+        provider: meta.provider,
         fallbackFromModel: meta.fallbackFromModel,
         fallbackIndex: meta.fallbackIndex ?? 0,
         timestamp: fallbackSuccessTs,
@@ -315,6 +323,7 @@ export function recordSuccess(
     recorder
       .recordSuccessMessage(ctx, meta.model, meta.tier, meta.reason, usage, {
         traceId,
+        provider: meta.provider,
         authType: meta.auth_type,
         sessionKey,
         durationMs,

@@ -69,6 +69,7 @@ import { AddErrorHttpStatus1775000000000 } from './migrations/1775000000000-AddE
 import { AddSpecificityAssignments1775200000000 } from './migrations/1775200000000-AddSpecificityAssignments';
 import { AddSpecificityCategory1775300000000 } from './migrations/1775300000000-AddSpecificityCategory';
 import { AddCallerAttribution1775400000000 } from './migrations/1775400000000-AddCallerAttribution';
+import { AddMessageProvider1775500000000 } from './migrations/1775500000000-AddMessageProvider';
 
 const entities = [
   AgentMessage,
@@ -136,6 +137,7 @@ const migrations = [
   AddSpecificityAssignments1775200000000,
   AddSpecificityCategory1775300000000,
   AddCallerAttribution1775400000000,
+  AddMessageProvider1775500000000,
 ];
 
 const isLocalMode = process.env['MANIFEST_MODE'] === 'local';

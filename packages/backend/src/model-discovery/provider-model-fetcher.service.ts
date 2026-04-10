@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DiscoveredModel, FetcherConfig } from './model-fetcher';
-import { OLLAMA_HOST } from '../common/constants/ollama';
+import { OLLAMA_CLOUD_HOST, OLLAMA_HOST } from '../common/constants/ollama';
 import { normalizeMinimaxSubscriptionBaseUrl } from '../routing/provider-base-url';
 import { getQwenCompatibleBaseUrl, normalizeQwenCompatibleBaseUrl } from '../routing/qwen-region';
 
@@ -413,6 +413,11 @@ export const PROVIDER_CONFIGS: Record<string, FetcherConfig> = {
   ollama: {
     endpoint: `${OLLAMA_HOST}/api/tags`,
     buildHeaders: () => ({}),
+    parse: parseOllama,
+  },
+  'ollama-cloud': {
+    endpoint: `${OLLAMA_CLOUD_HOST}/api/tags`,
+    buildHeaders: bearerHeaders,
     parse: parseOllama,
   },
   copilot: {

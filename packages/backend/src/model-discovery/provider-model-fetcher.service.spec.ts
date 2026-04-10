@@ -31,6 +31,7 @@ describe('ProviderModelFetcherService', () => {
       'gemini',
       'openrouter',
       'ollama',
+      'ollama-cloud',
       'copilot',
     ];
     for (const id of expected) {
@@ -481,6 +482,27 @@ describe('ProviderModelFetcherService', () => {
         headers: { Authorization: 'Bearer sk-qwen' },
       }),
     );
+  });
+
+  it('warns and ignores an invalid Qwen endpoint override', async () => {
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [] }),
+    });
+    const warnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});
+
+    // `not a url` is rejected by normalizeQwenCompatibleBaseUrl → the fetcher
+    // logs a warning and falls back to the default Qwen URL.
+    await service.fetch('qwen', 'sk-qwen', 'api_key', 'not a url');
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Ignoring invalid Qwen endpoint override'),
+    );
+    // Default Qwen endpoint should still be hit (no override applied).
+    const calledUrl = fetchSpy.mock.calls[0]![0] as string;
+    expect(calledUrl).not.toContain('not a url');
+    expect(calledUrl).toMatch(/^https:\/\//);
+    warnSpy.mockRestore();
   });
 
   /* ── Anthropic provider ── */
@@ -1004,6 +1026,68 @@ describe('ProviderModelFetcherService', () => {
         expect.any(String),
         expect.objectContaining({ headers: {} }),
       );
+    });
+  });
+
+  /* ── Ollama Cloud provider ── */
+
+  describe('ollama-cloud provider', () => {
+    it('should hit the ollama.com api/tags endpoint', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: true,
+        json: async () => ({ models: [] }),
+      });
+
+      await service.fetch('ollama-cloud', 'sk-test-key');
+
+      expect(fetchSpy).toHaveBeenCalledWith('https://ollama.com/api/tags', expect.any(Object));
+    });
+
+    it('should include Bearer auth header built via the shared bearerHeaders helper', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: true,
+        json: async () => ({ models: [] }),
+      });
+
+      await service.fetch('ollama-cloud', 'sk-test-key');
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: { Authorization: 'Bearer sk-test-key' },
+        }),
+      );
+    });
+
+    it('should parse models with price 0 and strip :latest suffix', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          models: [
+            { name: 'deepseek-v3.2', details: { family: 'deepseek' } },
+            { name: 'qwen3.5:latest', details: { family: 'qwen' } },
+          ],
+        }),
+      });
+
+      const result = await service.fetch('ollama-cloud', 'sk-test-key');
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          id: 'deepseek-v3.2',
+          provider: 'ollama-cloud',
+          inputPricePerToken: 0,
+          outputPricePerToken: 0,
+          qualityScore: 2,
+        }),
+      );
+      expect(result[1].id).toBe('qwen3.5');
+    });
+
+    it('should return [] on non-ok response', async () => {
+      fetchSpy.mockResolvedValue({ ok: false, status: 403 });
+      const result = await service.fetch('ollama-cloud', 'sk-test-key');
+      expect(result).toEqual([]);
     });
   });
 
