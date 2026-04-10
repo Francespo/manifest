@@ -137,11 +137,13 @@ describe('proxy-response-handler', () => {
         'Internal Server Error',
         {
           model: 'gpt-4o',
+          provider: 'openai',
           tier: 'standard',
           traceId: 'trace-1',
           fallbackFromModel: undefined,
           fallbackIndex: undefined,
           authType: undefined,
+          specificityCategory: undefined,
         },
       );
       expect(res.status).toHaveBeenCalledWith(500);
@@ -350,9 +352,15 @@ describe('proxy-response-handler', () => {
 
     it('should use default error message when primaryErrorBody is not set', () => {
       const recorder = mockRecorder();
+      // The meta fixture represents a fallback-success flow:
+      //   meta.provider  = 'openai'     ← fallback that succeeded
+      //   meta.primaryProvider = 'anthropic' ← primary that failed
+      // recordPrimaryFailure must attribute the primary row to the primary
+      // provider, not the fallback's provider.
       const meta = makeMeta({
-        fallbackFromModel: 'gpt-4o',
+        fallbackFromModel: 'claude-sonnet-4',
         primaryErrorStatus: 503,
+        primaryProvider: 'anthropic',
       });
 
       recordFallbackFailures(testCtx, meta, undefined, recorder as any);
@@ -360,26 +368,50 @@ describe('proxy-response-handler', () => {
       expect(recorder.recordPrimaryFailure).toHaveBeenCalledWith(
         testCtx,
         expect.anything(),
-        'gpt-4o',
+        'claude-sonnet-4',
         'Provider returned HTTP 503',
         expect.any(String),
         undefined,
+        { provider: 'anthropic', callerAttribution: undefined },
       );
     });
 
     it('should use default 500 status when primaryErrorStatus is not set', () => {
       const recorder = mockRecorder();
-      const meta = makeMeta({ fallbackFromModel: 'gpt-4o' });
+      const meta = makeMeta({
+        fallbackFromModel: 'claude-sonnet-4',
+        primaryProvider: 'anthropic',
+      });
 
       recordFallbackFailures(testCtx, meta, undefined, recorder as any);
 
       expect(recorder.recordPrimaryFailure).toHaveBeenCalledWith(
         testCtx,
         expect.anything(),
-        'gpt-4o',
+        'claude-sonnet-4',
         'Provider returned HTTP 500',
         expect.any(String),
         undefined,
+        { provider: 'anthropic', callerAttribution: undefined },
+      );
+    });
+
+    it('leaves primary provider undefined when meta.primaryProvider is not set', () => {
+      // Guard against regression: without primaryProvider we must NOT fall
+      // back to meta.provider (which is the fallback's provider in this flow).
+      const recorder = mockRecorder();
+      const meta = makeMeta({ fallbackFromModel: 'claude-sonnet-4' });
+
+      recordFallbackFailures(testCtx, meta, undefined, recorder as any);
+
+      expect(recorder.recordPrimaryFailure).toHaveBeenCalledWith(
+        testCtx,
+        expect.anything(),
+        'claude-sonnet-4',
+        expect.any(String),
+        expect.any(String),
+        undefined,
+        { provider: undefined, callerAttribution: undefined },
       );
     });
   });
@@ -885,6 +917,7 @@ describe('proxy-response-handler', () => {
 
       expect(recorder.recordFallbackSuccess).toHaveBeenCalledWith(testCtx, 'gpt-4o', 'standard', {
         traceId: 'trace-1',
+        provider: 'openai',
         fallbackFromModel: 'gpt-4o',
         fallbackIndex: 1,
         timestamp: '2025-01-01T00:00:00Z',
@@ -908,9 +941,11 @@ describe('proxy-response-handler', () => {
         usage,
         {
           traceId: 'trace-1',
+          provider: 'openai',
           authType: undefined,
           sessionKey: 'session-1',
           durationMs: expect.any(Number),
+          specificityCategory: undefined,
         },
       );
     });
@@ -986,12 +1021,29 @@ describe('proxy-response-handler', () => {
 
       expect(recorder.recordFallbackSuccess).toHaveBeenCalledWith(testCtx, 'gpt-4o', 'standard', {
         traceId: undefined,
+        provider: 'openai',
         fallbackFromModel: 'gpt-4o',
         fallbackIndex: 0,
         timestamp: '2025-01-01T00:00:00Z',
         authType: undefined,
         usage: undefined,
       });
+    });
+
+    it('defaults fallbackIndex to 0 when meta does not set one', () => {
+      const recorder = mockRecorder();
+      // fallbackFromModel is set, timestamp is set, but fallbackIndex is undefined.
+      // Exercises the `meta.fallbackIndex ?? 0` branch.
+      const meta = makeMeta({ fallbackFromModel: 'claude-3' });
+
+      recordSuccess(testCtx, meta, null, '2025-01-01T00:00:00Z', recorder as any);
+
+      expect(recorder.recordFallbackSuccess).toHaveBeenCalledWith(
+        testCtx,
+        'gpt-4o',
+        'standard',
+        expect.objectContaining({ fallbackIndex: 0 }),
+      );
     });
 
     it('should pass specificityCategory when set on meta', () => {

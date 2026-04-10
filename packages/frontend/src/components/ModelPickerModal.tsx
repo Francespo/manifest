@@ -106,10 +106,13 @@ const ModelPickerModal: Component<Props> = (props) => {
       const dbProvId = resolveProviderId(m.provider);
       const prefixProvId = inferProviderFromModel(m.model_name);
       // Prefer prefix-inferred provider (e.g. "anthropic" from "anthropic/claude-sonnet-4")
-      // over the DB provider (e.g. "openrouter" when all models come from OpenRouter)
+      // over the DB provider (e.g. "openrouter" when all models come from OpenRouter).
+      // Exception: Ollama providers keep their DB id because Ollama model names
+      // (e.g. "gemma4:31b") would otherwise be mis-inferred as local Ollama
+      // via the colon-suffix heuristic in inferProviderFromModel.
       const provId =
-        dbProvId === 'ollama'
-          ? 'ollama'
+        dbProvId === 'ollama' || dbProvId === 'ollama-cloud'
+          ? dbProvId
           : prefixProvId && PROVIDERS.find((p) => p.id === prefixProvId)
             ? prefixProvId
             : (dbProvId ?? prefixProvId);

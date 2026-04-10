@@ -11,6 +11,7 @@ import type { ThoughtSignatureCache } from './thought-signature-cache';
 import type { ThinkingBlockCache, ThinkingBlock } from './thinking-block-cache';
 import type { ExtractedSignature } from './google-adapter';
 import type { ExtractedThinkingBlocks } from './anthropic-adapter';
+import type { CallerAttribution } from './caller-classifier';
 
 const logger = new Logger('ProxyResponseHandler');
 
@@ -50,6 +51,7 @@ export async function handleProviderError(
   failedFallbacks: FailedFallback[] | undefined,
   recorder: ProxyMessageRecorder,
   traceId?: string,
+  callerAttribution?: CallerAttribution | null,
 ): Promise<void> {
   if (failedFallbacks && failedFallbacks.length > 0 && !meta.fallbackFromModel) {
     await handleFallbackExhausted(
@@ -62,6 +64,7 @@ export async function handleProviderError(
       failedFallbacks,
       recorder,
       traceId,
+      callerAttribution,
     );
     return;
   }
@@ -69,12 +72,14 @@ export async function handleProviderError(
   recorder
     .recordProviderError(ctx, errorStatus, errorBody, {
       model: meta.model,
+      provider: meta.provider,
       tier: meta.tier,
       traceId,
       fallbackFromModel: meta.fallbackFromModel,
       fallbackIndex: meta.fallbackIndex,
       authType: meta.auth_type,
       specificityCategory: meta.specificity_category,
+      callerAttribution,
     })
     .catch((e) => logger.warn(`Failed to record provider error: ${e}`));
 
@@ -102,6 +107,7 @@ function handleFallbackExhausted(
   failedFallbacks: FailedFallback[],
   recorder: ProxyMessageRecorder,
   traceId?: string,
+  callerAttribution?: CallerAttribution | null,
 ): void {
   const baseTime = Date.now();
   recorder
@@ -111,12 +117,16 @@ function handleFallbackExhausted(
       markHandled: true,
       lastAsError: true,
       authType: meta.auth_type,
+      callerAttribution,
     })
     .catch((e) => logger.warn(`Failed to record fallback errors: ${e}`));
 
   const primaryTs = new Date(baseTime + (failedFallbacks.length + 1) * 100).toISOString();
   recorder
-    .recordPrimaryFailure(ctx, meta.tier, meta.model, errorBody, primaryTs, meta.auth_type)
+    .recordPrimaryFailure(ctx, meta.tier, meta.model, errorBody, primaryTs, meta.auth_type, {
+      provider: meta.provider,
+      callerAttribution,
+    })
     .catch((e) => logger.warn(`Failed to record primary failure: ${e}`));
 
   logger.warn(`Fallback chain exhausted: ${errorBody.slice(0, 200)}`);
@@ -148,6 +158,7 @@ export function recordFallbackFailures(
   meta: RoutingMeta,
   failedFallbacks: FailedFallback[] | undefined,
   recorder: ProxyMessageRecorder,
+  callerAttribution?: CallerAttribution | null,
 ): string | undefined {
   if (!meta.fallbackFromModel) return undefined;
 
@@ -162,6 +173,12 @@ export function recordFallbackFailures(
       meta.primaryErrorBody ?? `Provider returned HTTP ${meta.primaryErrorStatus ?? 500}`,
       new Date(fallbackBaseTime).toISOString(),
       meta.auth_type,
+      {
+        // Use the primary provider explicitly — meta.provider holds the
+        // succeeding fallback's provider in this flow, not the primary's.
+        provider: meta.primaryProvider,
+        callerAttribution,
+      },
     )
     .catch((e) => logger.warn(`Failed to record primary failure: ${e}`));
 
@@ -171,6 +188,7 @@ export function recordFallbackFailures(
         baseTimeMs: fallbackBaseTime,
         markHandled: true,
         authType: meta.auth_type,
+        callerAttribution,
       })
       .catch((e) => logger.warn(`Failed to record fallback errors: ${e}`));
   }
@@ -298,16 +316,19 @@ export function recordSuccess(
   traceId?: string,
   sessionKey?: string,
   startTime?: number,
+  callerAttribution?: CallerAttribution | null,
 ): void {
   if (meta.fallbackFromModel && fallbackSuccessTs) {
     recorder
       .recordFallbackSuccess(ctx, meta.model, meta.tier, {
         traceId,
+        provider: meta.provider,
         fallbackFromModel: meta.fallbackFromModel,
         fallbackIndex: meta.fallbackIndex ?? 0,
         timestamp: fallbackSuccessTs,
         authType: meta.auth_type,
         usage: streamUsage ?? undefined,
+        callerAttribution,
       })
       .catch((e) => logger.warn(`Failed to record fallback success: ${e}`));
   } else {
@@ -316,10 +337,12 @@ export function recordSuccess(
     recorder
       .recordSuccessMessage(ctx, meta.model, meta.tier, meta.reason, usage, {
         traceId,
+        provider: meta.provider,
         authType: meta.auth_type,
         sessionKey,
         durationMs,
         specificityCategory: meta.specificity_category,
+        callerAttribution,
       })
       .catch((e) => logger.warn(`Failed to record success message: ${e}`));
   }

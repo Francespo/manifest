@@ -18,6 +18,12 @@ export interface ProviderDef {
   subscriptionLabel?: string;
   /** Placeholder for the subscription token input (providers that need a pasted token). */
   subscriptionKeyPlaceholder?: string;
+  /**
+   * Credential kind used for subscription auth. Drives the input label and
+   * aria-labels in the subscription detail view. Defaults to 'setup-token'
+   * for providers that historically used the Anthropic-style setup-token flow.
+   */
+  subscriptionCredentialKind?: 'setup-token' | 'api-key';
   /** Instructions text shown in the subscription detail view. */
   subscriptionCommand?: string;
   /** Provider uses GitHub device login instead of token paste. */
@@ -158,6 +164,23 @@ export const PROVIDERS: ProviderDef[] = [
     localOnly: true,
   },
   {
+    id: 'ollama-cloud',
+    name: 'Ollama Cloud',
+    color: '#1a1a1a',
+    initial: 'Oc',
+    subtitle: 'DeepSeek, Qwen, Gemma, Llama in the cloud',
+    keyPrefix: '',
+    minKeyLength: 0,
+    keyPlaceholder: '',
+    supportsSubscription: true,
+    subscriptionOnly: true,
+    subscriptionLabel: 'Ollama Cloud subscription',
+    subscriptionAuthMode: 'token',
+    subscriptionCredentialKind: 'api-key',
+    subscriptionKeyPlaceholder: 'Paste your Ollama Cloud API key',
+    models: [],
+  },
+  {
     id: 'openai',
     name: 'OpenAI',
     color: '#10a37f',
@@ -214,10 +237,15 @@ export const PROVIDERS: ProviderDef[] = [
     name: 'Z.ai',
     color: '#2d2d2d',
     initial: 'Z',
-    subtitle: 'GLM 5, GLM 4.7, GLM 4.5',
+    subtitle: 'GLM 5.1, GLM 5, GLM 4.7',
     keyPrefix: '',
     minKeyLength: 30,
     keyPlaceholder: 'API key',
+    supportsSubscription: true,
+    subscriptionLabel: 'GLM Coding Plan',
+    subscriptionAuthMode: 'token',
+    subscriptionKeyPlaceholder: 'Paste your Z.ai API key',
+    subscriptionCredentialKind: 'api-key',
     models: [],
   },
 ];

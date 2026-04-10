@@ -44,6 +44,13 @@ export interface RoutingMeta {
   fallbackIndex?: number;
   primaryErrorStatus?: number;
   primaryErrorBody?: string;
+  /**
+   * Provider of the primary model when a fallback ultimately succeeded.
+   * Distinct from `provider`, which in a fallback-success flow holds the
+   * fallback model's provider. Used to attribute the recorded primary
+   * failure row to the correct vendor.
+   */
+  primaryProvider?: string;
 }
 
 export interface ProxyResult {
@@ -205,6 +212,7 @@ export class ProxyService {
               fallbackIndex: success.fallbackIndex,
               primaryErrorStatus: primaryStatus,
               primaryErrorBody: primaryErrorBody,
+              primaryProvider: resolved.provider ?? undefined,
             },
             failedFallbacks: failures,
           };

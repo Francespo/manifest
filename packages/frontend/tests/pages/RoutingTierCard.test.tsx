@@ -3,8 +3,14 @@ import { render, screen, fireEvent } from '@solidjs/testing-library';
 
 let mockCustomProviderLogo = vi.fn(() => null as any);
 
+// Mutable so individual tests can override the provider registry to exercise
+// the PROVIDERS fallback loop inside providerIdForModel. Reset in beforeEach.
+const mockProvidersRef: { current: any[] } = { current: [] };
+
 vi.mock('../../src/services/providers.js', () => ({
-  PROVIDERS: [],
+  get PROVIDERS() {
+    return mockProvidersRef.current;
+  },
   STAGES: [{ id: 'premium', label: 'Premium', desc: 'Best models' }],
 }));
 
@@ -13,7 +19,7 @@ vi.mock('../../src/services/provider-utils.js', () => ({
 }));
 
 vi.mock('../../src/components/ProviderIcon.jsx', () => ({
-  providerIcon: () => null,
+  providerIcon: (id: string) => <span data-testid={`prov-icon-${id}`} />,
   customProviderLogo: (...args: any[]) => mockCustomProviderLogo(...args),
 }));
 
@@ -21,10 +27,19 @@ vi.mock('../../src/components/AuthBadge.js', () => ({
   authBadgeFor: () => null,
 }));
 
+// Mutable refs for routing-utils so specific tests can exercise branches in
+// providerIdForModel (e.g. ollama-cloud precedence, the PROVIDERS fallback loop).
+const mockResolveProviderId: { current: (p: string) => string | null | undefined } = {
+  current: () => null,
+};
+const mockInferProviderFromModel: { current: (m: string) => string | null | undefined } = {
+  current: () => null,
+};
+
 vi.mock('../../src/services/routing-utils.js', () => ({
   pricePerM: () => '$0.00',
-  resolveProviderId: () => null,
-  inferProviderFromModel: () => null,
+  resolveProviderId: (p: string) => mockResolveProviderId.current(p),
+  inferProviderFromModel: (m: string) => mockInferProviderFromModel.current(m),
 }));
 
 vi.mock('../../src/services/formatters.js', () => ({
@@ -86,6 +101,9 @@ describe('RoutingTierCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedFallbackListProps = {};
+    mockProvidersRef.current = [];
+    mockResolveProviderId.current = () => null;
+    mockInferProviderFromModel.current = () => null;
   });
 
   it('renders the tier label', () => {
@@ -475,6 +493,102 @@ describe('RoutingTierCard', () => {
     ));
     // No chip rendered, no swap possible — just verify no error
     expect(onOverride).not.toHaveBeenCalled();
+  });
+
+  describe('providerIdForModel branches', () => {
+    it('uses the ollama-cloud DB id over the colon-suffix heuristic (ollama-cloud branch)', () => {
+      // When the model exists in apiModels and the DB provider resolves to
+      // `ollama-cloud`, providerIdForModel must return `ollama-cloud` even
+      // though inferProviderFromModel would route a tagged name (`gemma4:31b`)
+      // to local `ollama` via the colon suffix heuristic.
+      mockResolveProviderId.current = (p) => (p === 'ollama-cloud' ? 'ollama-cloud' : null);
+      mockInferProviderFromModel.current = (m) => (m.includes(':') ? 'ollama' : null);
+      mockProvidersRef.current = [
+        { id: 'ollama', name: 'Ollama', models: [] },
+        { id: 'ollama-cloud', name: 'Ollama Cloud', models: [] },
+      ];
+
+      const tier = {
+        ...baseTier,
+        override_model: 'gemma4:31b',
+        auto_assigned_model: null,
+      };
+      const apiModels = [{ model_name: 'gemma4:31b', provider: 'ollama-cloud' }];
+
+      const { container } = render(() => (
+        <RoutingTierCard {...baseProps} tier={() => tier as any} models={() => apiModels as any} />
+      ));
+
+      // The provider icon mock emits data-testid=`prov-icon-${id}`, so the
+      // presence of prov-icon-ollama-cloud (and absence of prov-icon-ollama)
+      // proves providerIdForModel returned the DB id, not the prefix-inferred one.
+      expect(container.querySelector('[data-testid="prov-icon-ollama-cloud"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="prov-icon-ollama"]')).toBeNull();
+    });
+
+    it('uses local ollama DB id for ollama-hosted models (ollama branch)', () => {
+      mockResolveProviderId.current = (p) => (p === 'ollama' ? 'ollama' : null);
+      mockInferProviderFromModel.current = () => 'anthropic';
+      mockProvidersRef.current = [
+        { id: 'ollama', name: 'Ollama', models: [] },
+        { id: 'anthropic', name: 'Anthropic', models: [] },
+      ];
+
+      const tier = { ...baseTier, override_model: 'llama3.1:70b', auto_assigned_model: null };
+      const apiModels = [{ model_name: 'llama3.1:70b', provider: 'ollama' }];
+
+      const { container } = render(() => (
+        <RoutingTierCard {...baseProps} tier={() => tier as any} models={() => apiModels as any} />
+      ));
+      expect(container.querySelector('[data-testid="prov-icon-ollama"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="prov-icon-anthropic"]')).toBeNull();
+    });
+
+    it('falls back to searching PROVIDERS.models when nothing else matches (lines 44-45)', () => {
+      // Empty apiModels → first block skipped.
+      // inferProviderFromModel returns null → second block skipped.
+      // PROVIDERS entry has a matching model prefix → the for-loop returns prov.id.
+      mockInferProviderFromModel.current = () => null;
+      mockProvidersRef.current = [
+        {
+          id: 'special-vendor',
+          name: 'Special',
+          models: [{ value: 'weird-model' }],
+        },
+      ];
+
+      const tier = {
+        ...baseTier,
+        override_model: 'weird-model-v2',
+        auto_assigned_model: null,
+      };
+      const { container } = render(() => (
+        <RoutingTierCard {...baseProps} tier={() => tier as any} models={() => [] as any[]} />
+      ));
+      expect(container.querySelector('[data-testid="prov-icon-special-vendor"]')).not.toBeNull();
+    });
+
+    it('uses PROVIDERS.models reverse-prefix match', () => {
+      mockInferProviderFromModel.current = () => null;
+      mockProvidersRef.current = [
+        {
+          id: 'special-vendor',
+          name: 'Special',
+          // value starts with the tier model — reverse prefix match
+          models: [{ value: 'short-v2' }],
+        },
+      ];
+
+      const tier = {
+        ...baseTier,
+        override_model: 'short',
+        auto_assigned_model: null,
+      };
+      const { container } = render(() => (
+        <RoutingTierCard {...baseProps} tier={() => tier as any} models={() => [] as any[]} />
+      ));
+      expect(container.querySelector('[data-testid="prov-icon-special-vendor"]')).not.toBeNull();
+    });
   });
 
   it('swapPrimaryWithFallback is no-op when fallback index out of range', async () => {
