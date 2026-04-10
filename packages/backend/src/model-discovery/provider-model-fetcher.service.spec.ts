@@ -27,6 +27,7 @@ describe('ProviderModelFetcherService', () => {
       'minimax-subscription',
       'qwen',
       'zai',
+      'zai-subscription',
       'anthropic',
       'gemini',
       'openrouter',
@@ -380,9 +381,9 @@ describe('ProviderModelFetcherService', () => {
     });
   });
 
-  /* ── Z.AI blocklist ── */
+  /* ── Z.ai subscription routing ── */
 
-  it('should filter glm-5.1 from zai models via blocklist', async () => {
+  it('should return glm-5.1 from zai models (no longer blocklisted)', async () => {
     fetchSpy.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -391,7 +392,38 @@ describe('ProviderModelFetcherService', () => {
     });
 
     const result = await service.fetch('zai', 'key');
-    expect(result.map((m) => m.id)).toEqual(['glm-4.5', 'glm-5']);
+    expect(result.map((m) => m.id)).toEqual(['glm-4.5', 'glm-5', 'glm-5.1']);
+  });
+
+  it('should route zai+subscription to Coding Plan models endpoint', async () => {
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: 'glm-5.1' }, { id: 'glm-4.7' }] }),
+    });
+
+    const result = await service.fetch('zai', 'zai-sub-key', 'subscription');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://open.bigmodel.cn/api/coding/paas/v4/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer zai-sub-key' }),
+      }),
+    );
+    expect(result.map((m) => m.id)).toEqual(['glm-5.1', 'glm-4.7']);
+  });
+
+  it('should route zai+api_key to standard models endpoint', async () => {
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: 'glm-4.7' }] }),
+    });
+
+    await service.fetch('zai', 'zai-key');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://open.bigmodel.cn/api/paas/v4/models',
+      expect.any(Object),
+    );
   });
 
   /* ── OpenAI-compatible providers use same parser ── */

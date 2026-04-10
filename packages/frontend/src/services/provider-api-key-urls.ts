@@ -24,6 +24,7 @@ export const getRoutingProviderApiKeyUrl = (providerId: string): string | undefi
  */
 export const SUBSCRIPTION_PROVIDER_KEY_URLS: Record<string, string> = {
   'ollama-cloud': 'https://ollama.com/settings/keys',
+  zai: 'https://z.ai/manage-apikey/apikey-list',
 };
 
 export const getSubscriptionProviderKeyUrl = (providerId: string): string | undefined =>

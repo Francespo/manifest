@@ -338,6 +338,21 @@ describe("PROVIDERS", () => {
     expect(missing).toEqual([]);
   });
 
+  it("Z.ai supports GLM Coding Plan subscription with token flow", () => {
+    const zai = PROVIDERS.find((p) => p.id === "zai")!;
+    expect(zai.supportsSubscription).toBe(true);
+    expect(zai.subscriptionLabel).toBe("GLM Coding Plan");
+    expect(zai.subscriptionAuthMode).toBe("token");
+    expect(zai.subscriptionKeyPlaceholder).toBe("Paste your Z.ai API key");
+    expect(zai.subscriptionOnly).toBeUndefined();
+  });
+
+  it("provides a subscription-key URL for Z.ai pointing at the API key dashboard", () => {
+    expect(getSubscriptionProviderKeyUrl("zai")).toBe(
+      "https://z.ai/manage-apikey/apikey-list",
+    );
+  });
+
   it("requires an API key URL for every provider that needs one", () => {
     const missingProviderIds = PROVIDERS.filter(
       (provider) =>
