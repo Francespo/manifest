@@ -293,7 +293,7 @@ describe('Google Adapter', () => {
       expect(contents[0].parts[1].text).toBe('Second part');
     });
 
-    it('handles tool response messages', () => {
+    it('resolves functionResponse name from the assistant tool_calls history', () => {
       const body = {
         messages: [
           { role: 'user', content: 'Search for cats' },
@@ -321,23 +321,50 @@ describe('Google Adapter', () => {
         role: string;
         parts: Array<Record<string, unknown>>;
       }>;
-      // Tool response should be mapped to functionResponse
       const toolContent = contents[2];
       expect(toolContent.role).toBe('user');
+      // `name` must be the real function name (resolved from the prior
+      // assistant tool_calls), not the tool_call_id. `id` must mirror the
+      // tool_call_id so Google can pair parallel calls with their responses.
       expect(toolContent.parts[0].functionResponse).toEqual({
-        name: 'call_1',
+        id: 'call_1',
+        name: 'web_search',
         response: { result: '{"results": ["cat1", "cat2"]}' },
       });
     });
 
-    it('uses unknown as fallback name when tool_call_id is missing', () => {
+    it('falls back to unknown name when tool_call_id has no matching assistant call', () => {
       const body = {
         messages: [
           { role: 'user', content: 'Do something' },
           {
             role: 'tool',
+            tool_call_id: 'call_orphan',
             content: '{"ok": true}',
           },
+        ],
+      };
+      const result = toGoogleRequest(body, 'gemini-2.0-flash');
+
+      const contents = result.contents as Array<{
+        role: string;
+        parts: Array<Record<string, unknown>>;
+      }>;
+      // The id is still preserved (so the functionResponse can be paired if
+      // a later turn has the originating call), but the name degrades to the
+      // explicit placeholder because we have no way to resolve it.
+      expect(contents[1].parts[0].functionResponse).toEqual({
+        id: 'call_orphan',
+        name: 'unknown',
+        response: { result: '{"ok": true}' },
+      });
+    });
+
+    it('omits functionResponse.id when tool_call_id is missing entirely', () => {
+      const body = {
+        messages: [
+          { role: 'user', content: 'Do something' },
+          { role: 'tool', content: '{"ok": true}' },
         ],
       };
       const result = toGoogleRequest(body, 'gemini-2.0-flash');
@@ -403,6 +430,7 @@ describe('Google Adapter', () => {
       const result = toGoogleRequest(body, 'gemini-2.0-flash');
       const contents = result.contents as Array<{ parts: Array<Record<string, unknown>> }>;
       expect(contents[0].parts[0].functionCall).toEqual({
+        id: 'call_1',
         name: 'noop',
         args: {},
       });
@@ -427,7 +455,10 @@ describe('Google Adapter', () => {
       };
       const result = toGoogleRequest(body, 'gemini-2.0-flash');
       const contents = result.contents as Array<{ parts: Array<Record<string, unknown>> }>;
+      // The id is echoed back on the functionCall so Google can correlate
+      // it with the functionResponse on the next turn (parallel tool calls).
       expect(contents[1].parts[0].functionCall).toEqual({
+        id: 'call_1',
         name: 'web_search',
         args: { query: 'cats' },
       });
@@ -456,7 +487,7 @@ describe('Google Adapter', () => {
       // The signature MUST be a sibling of functionCall on the Part, not
       // nested inside functionCall — Gemini 3 rejects the nested form.
       expect(contents[1].parts[0]).toEqual({
-        functionCall: { name: 'read_file', args: { path: 'a.txt' } },
+        functionCall: { id: 'call_1', name: 'read_file', args: { path: 'a.txt' } },
         thoughtSignature: 'sig_abc123',
       });
       expect(
@@ -529,7 +560,9 @@ describe('Google Adapter', () => {
       };
       const result = toGoogleRequest(body, 'gemini-2.0-flash');
       const contents = result.contents as Array<{ parts: Array<Record<string, unknown>> }>;
-      expect(contents[0].parts[0]).toEqual({ functionCall: { name: 'noop', args: {} } });
+      expect(contents[0].parts[0]).toEqual({
+        functionCall: { id: 'call_1', name: 'noop', args: {} },
+      });
       expect(contents[0].parts[0].thoughtSignature).toBeUndefined();
     });
   });
@@ -1202,6 +1235,306 @@ describe('Google Adapter', () => {
       const result = transformGoogleStreamChunk(chunk, 'gemini-2.0-flash');
       expect(result).toContain('"prompt_tokens":10');
       expect(result).toContain('"finish_reason":"stop"');
+    });
+  });
+
+  describe('functionCall id round-trip (Fix 1)', () => {
+    describe('fromGoogleResponse', () => {
+      it("preserves Google's own functionCall id instead of generating a synthetic one", () => {
+        const google = {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    functionCall: {
+                      id: '4z1aadbn',
+                      name: 'search',
+                      args: { query: 'cats' },
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        };
+
+        const result = fromGoogleResponse(google, 'gemini-2.0-flash');
+        const choices = result.choices as Array<{ message: Record<string, unknown> }>;
+        const toolCalls = choices[0].message.tool_calls as Array<Record<string, unknown>>;
+        expect(toolCalls).toHaveLength(1);
+        // The id MUST equal Google's own id, not a synthetic `call_<uuid>`.
+        expect(toolCalls[0].id).toBe('4z1aadbn');
+        expect(toolCalls[0].id).not.toMatch(/^call_/);
+      });
+
+      it('round-trips Google id alongside Part-level thoughtSignature via _extractedSignatures', () => {
+        const google = {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    functionCall: {
+                      id: '4z1aadbn',
+                      name: 'read_file',
+                      args: { path: 'a.txt' },
+                    },
+                    thoughtSignature: 'sig_abc',
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        };
+
+        const result = fromGoogleResponse(google, 'gemini-3-pro-preview');
+        const choices = result.choices as Array<{ message: Record<string, unknown> }>;
+        const toolCalls = choices[0].message.tool_calls as Array<Record<string, unknown>>;
+        expect(toolCalls[0].id).toBe('4z1aadbn');
+
+        const extracted = (result as Record<string, unknown>)._extractedSignatures as Array<{
+          toolCallId: string;
+          signature: string;
+        }>;
+        expect(extracted).toHaveLength(1);
+        // The extracted signature entry is keyed by Google's own id — not a
+        // synthetic uuid — so the cache re-injection path can look it up later.
+        expect(extracted[0].toolCallId).toBe('4z1aadbn');
+        expect(extracted[0].signature).toBe('sig_abc');
+      });
+
+      it('falls back to a synthetic call_<uuid> when functionCall has no id', () => {
+        const google = {
+          candidates: [
+            {
+              content: {
+                parts: [{ functionCall: { name: 'noop', args: {} } }],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        };
+        const result = fromGoogleResponse(google, 'gemini-2.0-flash');
+        const choices = result.choices as Array<{ message: Record<string, unknown> }>;
+        const toolCalls = choices[0].message.tool_calls as Array<Record<string, unknown>>;
+        expect(toolCalls[0].id).toMatch(/^call_/);
+      });
+
+      it('preserves distinct ids for multiple functionCall parts', () => {
+        const google = {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { functionCall: { id: 'g_1', name: 'search', args: { q: 'cats' } } },
+                  { functionCall: { id: 'g_2', name: 'search', args: { q: 'dogs' } } },
+                ],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        };
+        const result = fromGoogleResponse(google, 'gemini-2.0-flash');
+        const choices = result.choices as Array<{ message: Record<string, unknown> }>;
+        const toolCalls = choices[0].message.tool_calls as Array<Record<string, unknown>>;
+        expect(toolCalls).toHaveLength(2);
+        expect(toolCalls[0].id).toBe('g_1');
+        expect(toolCalls[1].id).toBe('g_2');
+      });
+    });
+
+    describe('transformGoogleStreamChunk', () => {
+      it("preserves Google's own functionCall id on streaming chunks", () => {
+        const chunk = JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    functionCall: { id: '4z1aadbn', name: 'search', args: { query: 'cats' } },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+        const result = transformGoogleStreamChunk(chunk, 'gemini-2.0-flash');
+        const data = JSON.parse(result!.split('\n\n')[0].replace('data: ', ''));
+        expect(data.choices[0].delta.tool_calls[0].id).toBe('4z1aadbn');
+      });
+
+      it('falls back to call_<uuid> on stream when functionCall has no id', () => {
+        const chunk = JSON.stringify({
+          candidates: [
+            {
+              content: { parts: [{ functionCall: { name: 'noop', args: {} } }] },
+            },
+          ],
+        });
+        const result = transformGoogleStreamChunk(chunk, 'gemini-2.0-flash');
+        const data = JSON.parse(result!.split('\n\n')[0].replace('data: ', ''));
+        expect(data.choices[0].delta.tool_calls[0].id).toMatch(/^call_/);
+      });
+
+      it('preserves distinct ids across multiple functionCall parts on stream', () => {
+        const chunk = JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { functionCall: { id: 's_1', name: 'tool_a', args: { x: 1 } } },
+                  { functionCall: { id: 's_2', name: 'tool_b', args: { y: 2 } } },
+                ],
+              },
+            },
+          ],
+        });
+        const result = transformGoogleStreamChunk(chunk, 'gemini-2.0-flash');
+        const data = JSON.parse(result!.split('\n\n')[0].replace('data: ', ''));
+        expect(data.choices[0].delta.tool_calls).toHaveLength(2);
+        expect(data.choices[0].delta.tool_calls[0].id).toBe('s_1');
+        expect(data.choices[0].delta.tool_calls[1].id).toBe('s_2');
+      });
+    });
+  });
+
+  describe('buildToolCallNameMap via toGoogleRequest (Fix 2)', () => {
+    it('resolves parallel tool responses in reversed order by id', () => {
+      const body = {
+        messages: [
+          { role: 'user', content: 'Do things' },
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'weather', arguments: '{"city":"NYC"}' },
+              },
+              {
+                id: 'call_2',
+                type: 'function',
+                function: { name: 'search', arguments: '{"q":"cats"}' },
+              },
+            ],
+          },
+          // Responses intentionally arrive in reversed order: call_2 first, then call_1.
+          { role: 'tool', tool_call_id: 'call_2', content: '{"results":[]}' },
+          { role: 'tool', tool_call_id: 'call_1', content: '{"temp":72}' },
+        ],
+      };
+      const result = toGoogleRequest(body, 'gemini-2.0-flash');
+      const contents = result.contents as Array<{
+        role: string;
+        parts: Array<Record<string, unknown>>;
+      }>;
+
+      // The assistant entry has two functionCall parts with ids echoed.
+      const assistantParts = contents[1].parts;
+      expect(assistantParts).toHaveLength(2);
+      expect(assistantParts[0].functionCall).toEqual({
+        id: 'call_1',
+        name: 'weather',
+        args: { city: 'NYC' },
+      });
+      expect(assistantParts[1].functionCall).toEqual({
+        id: 'call_2',
+        name: 'search',
+        args: { q: 'cats' },
+      });
+
+      // call_2 response resolved to `search` and keeps its id.
+      expect(contents[2].parts[0].functionResponse).toEqual({
+        id: 'call_2',
+        name: 'search',
+        response: { result: '{"results":[]}' },
+      });
+      // call_1 response resolved to `weather` and keeps its id.
+      expect(contents[3].parts[0].functionResponse).toEqual({
+        id: 'call_1',
+        name: 'weather',
+        response: { result: '{"temp":72}' },
+      });
+    });
+
+    it('returns empty args when tool_call arguments string is invalid JSON', () => {
+      const body = {
+        messages: [
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'noop', arguments: 'not-valid-json{' },
+              },
+            ],
+          },
+        ],
+      };
+      const result = toGoogleRequest(body, 'gemini-2.0-flash');
+      const contents = result.contents as Array<{ parts: Array<Record<string, unknown>> }>;
+      // safeParseArgs catches and returns {}.
+      expect(contents[0].parts[0].functionCall).toEqual({
+        id: 'call_1',
+        name: 'noop',
+        args: {},
+      });
+    });
+
+    it('resolves each tool_call_id to the correct function name when multiple distinct tools are used', () => {
+      const body = {
+        messages: [
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'call_a',
+                type: 'function',
+                function: { name: 'read_file', arguments: '{"path":"a.txt"}' },
+              },
+            ],
+          },
+          { role: 'tool', tool_call_id: 'call_a', content: 'contents of a' },
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'call_b',
+                type: 'function',
+                function: { name: 'write_file', arguments: '{"path":"b.txt"}' },
+              },
+            ],
+          },
+          { role: 'tool', tool_call_id: 'call_b', content: 'ok' },
+        ],
+      };
+      const result = toGoogleRequest(body, 'gemini-2.0-flash');
+      const contents = result.contents as Array<{
+        role: string;
+        parts: Array<Record<string, unknown>>;
+      }>;
+
+      // First tool response resolves to read_file.
+      expect(contents[1].parts[0].functionResponse).toEqual({
+        id: 'call_a',
+        name: 'read_file',
+        response: { result: 'contents of a' },
+      });
+      // Second tool response resolves to write_file — id correctly keys into
+      // the name map that was built from BOTH assistant messages.
+      expect(contents[3].parts[0].functionResponse).toEqual({
+        id: 'call_b',
+        name: 'write_file',
+        response: { result: 'ok' },
+      });
     });
   });
 });

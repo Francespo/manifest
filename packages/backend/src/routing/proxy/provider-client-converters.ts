@@ -9,6 +9,7 @@ import {
   fromAnthropicResponse,
   transformAnthropicStreamChunk,
   createAnthropicStreamTransformer,
+  type ThinkingBlocksCallback,
 } from './anthropic-adapter';
 import {
   toResponsesRequest,
@@ -60,14 +61,18 @@ export function convertAnthropicStreamChunk(chunk: string, model: string): strin
 }
 
 /** Create a stateful Anthropic stream transformer that tracks usage across events. */
-export function createAnthropicTransformer(model: string): (chunk: string) => string | null {
-  return createAnthropicStreamTransformer(model);
+export function createAnthropicTransformer(
+  model: string,
+  onThinkingBlocks?: ThinkingBlocksCallback,
+): (chunk: string) => string | null {
+  return createAnthropicStreamTransformer(model, onThinkingBlocks);
 }
 
 // Re-export adapter functions used by ProviderClient.forward()
 export { toGoogleRequest, toAnthropicRequest, toResponsesRequest, collectChatGptSseResponse };
-export type { ExtractedSignature, GoogleStreamChunkResult } from './google-adapter';
-export type { SignatureLookup } from './proxy-types';
+export type { GoogleStreamChunkResult } from './google-adapter';
+export type { ThinkingBlocksCallback } from './anthropic-adapter';
+export type { SignatureLookup, ThinkingBlockLookup } from './proxy-types';
 
 // ─── OpenAI body sanitization (used by ProviderClient.forward) ───────────────
 

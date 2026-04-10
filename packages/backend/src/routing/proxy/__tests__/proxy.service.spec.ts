@@ -15,6 +15,7 @@ import { CopilotTokenService } from '../copilot-token.service';
 import { LimitCheckService } from '../../../notifications/services/limit-check.service';
 import { ModelPricingCacheService } from '../../../model-prices/model-pricing-cache.service';
 import { ThoughtSignatureCache } from '../thought-signature-cache';
+import { ThinkingBlockCache } from '../thinking-block-cache';
 
 describe('ProxyService', () => {
   let service: ProxyService;
@@ -116,6 +117,7 @@ describe('ProxyService', () => {
       fallbackService,
       configService,
       new ThoughtSignatureCache(),
+      new ThinkingBlockCache(),
     );
   });
 
@@ -3097,6 +3099,7 @@ describe('ProxyService', () => {
         fallbackService,
         configService,
         cache,
+        new ThinkingBlockCache(),
       );
 
       resolveService.resolve.mockResolvedValue({

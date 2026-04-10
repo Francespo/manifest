@@ -444,7 +444,39 @@ describe('proxy-response-handler', () => {
 
       await handleStreamResponse(res as any, forward as any, meta, {}, client as any);
 
-      expect(client.createAnthropicStreamTransformer).toHaveBeenCalledWith('gpt-4o');
+      // `undefined` is the thinking-blocks callback — absent when no
+      // thinking cache is provided to the handler (OpenAI-compat contract
+      // tests don't wire one up).
+      expect(client.createAnthropicStreamTransformer).toHaveBeenCalledWith('gpt-4o', undefined);
+    });
+
+    it('should forward extracted thinking blocks into the thinking cache on Anthropic streams', async () => {
+      const { res } = mockResponse();
+      const forward = mockForward({ isAnthropic: true });
+      const client = mockProviderClient();
+      const meta = makeMeta();
+      const thinkingCache = { store: jest.fn() };
+      const sessionKey = 'sess-anthro-stream';
+
+      await handleStreamResponse(
+        res as any,
+        forward as any,
+        meta,
+        {},
+        client as any,
+        undefined,
+        sessionKey,
+        thinkingCache as any,
+      );
+
+      // Second arg to createAnthropicStreamTransformer is the onThinkingBlocks
+      // callback. Grab it and invoke it to prove the handler wires it to
+      // thinkingCache.store.
+      const callback = client.createAnthropicStreamTransformer.mock.calls[0][1];
+      expect(typeof callback).toBe('function');
+      const blocks = [{ type: 'thinking', thinking: 'r', signature: 's' }];
+      callback('toolu_stream', blocks);
+      expect(thinkingCache.store).toHaveBeenCalledWith('sess-anthro-stream', 'toolu_stream', blocks);
     });
 
     it('should use ChatGPT adapter for ChatGPT responses', async () => {
@@ -613,6 +645,65 @@ describe('proxy-response-handler', () => {
 
       expect(client.convertAnthropicResponse).toHaveBeenCalled();
       expect(usage).toBeNull();
+    });
+
+    it('should cache extracted thinking blocks from Anthropic non-stream response', async () => {
+      const { res } = mockResponse();
+      const client = mockProviderClient();
+      const thinkingCache = { store: jest.fn() };
+      const sessionKey = 'sess-anthro';
+
+      client.convertAnthropicResponse.mockReturnValue({
+        id: 'anthropic-converted',
+        _extractedThinkingBlocks: {
+          firstToolUseId: 'toolu_01',
+          blocks: [{ type: 'thinking', thinking: 'reason', signature: 's' }],
+        },
+      });
+
+      const forward = mockForward({}, { isAnthropic: true });
+      const meta = makeMeta();
+
+      await handleNonStreamResponse(
+        res as any,
+        forward as any,
+        meta,
+        {},
+        client as any,
+        undefined,
+        sessionKey,
+        thinkingCache as any,
+      );
+
+      expect(thinkingCache.store).toHaveBeenCalledTimes(1);
+      expect(thinkingCache.store).toHaveBeenCalledWith('sess-anthro', 'toolu_01', [
+        { type: 'thinking', thinking: 'reason', signature: 's' },
+      ]);
+
+      // The internal side-channel is stripped before the body reaches the client.
+      const sentBody = res.json.mock.calls[0][0];
+      expect(sentBody._extractedThinkingBlocks).toBeUndefined();
+    });
+
+    it('should strip _extractedThinkingBlocks even when no cache is provided', async () => {
+      const { res } = mockResponse();
+      const client = mockProviderClient();
+
+      client.convertAnthropicResponse.mockReturnValue({
+        id: 'anthropic-converted',
+        _extractedThinkingBlocks: {
+          firstToolUseId: 'toolu_02',
+          blocks: [{ type: 'thinking', thinking: 'x', signature: 'y' }],
+        },
+      });
+
+      const forward = mockForward({}, { isAnthropic: true });
+      const meta = makeMeta();
+
+      await handleNonStreamResponse(res as any, forward as any, meta, {}, client as any);
+
+      const sentBody = res.json.mock.calls[0][0];
+      expect(sentBody._extractedThinkingBlocks).toBeUndefined();
     });
 
     it('should collect ChatGPT SSE response for non-streaming requests', async () => {
