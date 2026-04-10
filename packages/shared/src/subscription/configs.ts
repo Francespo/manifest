@@ -53,6 +53,18 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
       supportsBatching: false,
     }),
   }),
+  'ollama-cloud': Object.freeze({
+    supportsSubscription: true as const,
+    subscriptionLabel: 'Ollama Cloud subscription',
+    subscriptionAuthMode: 'token' as const,
+    subscriptionKeyPlaceholder: 'Paste your Ollama API key',
+    // No subscriptionTokenPrefix — Ollama Cloud accepts any API key format.
+    subscriptionCapabilities: Object.freeze({
+      maxContextWindow: 128000,
+      supportsPromptCaching: false,
+      supportsBatching: false,
+    }),
+  }),
   copilot: Object.freeze({
     supportsSubscription: true as const,
     subscriptionLabel: 'GitHub Copilot subscription',

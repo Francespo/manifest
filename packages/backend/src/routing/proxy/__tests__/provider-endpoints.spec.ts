@@ -85,6 +85,12 @@ describe('resolveEndpointKey', () => {
     expect(known).toContain('copilot');
     expect(known).toContain('openrouter');
     expect(known).toContain('ollama');
+    expect(known).toContain('ollama-cloud');
+  });
+
+  it('resolves ollama-cloud to ollama-cloud', () => {
+    expect(resolveEndpointKey('ollama-cloud')).toBe('ollama-cloud');
+    expect(resolveEndpointKey('Ollama-Cloud')).toBe('ollama-cloud');
   });
 
   it('resolves every built-in provider id and alias from the registry', () => {
@@ -208,6 +214,21 @@ describe('PROVIDER_ENDPOINTS', () => {
       Authorization: 'Bearer oauth-token',
       'Content-Type': 'application/json',
       'anthropic-version': '2023-06-01',
+    });
+  });
+
+  it('ollama-cloud points at ollama.com with OpenAI format', () => {
+    const ep = PROVIDER_ENDPOINTS['ollama-cloud'];
+    expect(ep.baseUrl).toBe('https://ollama.com');
+    expect(ep.format).toBe('openai');
+    expect(ep.buildPath('deepseek-v3.2')).toBe('/v1/chat/completions');
+  });
+
+  it('ollama-cloud uses OpenAI-compatible Bearer auth headers', () => {
+    const headers = PROVIDER_ENDPOINTS['ollama-cloud'].buildHeaders('sk-cloud-key');
+    expect(headers).toEqual({
+      Authorization: 'Bearer sk-cloud-key',
+      'Content-Type': 'application/json',
     });
   });
 });

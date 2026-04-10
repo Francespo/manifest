@@ -14,6 +14,7 @@ import { CallerAttribution } from './caller-classifier';
 
 export interface ProviderErrorOpts {
   model?: string;
+  provider?: string;
   tier?: string;
   traceId?: string;
   fallbackFromModel?: string;
@@ -25,6 +26,7 @@ export interface ProviderErrorOpts {
 
 export interface FallbackSuccessOpts {
   traceId?: string;
+  provider?: string;
   fallbackFromModel?: string;
   fallbackIndex?: number;
   timestamp?: string;
@@ -35,6 +37,7 @@ export interface FallbackSuccessOpts {
 
 export interface SuccessMessageOpts {
   traceId?: string;
+  provider?: string;
   authType?: string;
   sessionKey?: string;
   durationMs?: number;
@@ -74,6 +77,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
   ): Promise<void> {
     const {
       model,
+      provider,
       tier,
       traceId,
       fallbackFromModel,
@@ -110,6 +114,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       error_http_status: httpStatus,
       agent_name: ctx.agentName,
       model: model ?? null,
+      provider: provider ?? null,
       routing_tier: tier ?? null,
       input_tokens: 0,
       output_tokens: 0,
@@ -170,6 +175,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
         error_http_status: f.status,
         agent_name: ctx.agentName,
         model: f.model,
+        provider: f.provider ?? null,
         routing_tier: tier,
         input_tokens: 0,
         output_tokens: 0,
@@ -192,7 +198,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
     errorBody: string,
     timestamp: string,
     authType?: string,
-    opts?: { callerAttribution?: CallerAttribution | null },
+    opts?: { provider?: string; callerAttribution?: CallerAttribution | null },
   ): Promise<void> {
     await this.messageRepo.insert({
       id: uuid(),
@@ -204,6 +210,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       error_message: errorBody.slice(0, 2000),
       agent_name: ctx.agentName,
       model,
+      provider: opts?.provider ?? null,
       routing_tier: tier,
       input_tokens: 0,
       output_tokens: 0,
@@ -226,6 +233,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
   ): Promise<void> {
     const {
       traceId,
+      provider,
       fallbackFromModel,
       fallbackIndex,
       timestamp,
@@ -254,6 +262,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       status: 'ok',
       agent_name: ctx.agentName,
       model,
+      provider: provider ?? null,
       routing_tier: tier,
       input_tokens: inputTokens,
       output_tokens: outputTokens,
@@ -277,8 +286,15 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
     usage: StreamUsage,
     opts?: SuccessMessageOpts,
   ): Promise<void> {
-    const { traceId, authType, sessionKey, durationMs, specificityCategory, callerAttribution } =
-      opts ?? {};
+    const {
+      traceId,
+      provider,
+      authType,
+      sessionKey,
+      durationMs,
+      specificityCategory,
+      callerAttribution,
+    } = opts ?? {};
 
     const costUsd = computeTokenCost({
       inputTokens: usage.prompt_tokens,
@@ -311,6 +327,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
 
             const updatePayload: Partial<AgentMessage> = {
               model,
+              provider: provider ?? null,
               routing_tier: tier,
               routing_reason: reason,
               input_tokens: usage.prompt_tokens,
@@ -341,6 +358,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
             status: 'ok',
             agent_name: ctx.agentName,
             model,
+            provider: provider ?? null,
             routing_tier: tier,
             routing_reason: reason,
             input_tokens: usage.prompt_tokens,

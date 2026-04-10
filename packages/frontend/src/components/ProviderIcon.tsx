@@ -193,6 +193,7 @@ export function providerIcon(id: string, size: number = 20): JSX.Element | null 
 
     /* ── Ollama ───────────────────────────────────── */
     case 'ollama':
+    case 'ollama-cloud':
       return (
         <svg
           style={s}

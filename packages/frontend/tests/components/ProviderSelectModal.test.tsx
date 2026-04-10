@@ -1284,7 +1284,7 @@ describe('ProviderSelectModal', () => {
         />
       ));
       expect(
-        screen.getByText(/Use your existing subscription instead of an API key/),
+        screen.getByText(/Use your existing subscription or paid plan/),
       ).toBeDefined();
     });
 

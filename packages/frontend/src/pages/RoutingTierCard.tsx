@@ -22,9 +22,13 @@ function providerIdForModel(model: string, apiModels: AvailableModel[]): string 
     apiModels.find((x) => x.model_name === model) ??
     apiModels.find((x) => x.model_name.startsWith(model + '-'));
   if (m) {
+    const dbId = resolveProviderId(m.provider);
+    // Ollama providers keep their DB id to avoid the colon-suffix heuristic in
+    // inferProviderFromModel mis-routing cloud models to local Ollama.
+    if (dbId === 'ollama' || dbId === 'ollama-cloud') return dbId;
     const prefixId = inferProviderFromModel(m.model_name);
     if (prefixId && PROVIDERS.find((p) => p.id === prefixId)) return prefixId;
-    return resolveProviderId(m.provider) ?? prefixId;
+    return dbId ?? prefixId;
   }
   const prefix = inferProviderFromModel(model);
   if (prefix && PROVIDERS.find((p) => p.id === prefix)) return prefix;
