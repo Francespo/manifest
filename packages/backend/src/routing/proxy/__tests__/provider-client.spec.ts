@@ -784,13 +784,35 @@ describe('ProviderClient', () => {
       });
       const result = client.convertGoogleStreamChunk(chunk, 'gemini-2.0-flash');
 
-      expect(result).toContain('data: ');
-      expect(result).toContain('"chat.completion.chunk"');
+      expect(result.chunk).toContain('data: ');
+      expect(result.chunk).toContain('"chat.completion.chunk"');
+      expect(result.signatures).toEqual([]);
     });
 
-    it('returns null for empty chunk', () => {
+    it('returns null chunk for empty input', () => {
       const result = client.convertGoogleStreamChunk('', 'gemini-2.0-flash');
-      expect(result).toBeNull();
+      expect(result.chunk).toBeNull();
+      expect(result.signatures).toEqual([]);
+    });
+
+    it('surfaces extracted signatures from functionCall parts', () => {
+      const chunk = JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: { name: 'fn', args: {} },
+                  thoughtSignature: 'sig_abc',
+                },
+              ],
+            },
+          },
+        ],
+      });
+      const result = client.convertGoogleStreamChunk(chunk, 'gemini-3-pro-preview');
+      expect(result.signatures).toHaveLength(1);
+      expect(result.signatures[0].signature).toBe('sig_abc');
     });
   });
 
