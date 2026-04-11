@@ -66,6 +66,7 @@ import { AddKeyPrefixIndex1773900000000 } from './migrations/1773900000000-AddKe
 import { WidenKeyHashColumn1774000000000 } from './migrations/1774000000000-WidenKeyHashColumn';
 import { WidenApiKeyColumn1774896789000 } from './migrations/1774896789000-WidenApiKeyColumn';
 import { AddErrorHttpStatus1775000000000 } from './migrations/1775000000000-AddErrorHttpStatus';
+import { AddAgentType1775100000000 } from './migrations/1775100000000-AddAgentType';
 import { AddSpecificityAssignments1775200000000 } from './migrations/1775200000000-AddSpecificityAssignments';
 import { AddSpecificityCategory1775300000000 } from './migrations/1775300000000-AddSpecificityCategory';
 import { AddCallerAttribution1775400000000 } from './migrations/1775400000000-AddCallerAttribution';
@@ -134,6 +135,7 @@ const migrations = [
   WidenKeyHashColumn1774000000000,
   WidenApiKeyColumn1774896789000,
   AddErrorHttpStatus1775000000000,
+  AddAgentType1775100000000,
   AddSpecificityAssignments1775200000000,
   AddSpecificityCategory1775300000000,
   AddCallerAttribution1775400000000,
