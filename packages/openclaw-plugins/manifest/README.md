@@ -1,65 +1,121 @@
-# manifest
+<!--
+  This file mirrors the root README.md of the monorepo.
+  Keep them in sync when updating: changes to either should be applied to both.
+  The deprecation banner at the top of this file is the only intentional
+  divergence — everything below it is a verbatim copy of the root README.
+-->
 
-Self-hosted [Manifest](https://manifest.build) plugin for [OpenClaw](https://openclaw.ai) — runs the full LLM router locally with an embedded NestJS server, SQLite database, and dashboard.
+> [!WARNING]
+> **This package is deprecated.** The `manifest` OpenClaw plugin is no longer maintained. For self-hosting, use the [Manifest Docker Image](https://hub.docker.com/r/manifestdotbuild/manifest) instead. See the [Self-hosted (Docker)](#self-hosted-docker) section below.
 
-## Install
+---
 
-```bash
-openclaw plugins install manifest
-openclaw gateway restart
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/mnfst/manifest/HEAD/.github/assets/logo-white.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/mnfst/manifest/HEAD/.github/assets/logo-dark.svg" />
+    <img src="https://raw.githubusercontent.com/mnfst/manifest/HEAD/.github/assets/logo-dark.svg" alt="Manifest" height="53" title="Manifest"/>
+  </picture>
+</p>
+<p align="center">
+    Affordable Personal AI
+</p>
 
-Dashboard opens at **http://127.0.0.1:2099**. The plugin auto-generates an API key, starts the embedded server, and registers `manifest/auto` as a model. No configuration needed.
+![manifest-gh](https://github.com/user-attachments/assets/7dd74fc2-f7d6-4558-a95a-014ed754a125)
+
+<p align="center">
+  <span><img src="https://img.shields.io/badge/status-beta-yellow" alt="beta" /></span>
+  &nbsp;
+  <a href="https://github.com/mnfst/manifest/stargazers"><img src="https://img.shields.io/github/stars/mnfst/manifest?style=flat" alt="GitHub stars" /></a>
+  &nbsp;
+  <a href="https://www.npmjs.com/package/manifest"><img src="https://img.shields.io/npm/v/manifest?color=cb3837&label=npm" alt="npm version" /></a>
+  &nbsp;
+  <a href="https://www.npmjs.com/package/manifest"><img src="https://img.shields.io/npm/dw/manifest?color=cb3837" alt="npm downloads" /></a>
+  &nbsp;
+  <a href="https://hub.docker.com/r/manifestdotbuild/manifest"><img src="https://img.shields.io/docker/pulls/manifestdotbuild/manifest?color=2496ED&label=docker%20pulls" alt="Docker pulls" /></a>
+  &nbsp;
+  <a href="https://github.com/mnfst/manifest/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mnfst/manifest/ci.yml?branch=main&label=CI" alt="CI status" /></a>
+  &nbsp;
+  <a href="https://app.codecov.io/gh/mnfst/manifest"><img src="https://img.shields.io/codecov/c/github/mnfst/manifest?label=coverage" alt="Codecov" /></a>
+  &nbsp;
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/mnfst/manifest?color=blue" alt="license" /></a>
+  &nbsp;
+  <a href="https://discord.gg/FepAked3W7"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
+</p>
+
+<p align="center">
+<a href="https://trendshift.io/repositories/12890" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12890" alt="mnfst%2Fmanifest | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</p>
+
+## What is Manifest?
+
+Manifest is a smart model router for Personal AI Agents like OpenClaw or Hermes. It sits between your agent and your LLM providers, scores each request, and routes it to the cheapest model that can handle it. Simple questions go to fast, cheap models. Hard problems go to expensive ones. You save money without thinking about it.
+
+- Route requests to the right model: Cut costs up to 70%
+- Automatic fallbacks: If a model fails, the next one picks up
+- Set limits: Don't exceed your budget
+
+## Quick start
+
+### Cloud version
+
+Go to [app.manifest.build](https://app.manifest.build) and follow the guide.
+
+### Self-hosted (Docker)
+
+Our <a href="https://hub.docker.com/r/manifestdotbuild/manifest">Manifest Docker Image</a> allows you to self-host Manifest router in your own infrastructure.
+
+> [!WARNING]
+> Our [OpenClaw plugin](https://www.npmjs.com/package/manifest) is deprecated, for self-hosting we suggest using Docker instead.
 
 ## How it works
 
-On gateway startup the plugin:
+Every request to `manifest/auto` goes through a 23-dimension scoring algorithm (runs in under 2ms). The scorer picks a tier (simple, standard, complex, or reasoning) and routes to the best model in that tier from your connected providers.
 
-1. Generates a persistent API key (`mnfst_local_*`) stored in `~/.openclaw/manifest/config.json`
-2. Starts the embedded NestJS backend with SQLite at `~/.openclaw/manifest/manifest.db`
-3. Injects `manifest` as a provider into `~/.openclaw/openclaw.json`
-4. Serves the dashboard from the bundled frontend static files
+All routing data (tokens, costs, model, duration) is recorded automatically. You see it in the dashboard. No extra setup.
 
-If the server is already running on the configured port, the plugin reuses it instead of starting a new instance.
+## Manifest vs OpenRouter
 
-## Configuration
+|              | Manifest                                     | OpenRouter                                          |
+| ------------ | -------------------------------------------- | --------------------------------------------------- |
+| Architecture | Local. Your requests, your providers         | Cloud proxy. All traffic goes through their servers |
+| Cost         | Free                                         | 5% fee on every API call                            |
+| Source code  | MIT, fully open                              | Proprietary                                         |
+| Data privacy | Metadata only (cloud) or fully local         | Prompts and responses pass through a third party    |
+| Transparency | Open scoring. You see why a model was chosen | No visibility into routing decisions                |
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `port` | `number` | `2099` | Embedded server port |
-| `host` | `string` | `127.0.0.1` | Bind address |
+## Supported providers
 
-```bash
-openclaw config set plugins.entries.manifest.config.port 3099
-openclaw gateway restart
-```
+Works with 300+ models across these providers:
 
-## Cloud mode
-
-For cloud routing without the embedded server, use the lightweight provider plugin instead:
-
-```bash
-openclaw plugins install manifest-model-router
-openclaw providers setup manifest-model-router
-```
-
-See [manifest-model-router](https://www.npmjs.com/package/manifest-model-router).
-
-## Data
-
-Telemetry, dashboard, and configuration data stays on your machine. LLM requests are forwarded to your configured providers (e.g. OpenAI, Anthropic) as part of normal routing.
-
-- **Database**: `~/.openclaw/manifest/manifest.db` (SQLite)
-- **API key**: `~/.openclaw/manifest/config.json`
-- **Provider config**: `~/.openclaw/openclaw.json`
+| Provider                                                                       | Models                                                               |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| [OpenAI](https://platform.openai.com/)                                         | `gpt-5.3`, `gpt-4.1`, `o3`, `o4-mini` + 54 more                      |
+| [Anthropic](https://www.anthropic.com/)                                        | `claude-opus-4-6`, `claude-sonnet-4.5`, `claude-haiku-4.5` + 14 more |
+| [Google Gemini](https://ai.google.dev/)                                        | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3-pro` + 19 more       |
+| [DeepSeek](https://www.deepseek.com/)                                          | `deepseek-chat`, `deepseek-reasoner` + 11 more                       |
+| [xAI](https://x.ai/)                                                           | `grok-4`, `grok-3`, `grok-3-mini` + 8 more                           |
+| [Mistral AI](https://mistral.ai/)                                              | `mistral-large`, `codestral`, `devstral` + 26 more                   |
+| [Qwen (Alibaba)](https://www.alibabacloud.com/en/solutions/generative-ai/qwen) | `qwen3-235b`, `qwen3-coder`, `qwq-32b` + 42 more                     |
+| [MiniMax](https://www.minimax.io/)                                             | `minimax-m2.5`, `minimax-m1`, `minimax-m2` + 5 more                  |
+| [Kimi (Moonshot)](https://kimi.ai/)                                            | `kimi-k2`, `kimi-k2.5` + 3 more                                      |
+| [Amazon Nova](https://aws.amazon.com/ai/nova/)                                 | `nova-pro`, `nova-lite`, `nova-micro` + 5 more                       |
+| [Z.ai (Zhipu)](https://z.ai/)                                                  | `glm-5`, `glm-4.7`, `glm-4.5` + 5 more                               |
+| [OpenRouter](https://openrouter.ai/)                                           | 300+ models from all providers                                       |
+| [Ollama](https://ollama.com/)                                                  | Run any model locally (Llama, Gemma, Mistral, ...)                   |
+| Custom providers                                                               | Any provider with an OpenAI-compatible API endpoint                  |
 
 ## Contributing
 
-This package lives at `packages/openclaw-plugins/manifest/` in the [mnfst/manifest](https://github.com/mnfst/manifest) monorepo.
+Manifest is open source under the [MIT license](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, architecture, and workflow. Join the conversation on [Discord](https://discord.gg/FepAked3W7).
 
-```bash
-npm run build --workspace=packages/openclaw-plugins/manifest
-npm test --workspace=packages/openclaw-plugins/manifest
-```
+## Quick links
 
-**Note:** On `npm publish`, this README is replaced by the root project README.
+- [GitHub](https://github.com/mnfst/manifest)
+- [Docs](https://manifest.build/docs)
+- [Discord](https://discord.com/invite/FepAked3W7)
+- [Discussions](https://github.com/mnfst/manifest/discussions)
+
+## License
+
+[MIT](LICENSE)

@@ -23,6 +23,10 @@ module.exports = {
     const port = typeof inner.port === 'number' && inner.port > 0 ? inner.port : 2099;
     const host = typeof inner.host === 'string' && inner.host.length > 0 ? inner.host : '127.0.0.1';
 
+    const warnFn = logger.warn ?? logger.info;
+    warnFn(
+      '[manifest] This package is deprecated. Use the Docker image instead: https://github.com/mnfst/manifest#readme',
+    );
     logger.info('[🦚 Manifest] Loading embedded server...');
 
     registerLocalMode(api, port, host, logger);
