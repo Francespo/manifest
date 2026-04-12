@@ -36,7 +36,7 @@ const AddAgentModal: Component<{ open: boolean; onClose: () => void }> = (props)
   const navigate = useNavigate();
   const [name, setName] = createSignal('');
   const [category, setCategory] = createSignal<AgentCategory | null>('personal');
-  const [platform, setPlatform] = createSignal<AgentPlatform | null>('openclaw');
+  const [platform, setPlatform] = createSignal<AgentPlatform | null>(null);
   const [creating, setCreating] = createSignal(false);
 
   const handleCategoryChange = (c: AgentCategory) => {
@@ -72,7 +72,7 @@ const AddAgentModal: Component<{ open: boolean; onClose: () => void }> = (props)
   const resetForm = () => {
     setName('');
     setCategory('personal');
-    setPlatform('openclaw');
+    setPlatform(null);
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {

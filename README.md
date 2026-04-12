@@ -6,7 +6,7 @@
   </picture>
 </p>
 <p align="center">
-    Take control of your OpenClaw costs
+    Affordable Personal AI
 </p>
 
 ![manifest-gh](https://github.com/user-attachments/assets/7dd74fc2-f7d6-4558-a95a-014ed754a125)
@@ -37,7 +37,7 @@
 
 ## What is Manifest?
 
-Manifest is a smart model router for OpenClaw. It sits between your agent and your LLM providers, scores each request, and routes it to the cheapest model that can handle it. Simple questions go to fast, cheap models. Hard problems go to expensive ones. You save money without thinking about it.
+Manifest is a smart model router for Personal AI Agents like OpenClaw or Hermes. It sits between your agent and your LLM providers, scores each request, and routes it to the cheapest model that can handle it. Simple questions go to fast, cheap models. Hard problems go to expensive ones. You save money without thinking about it.
 
 - Route requests to the right model: Cut costs up to 70%
 - Automatic fallbacks: If a model fails, the next one picks up
@@ -49,24 +49,12 @@ Manifest is a smart model router for OpenClaw. It sits between your agent and yo
 
 Go to [app.manifest.build](https://app.manifest.build) and follow the guide.
 
-### Local version
-
-```bash
-openclaw plugins install manifest
-openclaw gateway restart
-```
-
-Dashboard opens at **http://127.0.0.1:2099**. The plugin starts an embedded server, runs the dashboard locally, and registers itself as a provider automatically. No account or API key needed.
-
-### Docker
+### Self-hosted (Docker)
 
 Our <a href="https://hub.docker.com/r/manifestdotbuild/manifest">Manifest Docker Image</a> allows you to self-host Manifest router in your own infrastructure.
 
-### Which version choose?
-
-Pick cloud version for quick setup and multi-device access. Pick local version for keeping all your data on your machine or for using local models like Ollama. Pick Docker for self-hosting on your own infrastructure.
-
-Not sure which one to choose? Start with cloud.
+> [!WARNING]
+> Our [OpenClaw plugin](https://www.npmjs.com/package/manifest) is deprecated, for self-hosting we suggest using Docker instead.
 
 ## How it works
 
