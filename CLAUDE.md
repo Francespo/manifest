@@ -1,6 +1,12 @@
 # Manifest Development Guidelines
 
-Last updated: 2026-04-09
+Last updated: 2026-04-12
+
+## What Manifest Is
+
+Manifest is a smart model router for **personal AI agents**. It sits between an agent and its LLM providers, scores each request, and routes it to the cheapest model that can handle it. The dashboard tracks costs, tokens, and messages across any agent that speaks OpenAI-compatible HTTP.
+
+**Supported agents** (configured in `packages/shared/src/agent-type.ts`): OpenClaw, Hermes, OpenAI SDK, Vercel AI SDK, LangChain, cURL, and a generic `other` slot. OpenClaw remains the deepest integration — we ship two first-party plugins for it under `packages/openclaw-plugins/` — but no new code or copy should frame Manifest as OpenClaw-only. When adding examples, prefer "personal AI agent" as the noun and pick OpenClaw as the worked example rather than the sole target.
 
 ## IMPORTANT: Cloud Mode Always
 

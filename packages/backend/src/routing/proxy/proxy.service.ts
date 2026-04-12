@@ -24,10 +24,11 @@ import { buildFriendlyResponse, getDashboardUrl } from './proxy-friendly-respons
 export { FailedFallback } from './proxy-fallback.service';
 
 /**
- * Roles excluded from scoring. OpenClaw (and similar tools) inject a large,
- * keyword-rich system prompt with every request. Scoring it inflates every
- * request to the most expensive tier. We strip these before the scorer sees
- * them, but forward the full unmodified body to the real provider.
+ * Roles excluded from scoring. Personal AI agents (OpenClaw, Hermes, and
+ * similar tools) inject a large, keyword-rich system prompt with every
+ * request. Scoring it inflates every request to the most expensive tier.
+ * We strip these before the scorer sees them, but forward the full
+ * unmodified body to the real provider.
  */
 const SCORING_EXCLUDED_ROLES = new Set(['system', 'developer']);
 const SCORING_RECENT_MESSAGES = 10;

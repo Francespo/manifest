@@ -111,7 +111,7 @@ const Login: Component = () => {
       <Show when={!localRedirecting()}>
         <div class="auth-header">
           <h1 class="auth-header__title">Welcome back</h1>
-          <p class="auth-header__subtitle">Take control of your OpenClaw costs</p>
+          <p class="auth-header__subtitle">Take control of your AI agent costs</p>
         </div>
 
         <SocialButtons />
@@ -121,7 +121,11 @@ const Login: Component = () => {
         </div>
 
         <form class="auth-form" onSubmit={handleSubmit}>
-          {error() && <div class="auth-form__error" role="alert">{error()}</div>}
+          {error() && (
+            <div class="auth-form__error" role="alert">
+              {error()}
+            </div>
+          )}
           <Show when={needsVerification()}>
             <button
               type="button"

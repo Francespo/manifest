@@ -76,7 +76,11 @@ The frontend runs on `http://localhost:3000` and proxies API requests to the bac
 
 4. With `SEED_DATA=true`, you can log in with `admin@manifest.build` / `manifest`.
 
-## Testing with OpenClaw
+## Testing Routing with a Personal AI Agent
+
+Manifest is a smart router for any personal AI agent that speaks OpenAI-compatible HTTP. The list of supported agents lives in `packages/shared/src/agent-type.ts` — OpenClaw, Hermes, OpenAI SDK, Vercel AI SDK, LangChain, and cURL are all first-class. The dashboard's "Connect Agent" flow generates the right setup snippet for whichever platform you pick.
+
+This section walks through **OpenClaw** because it's the deepest integration and the easiest to wire up end-to-end. The same backend also handles all other agents — just follow the dashboard instructions after creating the agent, or grab the snippet shown by the setup modal.
 
 To test routing against your local backend, add Manifest as a model provider in your OpenClaw config:
 
@@ -98,7 +102,7 @@ openclaw config set agents.defaults.model.primary manifest/auto
 openclaw gateway restart
 ```
 
-No plugin needed for this. The backend runs standalone and OpenClaw talks to it as a regular model provider.
+No plugin needed for this. The backend runs standalone and OpenClaw talks to it as a regular model provider. For other agents (OpenAI SDK, Vercel AI SDK, LangChain, cURL, …) follow the corresponding tab in the dashboard's "Connect Agent" modal — the underlying endpoint and auth are identical.
 
 **When to use this:**
 
