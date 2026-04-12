@@ -41,7 +41,7 @@ const testModels = {
 describe("RoutingInstructionModal", () => {
   beforeEach(() => {
     mockGetModelPrices.mockResolvedValue(testModels);
-    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_abc123", pluginEndpoint: null });
+    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_abc123" });
     mockGetHealth.mockResolvedValue({ mode: "cloud" });
   });
 
@@ -279,7 +279,7 @@ describe("RoutingInstructionModal", () => {
   });
 
   it("passes null apiKey to SetupStepAddProvider when full key unavailable", async () => {
-    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: null, pluginEndpoint: null });
+    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: null });
     const { container } = render(() => (
       <RoutingInstructionModal open={true} mode="enable" agentName="test-agent" onClose={() => {}} />
     ));
@@ -291,7 +291,7 @@ describe("RoutingInstructionModal", () => {
   });
 
   it("passes full apiKey to SetupStepAddProvider when available", async () => {
-    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_abc123full", pluginEndpoint: null });
+    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_abc123full" });
     const { container } = render(() => (
       <RoutingInstructionModal open={true} mode="enable" agentName="test-agent" onClose={() => {}} />
     ));
@@ -299,18 +299,6 @@ describe("RoutingInstructionModal", () => {
       const el = container.querySelector('[data-testid="setup-add-provider"]');
       expect(el).not.toBeNull();
       expect(el!.getAttribute("data-api-key")).toBe("mnfst_abc123full");
-    });
-  });
-
-  it("uses pluginEndpoint as baseUrl when available", async () => {
-    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_key", pluginEndpoint: "https://custom.endpoint/v1" });
-    const { container } = render(() => (
-      <RoutingInstructionModal open={true} mode="enable" agentName="test-agent" onClose={() => {}} />
-    ));
-    await vi.waitFor(() => {
-      const el = container.querySelector('[data-testid="setup-add-provider"]');
-      expect(el).not.toBeNull();
-      expect(el!.getAttribute("data-base-url")).toBe("https://custom.endpoint/v1");
     });
   });
 
@@ -339,7 +327,7 @@ describe("RoutingInstructionModal", () => {
   });
 
   it("passes null apiKey and keyPrefix when no key data", async () => {
-    mockGetAgentKey.mockResolvedValue({ keyPrefix: null, apiKey: null, pluginEndpoint: null });
+    mockGetAgentKey.mockResolvedValue({ keyPrefix: null, apiKey: null });
     const { container } = render(() => (
       <RoutingInstructionModal open={true} mode="enable" agentName="test-agent" onClose={() => {}} />
     ));

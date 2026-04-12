@@ -6,7 +6,6 @@ import { randomBytes } from 'crypto';
 
 export const LOCAL_USER_ID = 'local-user-001';
 export const LOCAL_EMAIL = 'local@manifest.local';
-export const LOCAL_DEFAULT_PORT = 2099;
 export const LOCAL_TENANT_ID = 'local-tenant-001';
 export const LOCAL_AGENT_ID = 'local-agent-001';
 export const LOCAL_AGENT_NAME = 'local-agent';

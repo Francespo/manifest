@@ -53,9 +53,6 @@ Go to [app.manifest.build](https://app.manifest.build) and follow the guide.
 
 Our <a href="https://hub.docker.com/r/manifestdotbuild/manifest">Manifest Docker Image</a> allows you to self-host Manifest router in your own infrastructure.
 
-> [!WARNING]
-> Our [OpenClaw plugin](https://www.npmjs.com/package/manifest) is deprecated, for self-hosting we suggest using Docker instead.
-
 ## How it works
 
 Every request to `manifest/auto` goes through a 23-dimension scoring algorithm (runs in under 2ms). The scorer picks a tier (simple, standard, complex, or reasoning) and routes to the best model in that tier from your connected providers.

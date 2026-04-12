@@ -8,7 +8,6 @@ jest.mock('fs', () => ({
 import {
   LOCAL_USER_ID,
   LOCAL_EMAIL,
-  LOCAL_DEFAULT_PORT,
   getLocalAuthSecret,
   getLocalPassword,
   readLocalEmailConfig,
@@ -34,10 +33,6 @@ describe('local-mode.constants', () => {
 
     it('exports LOCAL_EMAIL', () => {
       expect(LOCAL_EMAIL).toBe('local@manifest.local');
-    });
-
-    it('exports LOCAL_DEFAULT_PORT', () => {
-      expect(LOCAL_DEFAULT_PORT).toBe(2099);
     });
   });
 
@@ -65,9 +60,7 @@ describe('local-mode.constants', () => {
 
     it('regenerates when existing secret is too short', () => {
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(
-        JSON.stringify({ authSecret: 'too-short' }),
-      );
+      (fs.readFileSync as jest.Mock).mockReturnValue(JSON.stringify({ authSecret: 'too-short' }));
 
       const secret = getLocalAuthSecret();
 
@@ -77,8 +70,8 @@ describe('local-mode.constants', () => {
 
     it('regenerates when config file is corrupted', () => {
       (fs.existsSync as jest.Mock)
-        .mockReturnValueOnce(true)   // ensureConfigDir
-        .mockReturnValueOnce(true);  // config file exists
+        .mockReturnValueOnce(true) // ensureConfigDir
+        .mockReturnValueOnce(true); // config file exists
       (fs.readFileSync as jest.Mock).mockReturnValue('not-json{{{');
 
       const secret = getLocalAuthSecret();
@@ -123,9 +116,7 @@ describe('local-mode.constants', () => {
 
     it('regenerates when existing password is too short', () => {
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(
-        JSON.stringify({ localPassword: 'short' }),
-      );
+      (fs.readFileSync as jest.Mock).mockReturnValue(JSON.stringify({ localPassword: 'short' }));
 
       const password = getLocalPassword();
 
@@ -135,9 +126,9 @@ describe('local-mode.constants', () => {
 
     it('preserves existing config fields when writing', () => {
       (fs.existsSync as jest.Mock)
-        .mockReturnValueOnce(true)   // ensureConfigDir
-        .mockReturnValueOnce(true)   // readConfig check
-        .mockReturnValueOnce(true)   // writeConfig ensureConfigDir
+        .mockReturnValueOnce(true) // ensureConfigDir
+        .mockReturnValueOnce(true) // readConfig check
+        .mockReturnValueOnce(true) // writeConfig ensureConfigDir
         .mockReturnValueOnce(false); // writeConfig config file (doesn't matter)
       (fs.readFileSync as jest.Mock).mockReturnValue(
         JSON.stringify({ apiKey: 'mnfst_existing', authSecret: 'x'.repeat(64) }),
@@ -176,9 +167,7 @@ describe('local-mode.constants', () => {
 
     it('returns null when emailProvider missing', () => {
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(
-        JSON.stringify({ emailApiKey: 'some-key' }),
-      );
+      (fs.readFileSync as jest.Mock).mockReturnValue(JSON.stringify({ emailApiKey: 'some-key' }));
 
       const result = readLocalEmailConfig();
       expect(result).toBeNull();
@@ -271,7 +260,7 @@ describe('local-mode.constants', () => {
 
     it('returns null when config file does not exist', () => {
       (fs.existsSync as jest.Mock)
-        .mockReturnValueOnce(true)  // ensureConfigDir
+        .mockReturnValueOnce(true) // ensureConfigDir
         .mockReturnValueOnce(false); // config file
 
       const result = readLocalApiKey();
@@ -300,7 +289,7 @@ describe('local-mode.constants', () => {
 
     it('returns null when config file does not exist', () => {
       (fs.existsSync as jest.Mock)
-        .mockReturnValueOnce(true)  // ensureConfigDir
+        .mockReturnValueOnce(true) // ensureConfigDir
         .mockReturnValueOnce(false); // config file
 
       const result = readLocalNotificationEmail();
