@@ -111,4 +111,31 @@ describe("manifest plugin registration", () => {
       expect.stringContaining("Loading embedded server"),
     );
   });
+
+  it("logs deprecation warning during registration", () => {
+    const api = makeApi();
+    plugin.register(api);
+
+    expect(api.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("deprecated"),
+    );
+  });
+
+  it("falls back to logger.info for deprecation warning when logger.warn is undefined", () => {
+    const api = {
+      pluginConfig: {},
+      config: {},
+      logger: {
+        info: jest.fn(),
+        debug: jest.fn(),
+        error: jest.fn(),
+      },
+      registerService: jest.fn(),
+    };
+    plugin.register(api);
+
+    expect(api.logger.info).toHaveBeenCalledWith(
+      expect.stringContaining("deprecated"),
+    );
+  });
 });
