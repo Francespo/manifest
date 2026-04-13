@@ -7,13 +7,17 @@ on:
         description: "Optional version override (e.g. 5.38.1). Leave blank to use the current version from packages/manifest/package.json."
         required: false
         type: string
+  push:
+    branches: [main]
+    paths:
+      - "docker/DOCKER_README.md"
+      - ".github/workflows/docker.yml"
   pull_request:
     branches: [main]
     paths:
       - "docker/Dockerfile"
       - ".dockerignore"
       - "docker/docker-compose.yml"
-      - "docker/DOCKER_README.md"
       - "packages/backend/**"
       - "packages/frontend/**"
       - "packages/shared/**"
@@ -110,3 +114,25 @@ jobs:
           for tag in ${TAGS}; do
             cosign sign --yes "${tag}@${DIGEST}"
           done
+
+  sync-description:
+    name: Sync Docker Hub description
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push README to Docker Hub
+        env:
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/docker/DOCKER_README.md:/data/README.md:ro" \
+            -e DOCKER_USER \
+            -e DOCKER_PASS \
+            chko/docker-pushrm:1 \
+            --file /data/README.md \
+            --short "Smart LLM router for personal AI agents. Cut costs up to 70%." \
+            --debug \
+            manifestdotbuild/manifest

@@ -506,18 +506,24 @@ Changesets are **not** required on every PR — they're optional and only meanin
 
 1. Merge the pending `chore: version packages` PR to land the version bump in `packages/manifest/package.json`.
 2. Go to **GitHub Actions → Docker → Run workflow**, leave the `version` input blank, click Run.
-3. The `publish` job reads `packages/manifest/package.json`, resolves the version automatically, and pushes `manifestdotbuild/manifest:{version}` + `{major}.{minor}` + `{major}` + `sha-<short>` to Docker Hub. The image is multi-arch (amd64 + arm64) and cosign-signed.
+3. The `publish` job reads `packages/manifest/package.json`, resolves the version automatically, and pushes `manifestdotbuild/manifest:{version}` + `{major}.{minor}` + `{major}` + `sha-<short>` to Docker Hub. The image is multi-arch (amd64 + arm64) and cosign-signed. The `sync-description` job also runs in the same workflow_dispatch and pushes the latest `docker/DOCKER_README.md` to the Docker Hub repo description.
 
 To retag an older commit or publish a hotfix version that doesn't match the current `package.json`, pass a semver string in the `version` input and it overrides the package.json lookup.
+
+### Docker Hub description
+
+`docker/DOCKER_README.md` is the source of truth for the Docker Hub repo description at [`manifestdotbuild/manifest`](https://hub.docker.com/r/manifestdotbuild/manifest). The `sync-description` job in `docker.yml` pushes it to Docker Hub via the [`chko/docker-pushrm`](https://github.com/christian-korneck/docker-pushrm) container image (standalone `docker run`, no third-party GitHub Action). Same `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` secrets that the publish job uses — the PAT needs `repo:write` on the org repo, which it already has for image pushes. Edits to `docker/DOCKER_README.md` are treated as doc-only: they do **not** trigger the PR validate job (no point rebuilding multi-arch images for content changes), and they auto-sync to Docker Hub on merge to main via a dedicated `push:` trigger with a narrow paths filter.
 
 ### Summary of what CI does on each trigger
 
 | Trigger | What happens |
 |---------|--------------|
-| PR opened/updated | `ci.yml` runs tests, lint, typecheck, coverage. `docker.yml` validates the Docker build (no push) if the PR touches runtime files. `changeset-check` warns softly if no changeset is present. |
+| PR opened/updated (runtime files) | `ci.yml` runs tests, lint, typecheck, coverage. `docker.yml` validates the Docker build (no push). `changeset-check` warns softly if no changeset is present. |
+| PR opened/updated (`docker/DOCKER_README.md` only) | No Docker CI runs — content-only change, nothing to validate. |
 | Merge to `main` | `release.yml` runs `changesets/action` to open or update the `chore: version packages` PR. **No auto-publish** — neither npm nor Docker. |
-| Merge of `chore: version packages` PR | `release.yml` runs again. Version bump in `packages/manifest/package.json` and the CHANGELOG update land on `main`. Still no publish. |
-| Manual `workflow_dispatch` on `Docker` workflow | Reads `packages/manifest/package.json` and pushes a new image tag to Docker Hub. This is the **only** path that publishes anything. |
+| Merge of `chore: version packages` PR | `release.yml` runs again. Version bump in `packages/manifest/package.json` and the CHANGELOG update land on `main`. Still no image publish. |
+| Merge of a PR that touched `docker/DOCKER_README.md` | `docker.yml` `sync-description` job runs, pushing the new README to Docker Hub via `chko/docker-pushrm`. No image rebuild. |
+| Manual `workflow_dispatch` on `Docker` workflow | `publish` job reads `packages/manifest/package.json` and pushes a new image tag to Docker Hub. `sync-description` also runs in parallel and re-syncs the Docker Hub description. This is the **only** path that publishes image artifacts. |
 
 ## Code Coverage (Codecov)
 
