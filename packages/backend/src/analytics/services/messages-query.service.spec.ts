@@ -874,4 +874,33 @@ describe('MessagesQueryService', () => {
       expect(result.items).toEqual([]);
     });
   });
+
+  // Shared contract with TimeseriesQueriesService.getRecentActivity:
+  // both endpoints must project `specificity_category` so the frontend
+  // MessageTable/ModelCell badge renders the specificity category instead of
+  // falling back to the complexity tier. See selectMessageRowColumns helper.
+  it('propagates specificity_category rows returned by the helper projection', async () => {
+    mockGetRawOne.mockResolvedValueOnce({ total: 1 });
+    mockGetRawMany
+      .mockResolvedValueOnce([
+        {
+          id: 'msg-spec',
+          timestamp: '2026-02-16 10:00:00',
+          model: 'claude-opus-4-6',
+          cost: 0.1,
+          routing_tier: 'standard',
+          routing_reason: 'specificity',
+          specificity_category: 'coding',
+        },
+      ])
+      .mockResolvedValueOnce([{ model: 'claude-opus-4-6' }]);
+
+    const result = await service.getMessages({
+      range: '24h',
+      userId: 'test-user',
+      limit: 20,
+    });
+
+    expect(result.items[0]).toHaveProperty('specificity_category', 'coding');
+  });
 });
