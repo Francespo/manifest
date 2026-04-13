@@ -1,11 +1,15 @@
-# This compose file is intended for local testing only. Before exposing
-# this instance beyond localhost:
+# First boot: `docker compose up -d` starts the stack. Visit
+# http://localhost:3001 and the app walks you through creating the first
+# admin account via the setup wizard at /setup. No hardcoded credentials.
+#
+# Before exposing this instance beyond localhost:
 #   - Replace BETTER_AUTH_SECRET below with a real secret. Generate one
 #     with: openssl rand -hex 32
-#   - Set SEED_DATA=false to stop seeding the demo agent on every boot.
-#   - Change the seeded admin password (admin@manifest.build / manifest).
-#   - Set NODE_ENV=production to enable trust proxy, error sanitization,
-#     and strict Better Auth verification.
+#   - Confirm your admin password is strong (the setup wizard enforces
+#     at least 8 characters).
+#   - If you enable email verification (set EMAIL_PROVIDER / EMAIL_API_KEY),
+#     set BETTER_AUTH_URL to a reachable public URL so the verification
+#     links resolve.
 
 services:
   manifest:
@@ -17,8 +21,8 @@ services:
       # ⚠  Placeholder. Replace before any non-localhost use (see top of file).
       - BETTER_AUTH_SECRET=change-me-to-a-random-32-char-string!!
       - BETTER_AUTH_URL=http://localhost:3001
-      - SEED_DATA=true
-      - NODE_ENV=development
+      - SEED_DATA=false
+      - NODE_ENV=production
       - AUTO_MIGRATE=true
       # Email provider (optional). Covers both login/verification emails
       # and threshold alert notifications. Set one provider block — see

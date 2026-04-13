@@ -34,16 +34,27 @@ export class DatabaseSeederService implements OnModuleInit {
     await this.runBetterAuthMigrations();
 
     const seedData = this.configService.get<string>('SEED_DATA');
-    if (seedData === 'true') {
-      await this.seedAdminUser();
-      await this.seedApiKey();
-      await this.seedTenantAndAgent();
-      await this.seedAgentMessages();
-      this.logger.log('Seeded demo data (SEED_DATA=true)');
+    if (seedData !== 'true') return;
+
+    const nodeEnv = this.configService.get<string>('app.nodeEnv', 'development');
+    if (nodeEnv === 'production') {
       this.logger.warn(
-        'SECURITY: Default seed credentials are active (admin@manifest.build). Do NOT use in production.',
+        'SEED_DATA=true is ignored in production — use the first-run setup wizard at /setup to create the admin account. Demo data is not seeded in production.',
       );
+      return;
     }
+
+    // Dev/test workflow: seed the well-known admin + demo data in one shot
+    // so `/serve` and E2E tests get a non-empty dashboard without going
+    // through the setup wizard on every run.
+    await this.seedAdminUser();
+    await this.seedApiKey();
+    await this.seedTenantAndAgent();
+    await this.seedAgentMessages();
+    this.logger.log('Seeded demo data (SEED_DATA=true, dev/test only)');
+    this.logger.warn(
+      'SECURITY: Default seed credentials are active (admin@manifest.build). Do NOT use in production.',
+    );
   }
 
   private async runBetterAuthMigrations() {

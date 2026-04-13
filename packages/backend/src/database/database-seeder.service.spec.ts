@@ -99,20 +99,20 @@ describe('DatabaseSeederService', () => {
       });
     });
 
-    it('should seed demo data in production when SEED_DATA=true (self-hosted first boot)', async () => {
+    it('should NOT seed demo data in production even with SEED_DATA=true (use setup wizard instead)', async () => {
       configValues['app.nodeEnv'] = 'production';
       configValues['SEED_DATA'] = 'true';
 
       await service.onModuleInit();
 
-      // Seeding is now gated purely on SEED_DATA, so production + SEED_DATA=true seeds.
-      // The existing security warning log in the service makes misuse visible.
-      expect(mockApiKeyRepo.count).toHaveBeenCalledWith({
-        where: { id: 'seed-api-key-001' },
-      });
-      expect(mockTenantRepo.count).toHaveBeenCalledWith({
-        where: { id: 'seed-tenant-001' },
-      });
+      // Production first-run uses the /setup wizard to create the admin;
+      // demo data is dev/test only. See database-seeder.service.ts.
+      expect(mockApiKeyRepo.count).not.toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'seed-api-key-001' } }),
+      );
+      expect(mockTenantRepo.count).not.toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'seed-tenant-001' } }),
+      );
     });
 
     it('should not seed demo data when SEED_DATA is not true', async () => {
