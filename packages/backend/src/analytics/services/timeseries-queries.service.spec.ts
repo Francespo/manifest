@@ -10,12 +10,28 @@ describe('TimeseriesQueriesService', () => {
   let service: TimeseriesQueriesService;
   let mockGetRawMany: jest.Mock;
   let mockGetMany: jest.Mock;
+  let mockTurnQb: {
+    select: jest.Mock;
+    addSelect: jest.Mock;
+    leftJoin: jest.Mock;
+    where: jest.Mock;
+    andWhere: jest.Mock;
+    orWhere: jest.Mock;
+    groupBy: jest.Mock;
+    addGroupBy: jest.Mock;
+    orderBy: jest.Mock;
+    addOrderBy: jest.Mock;
+    limit: jest.Mock;
+    getRawMany: jest.Mock;
+    getRawOne: jest.Mock;
+    getMany: jest.Mock;
+  };
 
   beforeEach(async () => {
     mockGetRawMany = jest.fn().mockResolvedValue([]);
     mockGetMany = jest.fn().mockResolvedValue([]);
 
-    const mockTurnQb = {
+    mockTurnQb = {
       select: jest.fn().mockReturnThis(),
       addSelect: jest.fn().mockReturnThis(),
       leftJoin: jest.fn().mockReturnThis(),
@@ -156,6 +172,35 @@ describe('TimeseriesQueriesService', () => {
     it('returns empty array when no activity', async () => {
       mockGetRawMany.mockResolvedValue([]);
       expect(await service.getRecentActivity('24h', 'u1', 10)).toEqual([]);
+    });
+
+    it('propagates specificity_category rows returned by the helper projection', async () => {
+      mockGetRawMany.mockResolvedValue([
+        {
+          id: '1',
+          timestamp: '2026-02-16T10:00:00',
+          agent_name: 'bot-1',
+          model: 'claude-opus-4-6',
+          routing_tier: 'standard',
+          routing_reason: 'specificity',
+          specificity_category: 'coding',
+        },
+      ]);
+      const rows = (await service.getRecentActivity('24h', 'u1')) as Array<Record<string, unknown>>;
+      expect(rows[0]!['specificity_category']).toBe('coding');
+    });
+
+    it('projects specificity_category through the shared helper (regression: dashboard badge drift)', async () => {
+      mockGetRawMany.mockResolvedValue([]);
+      await service.getRecentActivity('24h', 'u1');
+
+      const projectedAliases = [
+        ...mockTurnQb.select.mock.calls.map((call) => call[1]),
+        ...mockTurnQb.addSelect.mock.calls.map((call) => call[1]),
+      ];
+      expect(projectedAliases).toContain('specificity_category');
+      expect(projectedAliases).toContain('routing_tier');
+      expect(projectedAliases).toContain('routing_reason');
     });
   });
 
