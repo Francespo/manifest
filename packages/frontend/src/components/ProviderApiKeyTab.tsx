@@ -1,7 +1,6 @@
 import { For, Show, type Component } from 'solid-js';
 import type { AuthType, CustomProviderData } from '../services/api.js';
 import { customProviderColor } from '../services/formatters.js';
-import { isLocalMode } from '../services/local-mode.js';
 import type { ProviderDef } from '../services/providers.js';
 import { providerIcon, customProviderLogo } from './ProviderIcon.js';
 
@@ -65,7 +64,7 @@ const ProviderApiKeyTab: Component<Props> = (props) => {
 
             const prov = item.prov;
             const connected = () => props.isConnected(prov.id) || props.isNoKeyConnected(prov.id);
-            const disabled = () => !!prov.localOnly && !isLocalMode();
+            const disabled = () => !!prov.localOnly;
 
             return (
               <button

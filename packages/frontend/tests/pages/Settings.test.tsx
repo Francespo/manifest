@@ -69,11 +69,6 @@ vi.mock("../../src/components/SetupStepAddProvider.jsx", () => ({
   },
 }));
 
-let mockIsLocalMode: boolean | null = false;
-vi.mock("../../src/services/local-mode.js", () => ({
-  isLocalMode: () => mockIsLocalMode,
-}));
-
 const mockMarkAgentCreated = vi.fn();
 vi.mock("../../src/services/recent-agents.js", () => ({
   markAgentCreated: (...args: unknown[]) => mockMarkAgentCreated(...args),
@@ -129,7 +124,6 @@ describe("Settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAgentName = "test-agent";
-    mockIsLocalMode = false;
     mockSetupThrows = false;
     mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", pluginEndpoint: null });
     mockGetAgentInfo.mockResolvedValue({ agent_name: "test-agent", agent_category: "personal", agent_platform: "openclaw" });
@@ -557,25 +551,4 @@ describe("Settings", () => {
     Object.defineProperty(window, "location", { value: originalLocation, writable: true, configurable: true });
   });
 
-  describe("local mode", () => {
-    beforeEach(() => { mockIsLocalMode = true; });
-
-    it("renders Settings page in local mode", () => {
-      render(() => <Settings />);
-      expect(screen.getByText("Settings")).toBeDefined();
-      expect(screen.getByLabelText("Agent name")).toBeDefined();
-    });
-
-    it("hides Danger zone for default local-agent", () => {
-      mockAgentName = "local-agent";
-      const { container } = render(() => <Settings />);
-      expect(container.textContent).not.toContain("Danger zone");
-    });
-
-    it("shows Danger zone for non-default agent in local mode", () => {
-      mockAgentName = "custom-agent";
-      render(() => <Settings />);
-      expect(screen.getByText("Danger zone")).toBeDefined();
-    });
-  });
 });

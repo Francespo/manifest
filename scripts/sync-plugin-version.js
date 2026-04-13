@@ -3,7 +3,6 @@ const { join } = require('path');
 
 const packages = [
   { dir: 'manifest-model-router', label: 'manifest-model-router' },
-  { dir: 'manifest', label: 'manifest' },
 ];
 
 for (const { dir, label } of packages) {

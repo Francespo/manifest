@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { readFileSync, mkdirSync, copyFileSync } from "fs";
+import { readFileSync, copyFileSync } from "fs";
 import { resolve } from "path";
 
 const pkg = JSON.parse(readFileSync("package.json", "utf-8"));
@@ -25,12 +25,6 @@ async function main() {
   });
 
   console.log("Built dist/index.js");
-
-  const skillSrc = resolve("../../../skills/manifest/SKILL.md");
-  const skillDest = resolve("skills/manifest/SKILL.md");
-  mkdirSync(resolve("skills/manifest"), { recursive: true });
-  copyFileSync(skillSrc, skillDest);
-  console.log("Copied skills/manifest/SKILL.md");
 
   copyFileSync(resolve("openclaw.plugin.json"), resolve("dist/openclaw.plugin.json"));
   console.log("Copied dist/openclaw.plugin.json");

@@ -9,12 +9,12 @@ Thanks for your interest in contributing to Manifest! This guide will help you g
 | Layer     | Technology                                    |
 | --------- | --------------------------------------------- |
 | Frontend  | SolidJS, uPlot, custom CSS theme              |
-| Backend   | NestJS 11, TypeORM, sql.js (local) / PostgreSQL (cloud) |
-| Auth      | Better Auth (auto-login on localhost)          |
+| Backend   | NestJS 11, TypeORM, PostgreSQL 16              |
+| Auth      | Better Auth (email/password + Google/GitHub/Discord OAuth) |
 | Routing   | OpenAI-compatible proxy (`/v1/chat/completions`) |
 | Build     | Turborepo + npm workspaces                    |
 
-The full NestJS + SolidJS stack runs locally backed by sql.js (WASM SQLite). The same codebase also powers the [cloud version](https://app.manifest.build) with PostgreSQL — the only differences are the database driver and auth guard.
+The full NestJS + SolidJS stack runs on PostgreSQL. Self-hosted deployments use the Docker image (`manifestdotbuild/manifest`) with a bundled Postgres container via Docker Compose. The [cloud version](https://app.manifest.build) runs the same codebase.
 
 ## Prerequisites
 
@@ -30,8 +30,7 @@ packages/
 ├── backend/              # NestJS API server (TypeORM, PostgreSQL, Better Auth)
 ├── frontend/             # SolidJS single-page app (Vite, uPlot)
 └── openclaw-plugins/
-    ├── manifest/          # npm: `manifest` — full self-hosted plugin (embedded server + dashboard)
-    └── manifest-model-router/ # npm: `manifest-model-router` — cloud-only provider plugin
+    └── manifest-model-router/ # npm: `manifest-model-router` — OpenClaw provider plugin
 ```
 
 ## Getting Started
@@ -84,11 +83,13 @@ This section walks through **OpenClaw** because it's the deepest integration and
 
 To test routing against your local backend, add Manifest as a model provider in your OpenClaw config:
 
-1. Build and start the backend in local mode:
+1. Build and start the backend against your dev Postgres:
 
 ```bash
 npm run build
-MANIFEST_MODE=local PORT=38238 BIND_ADDRESS=127.0.0.1 \
+DATABASE_URL=postgresql://myuser:mypassword@localhost:5432/mydatabase \
+BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
+PORT=38238 BIND_ADDRESS=127.0.0.1 \
   node -r dotenv/config packages/backend/dist/main.js
 ```
 
@@ -110,52 +111,18 @@ No plugin needed for this. The backend runs standalone and OpenClaw talks to it 
 - Debugging the proxy or message recording
 - Working on the dashboard UI with live data
 
-## Development Skills
-
-Development skills live in `.claude/skills/` and are **auto-discovered** by Claude Code for all contributors -- no manual install needed. You can also run the bundled scripts directly from the repo root.
-
-### Standalone Usage
-
-The scripts work without Claude Code. Run them directly from the repo root:
-
-```bash
-bash .claude/skills/manifest-status/scripts/manifest_status.sh
-bash .claude/skills/setup-manifest-plugin/scripts/setup_manifest.sh 38238 --mode local
-bash .claude/skills/uninstall-manifest-plugin/scripts/uninstall_manifest.sh
-```
-
-Requires `jq` and the `openclaw` CLI.
-
-### Available Skills
-
-| Skill | Command | What it does |
-| --- | --- | --- |
-| `manifest-status` | `/manifest-status` | Prints a diagnostic table of the current plugin configuration (mode, endpoint, keys, default model) |
-| `setup-manifest-plugin` | `/setup-manifest-plugin` | Configures the OpenClaw gateway to route through a local Manifest backend. Accepts a port and optional mode (`local`/`cloud`). Restarts the gateway. |
-| `uninstall-manifest-plugin` | `/uninstall-manifest-plugin` | Removes the Manifest plugin, cleans up auth profiles and local data, detects available providers, and sets the best default model. |
-| `ensure-manifest-docs-consistency` | `/ensure-manifest-docs-consistency` | Audits all Manifest documentation sources for consistency against the codebase. Produces a dissonance report. |
-
-### Typical Workflow
-
-1. Start the backend in local mode on a specific port (e.g., `38238`)
-2. Run `/setup-manifest-plugin` with that port to configure the gateway
-3. Use `/manifest-status` to verify the configuration
-4. When done, run `/uninstall-manifest-plugin` to reset to direct provider access
-
 ## Available Scripts
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start frontend + plugin in watch mode (start backend separately) |
+| `npm run dev` | Start frontend in watch mode (start backend separately) |
 | `npm run build` | Production build (frontend then backend via Turborepo) |
 | `npm start` | Start the production server |
 | `npm test --workspace=packages/backend` | Run backend unit tests (Jest) |
 | `npm run test:e2e --workspace=packages/backend` | Run backend e2e tests (Jest + Supertest) |
 | `npm test --workspace=packages/frontend` | Run frontend tests (Vitest) |
-| `npm test --workspace=packages/openclaw-plugins/manifest` | Run manifest plugin tests (Jest) |
 | `npm test --workspace=packages/openclaw-plugins/manifest-model-router` | Run provider plugin tests (Jest) |
-| `npm run build:plugin` | Build the manifest (local) plugin |
-| `npm run build:provider` | Build the manifest-model-router (cloud) plugin |
+| `npm run build:provider` | Build the manifest-model-router plugin |
 
 ## Working with Individual Packages
 
@@ -173,24 +140,9 @@ Requires `jq` and the `openclaw` CLI.
 - **Tests**: Vitest
 - **Key directories**: `pages/` (route components), `components/` (shared UI), `services/` (API client, auth client)
 
-### Full Plugin (`packages/openclaw-plugins/manifest`)
-
-- **Bundler**: esbuild (zero runtime dependencies)
-- **Build**: `npx tsx build.ts` or `npm run build:plugin` from the root
-- **Watch mode**: `cd packages/openclaw-plugins/manifest && npx tsx watch build.ts`
-
-The full plugin includes an embedded NestJS server, SQLite database, and dashboard. It starts the server automatically on gateway boot.
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `port` | `number` | `2099` | Embedded server port |
-| `host` | `string` | `127.0.0.1` | Bind address |
-
-Settings are defined in `openclaw.plugin.json`. The API key is auto-generated and stored in `~/.openclaw/manifest/config.json`.
-
 ### Provider Plugin (`packages/openclaw-plugins/manifest-model-router`)
 
-- **npm**: `manifest-model-router` — lightweight cloud-only provider plugin (~22KB)
+- **npm**: `manifest-model-router` — lightweight OpenClaw provider plugin (~22KB)
 - **Bundler**: esbuild (zero runtime dependencies)
 - Registers Manifest as a model provider with interactive auth onboarding. No embedded server or dashboard.
 
@@ -208,7 +160,7 @@ Settings are parsed in `src/config.ts` and validated in `validateConfig`. The JS
 1. Create a branch from `main` for your change
 2. Make your changes in the relevant package(s)
 3. Write or update tests as needed
-4. If your change affects a publishable package (`manifest`), add a changeset:
+4. If your change affects the `manifest-model-router` publishable package, add a changeset:
 
 ```bash
 npx changeset
@@ -222,7 +174,6 @@ Follow the prompts to select the affected packages and bump type (patch / minor 
 npm test --workspace=packages/backend
 npm run test:e2e --workspace=packages/backend
 npm test --workspace=packages/frontend
-npm test --workspace=packages/openclaw-plugins/manifest
 npm test --workspace=packages/openclaw-plugins/manifest-model-router
 ```
 
@@ -242,10 +193,9 @@ This project uses [Changesets](https://github.com/changesets/changesets) for ver
 
 | Package | npm name | Needs changeset? |
 | --- | --- | --- |
-| `packages/openclaw-plugins/manifest` | `manifest` | Yes |
-| `packages/openclaw-plugins/manifest-model-router` | `manifest-model-router` | Yes — only when its own code changes |
-| `packages/backend` | — | Yes — bump `manifest` (backend compiles into the full plugin) |
-| `packages/frontend` | — | Yes — bump `manifest` (frontend compiles into the full plugin) |
+| `packages/openclaw-plugins/manifest-model-router` | `manifest-model-router` | Yes — when its own code changes |
+| `packages/backend` | — | No — ships as part of the Docker image, not via npm |
+| `packages/frontend` | — | No — ships as part of the Docker image, not via npm |
 
 **Adding a changeset:**
 

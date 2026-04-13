@@ -23,10 +23,6 @@ vi.mock("../../src/services/auth-client.js", () => ({
   },
 }));
 
-vi.mock("../../src/services/local-mode.js", () => ({
-  checkLocalMode: vi.fn().mockResolvedValue(false),
-}));
-
 vi.mock("../../src/services/toast-store.js", () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
@@ -163,52 +159,11 @@ describe("Login", () => {
     });
   });
 
-  it("falls back to login form when local session check returns non-ok", async () => {
-    const { checkLocalMode } = await import("../../src/services/local-mode.js");
-    (checkLocalMode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
-    // fetch is already stubbed with { ok: false } in beforeEach
-
-    const { container } = render(() => <Login />);
-
-    // After local mode check + failed session fetch, login form is shown
-    await vi.waitFor(() => {
-      expect(container.textContent).toContain("Welcome back");
-    });
-  });
-
   it("shows error from search params on mount", async () => {
     mockSearchParams = { error: "oauth_failed" };
     const { container } = render(() => <Login />);
     await vi.waitFor(() => {
       expect(container.textContent).toContain("Login failed");
-    });
-  });
-
-  it("redirects to / when local session is ok", async () => {
-    const { checkLocalMode } = await import("../../src/services/local-mode.js");
-    (checkLocalMode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
-    // Mock window.location.href setter
-    const hrefSetter = vi.fn();
-    Object.defineProperty(window, "location", {
-      value: { ...window.location, href: "/" },
-      writable: true,
-      configurable: true,
-    });
-    render(() => <Login />);
-    // The component sets window.location.href = '/' when local session is ok
-    await vi.waitFor(() => {
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith("/api/auth/local-session", { credentials: "include" });
-    });
-  });
-
-  it("falls through to login form when local session fetch throws", async () => {
-    const { checkLocalMode } = await import("../../src/services/local-mode.js");
-    (checkLocalMode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
-    const { container } = render(() => <Login />);
-    await vi.waitFor(() => {
-      expect(container.textContent).toContain("Welcome back");
     });
   });
 

@@ -1,15 +1,29 @@
 services:
   manifest:
     image: manifestdotbuild/manifest:latest
+    init: true
     ports:
       - "3001:3001"
     environment:
-      - DATABASE_URL=postgresql://manifest:manifest@postgres:5432/manifest
-      - BETTER_AUTH_SECRET=change-me-to-a-random-32-char-string!!
-      - BETTER_AUTH_URL=http://localhost:3001
+      - DATABASE_URL=postgresql://manifest:${POSTGRES_PASSWORD:-manifest}@postgres:5432/manifest
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET to a 32+ char random string. Generate with: openssl rand -hex 32}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
       - SEED_DATA=true
-      - NODE_ENV=development
-      - MANIFEST_TRUST_LAN=true
+      - NODE_ENV=production
+      - AUTO_MIGRATE=true
+      # Email provider (optional). Set one provider block in .env (see .env.example).
+      # Covers both login/verification emails and threshold alert notifications.
+      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-}
+      - EMAIL_API_KEY=${EMAIL_API_KEY:-}
+      - EMAIL_DOMAIN=${EMAIL_DOMAIN:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      # OAuth providers (optional). Activate automatically when both ID and SECRET are set.
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -22,6 +36,13 @@ services:
       - ALL
     mem_limit: 1g
     pids_limit: 256
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     networks:
       - internal
       - frontend
@@ -30,7 +51,7 @@ services:
     image: postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
     environment:
       - POSTGRES_USER=manifest
-      - POSTGRES_PASSWORD=manifest
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-manifest}
       - POSTGRES_DB=manifest
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -41,6 +62,7 @@ services:
       retries: 5
     security_opt:
       - no-new-privileges:true
+    restart: unless-stopped
     networks:
       - internal
 

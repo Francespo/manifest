@@ -53,9 +53,7 @@ jobs:
             TAG="${NAME}@${VERSION}"
 
             # Determine changelog path based on package name
-            if [ "$NAME" = "manifest" ]; then
-              CHANGELOG_PATH="packages/openclaw-plugins/manifest/CHANGELOG.md"
-            elif [ "$NAME" = "manifest-model-router" ]; then
+            if [ "$NAME" = "manifest-model-router" ]; then
               CHANGELOG_PATH="packages/openclaw-plugins/manifest-model-router/CHANGELOG.md"
             else
               echo "Unknown package $NAME — skipping release"
@@ -90,9 +88,7 @@ jobs:
           npx clawhub@latest login --token "$CLAWHUB_TOKEN" --no-browser || { echo "ClawHub login failed (non-fatal)"; exit 0; }
 
           HAS_PROVIDER=$(echo "$PUBLISHED_PACKAGES" | jq '[.[] | select(.name == "manifest-model-router")] | length')
-          HAS_MANIFEST=$(echo "$PUBLISHED_PACKAGES" | jq '[.[] | select(.name == "manifest")] | length')
           PROVIDER_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "manifest-model-router") | .version // empty')
-          MANIFEST_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "manifest") | .version // empty')
 
           # Publish manifest-model-router plugin to ClawHub
           if [ "$HAS_PROVIDER" -gt 0 ]; then
@@ -102,21 +98,14 @@ jobs:
               --source-commit "$GITHUB_SHA" || echo "ClawHub plugin publish failed (non-fatal)"
           fi
 
-          # Skill publish disabled: the "manifest" ClawHub skill was deleted to
-          # unblock `openclaw plugins install manifest` on OpenClaw 2026.3.22+
-          # (ClawHub skills shadow npm plugins in the new resolver).
-          # Re-enable once `clawhub package publish` supports plugins in the CLI,
-          # or once OpenClaw fixes the skill-shadows-plugin resolution bug
-          # (openclaw/openclaw#52831, openclaw/openclaw#53241).
-
       - name: Publish Docker image
         if: steps.changesets.outputs.published == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
         run: |
-          MANIFEST_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "manifest") | .version // empty')
-          if [ -n "$MANIFEST_VERSION" ]; then
-            echo "Triggering Docker build for manifest@${MANIFEST_VERSION}..."
-            gh workflow run docker.yml -f version="$MANIFEST_VERSION"
+          PROVIDER_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "manifest-model-router") | .version // empty')
+          if [ -n "$PROVIDER_VERSION" ]; then
+            echo "Triggering Docker build for manifest-model-router@${PROVIDER_VERSION}..."
+            gh workflow run docker.yml -f version="$PROVIDER_VERSION"
           fi

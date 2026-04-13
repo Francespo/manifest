@@ -20,9 +20,6 @@ flags:
   plugin:
     paths:
       - packages/openclaw-plugins/manifest-model-router/src/
-  manifest:
-    paths:
-      - packages/openclaw-plugins/manifest/src/
   shared:
     paths:
       - packages/shared/src/

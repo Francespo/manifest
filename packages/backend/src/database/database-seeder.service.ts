@@ -31,20 +31,15 @@ export class DatabaseSeederService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // In local mode, LocalBootstrapService handles initialization
-    if (this.configService.get<string>('app.manifestMode') === 'local') return;
-
     await this.runBetterAuthMigrations();
 
-    const env = this.configService.get<string>('app.nodeEnv', 'production');
     const seedData = this.configService.get<string>('SEED_DATA');
-    const shouldSeed = (env === 'development' || env === 'test') && seedData === 'true';
-    if (shouldSeed) {
+    if (seedData === 'true') {
       await this.seedAdminUser();
       await this.seedApiKey();
       await this.seedTenantAndAgent();
       await this.seedAgentMessages();
-      this.logger.log('Seeded demo data (dev/test only, SEED_DATA=true)');
+      this.logger.log('Seeded demo data (SEED_DATA=true)');
       this.logger.warn(
         'SECURITY: Default seed credentials are active (admin@manifest.build). Do NOT use in production.',
       );
@@ -52,7 +47,7 @@ export class DatabaseSeederService implements OnModuleInit {
   }
 
   private async runBetterAuthMigrations() {
-    const ctx = await auth!.$context;
+    const ctx = await auth.$context;
     await ctx.runMigrations();
   }
 
@@ -60,7 +55,7 @@ export class DatabaseSeederService implements OnModuleInit {
     const existing = await this.checkBetterAuthUser('admin@manifest.build');
     if (existing) return;
 
-    await auth!.api.signUpEmail({
+    await auth.api.signUpEmail({
       body: {
         email: 'admin@manifest.build',
         password: 'manifest',

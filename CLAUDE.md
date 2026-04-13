@@ -1,6 +1,6 @@
 # Manifest Development Guidelines
 
-Last updated: 2026-04-12
+Last updated: 2026-04-13
 
 ## What Manifest Is
 
@@ -8,9 +8,9 @@ Manifest is a smart model router for **personal AI agents**. It sits between an 
 
 **Supported agents** (configured in `packages/shared/src/agent-type.ts`): OpenClaw, Hermes, OpenAI SDK, Vercel AI SDK, LangChain, cURL, and a generic `other` slot. OpenClaw remains the deepest integration — we ship two first-party plugins for it under `packages/openclaw-plugins/` — but no new code or copy should frame Manifest as OpenClaw-only. When adding examples, prefer "personal AI agent" as the noun and pick OpenClaw as the worked example rather than the sole target.
 
-## IMPORTANT: Cloud Mode Always
+## IMPORTANT: Fresh PostgreSQL Per Dev Session
 
-When starting the app for development or testing (e.g. `/serve`), **always use `MANIFEST_MODE=cloud`** (the default). Never use local/SQLite mode — multiple concurrent Claude instances cause SQLite lock conflicts. Every dev session must use a **fresh PostgreSQL database** via Docker:
+Manifest is Postgres-only. Every dev session must use a **fresh PostgreSQL database** via Docker to avoid overlap with other instances:
 
 ```bash
 # 1. Ensure the postgres_db container is running
@@ -27,18 +27,12 @@ docker exec postgres_db psql -U myuser -d postgres -c "CREATE DATABASE $DB_NAME;
 # 4. Ensure SEED_DATA=true in .env so the database is populated on startup
 ```
 
-This guarantees each session starts with a clean, isolated database and avoids all cross-instance conflicts.
-
-## IMPORTANT: Plugin Must Use Cloud+Dev Mode
-
-When configuring the OpenClaw **manifest-model-router** plugin to point at a local dev server (e.g. after `/serve` or `/setup-manifest-plugin`), **always use `devMode: true`** — never install the `manifest` plugin for this purpose. The `manifest` plugin starts its own embedded server on port 2099 and ignores the external backend. The `manifest-model-router` plugin with `devMode` connects directly to your dev server without starting an embedded server.
-
-## Plugin Dev Mode
+## OpenClaw Plugin Dev Mode
 
 When testing the OpenClaw plugin integration (routing), use the **manifest-model-router** plugin in **dev mode** to connect to a local backend without API key management:
 
 ```bash
-# 1. Build and start the backend in cloud mode
+# 1. Build and start the backend
 npm run build
 PORT=38238 BIND_ADDRESS=127.0.0.1 \
   node -r dotenv/config packages/backend/dist/main.js
@@ -51,7 +45,7 @@ openclaw config set plugins.entries.manifest-model-router.config.endpoint http:/
 openclaw gateway restart
 ```
 
-No API key needed. The dashboard shows an orange **Dev** badge in the header when running in development environment (`NODE_ENV !== 'production'`). Dev mode uses loopback bypass — the `AgentKeyAuthGuard` trusts same-machine connections without Bearer token auth. Note: `devMode` is auto-detected when the endpoint is a loopback address and no `mnfst_*` API key is provided.
+No API key needed. Dev mode uses the `AgentKeyAuthGuard` dev loopback bypass — loopback IPs with non-`mnfst_*` Bearer tokens are trusted when `NODE_ENV=development`. Note: `devMode` is auto-detected when the endpoint is a loopback address and no `mnfst_*` API key is provided.
 
 ### Resetting OpenClaw Plugin Settings
 
@@ -68,7 +62,7 @@ openclaw gateway restart
 
 **Important notes:**
 - The OpenClaw config lives at `~/.openclaw/openclaw.json`. The gateway may restore certain fields (like `apiKey`) on restart — editing the file directly doesn't always stick.
-- When `devMode` is true, the gateway sends `Authorization: Bearer dev-no-auth` to the proxy. The `AgentKeyAuthGuard` accepts any non-`mnfst_*` token from loopback IPs in local mode, so this works without real API keys.
+- When `devMode` is true, the gateway sends `Authorization: Bearer dev-no-auth` to the proxy. The `AgentKeyAuthGuard` accepts any non-`mnfst_*` token from loopback IPs in development mode, so this works without real API keys.
 - After restarting the backend server, **always restart the gateway too** (`openclaw gateway restart`) — the routing proxy doesn't automatically reconnect.
 
 ## Active Technologies
@@ -96,7 +90,6 @@ packages/
 │   │   ├── database/
 │   │   │   ├── database.module.ts           # TypeORM PostgreSQL config
 │   │   │   ├── database-seeder.service.ts   # Seeds demo data (users, agents, security events)
-│   │   │   ├── local-bootstrap.service.ts   # Seeds local mode (SQLite)
 │   │   │   ├── datasource.ts               # CLI DataSource for migration commands
 │   │   │   ├── pricing-sync.service.ts      # OpenRouter pricing data sync
 │   │   │   ├── ollama-sync.service.ts       # Ollama model sync
@@ -113,12 +106,12 @@ packages/
 │   │   │   ├── dto/                         # create-agent, range-query, rename-agent DTOs
 │   │   │   ├── filters/spa-fallback.filter.ts
 │   │   │   ├── interceptors/               # agent-cache, user-cache
-│   │   │   ├── constants/                   # api-key, cache, local-mode, ollama
+│   │   │   ├── constants/                   # api-key, cache, ollama
 │   │   │   ├── services/                    # ingest-event-bus, manifest-runtime, tenant-cache
 │   │   │   ├── utils/range.util.ts
 │   │   │   ├── utils/hash.util.ts           # API key hashing (scrypt KDF)
 │   │   │   ├── utils/crypto.util.ts         # AES-256-GCM encryption
-│   │   │   ├── utils/sql-dialect.ts         # Cross-DB SQL helpers (Postgres/SQLite)
+│   │   │   ├── utils/sql-dialect.ts         # Postgres SQL helpers (timestamp/NOW wrappers)
 │   │   │   ├── utils/slugify.ts             # Name slugification
 │   │   │   ├── utils/url-validation.ts      # URL validation
 │   │   │   ├── utils/provider-inference.ts  # Provider detection from model names
@@ -213,12 +206,9 @@ cd packages/backend && NODE_OPTIONS='-r dotenv/config' npx nest start --watch
 
 # Frontend
 cd packages/frontend && npx vite
-
-# Plugin (watch mode, optional)
-cd packages/openclaw-plugins/manifest && npx tsx watch build.ts
 ```
 
-**Note:** `npm run dev` (turbo) starts frontend + plugin but NOT the backend, because the backend's script is `start:dev` not `dev`. Start the backend separately as shown above.
+**Note:** `npm run dev` (turbo) starts frontend but NOT the backend, because the backend's script is `start:dev` not `dev`. Start the backend separately as shown above.
 
 ### Seeding Dev Data
 
@@ -254,13 +244,6 @@ docker exec postgres_db psql -U myuser -d postgres -c "CREATE DATABASE manifest_
 ```
 
 Then set `DATABASE_URL=postgresql://myuser:mypassword@localhost:5432/manifest_<name>` in `.env`.
-
-**Plugin build (one-time):**
-
-```bash
-npm run build:plugin
-# or: cd packages/openclaw-plugins/manifest && npx tsx build.ts
-```
 
 ```bash
 # Production build + start (single server)
@@ -395,10 +378,12 @@ See `packages/backend/.env.example` for all variables. Key ones:
 - `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — GitHub OAuth (optional)
 - `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` — Discord OAuth (optional)
 - `PLUGIN_OTLP_ENDPOINT` — Custom endpoint for plugin setup UI.
-- `SEED_DATA` — Set `true` to seed demo data on startup.
-- `MANIFEST_MODE` — `local` or `cloud` (default: `cloud`). Switches between SQLite/loopback auth and PostgreSQL/Better Auth.
-- `MANIFEST_DB_PATH` — SQLite file path for local mode (default: in-memory).
-- `MANIFEST_UPDATE_CHECK_OPTOUT` — Set `1` to disable local-mode npm version checks.
+- `SEED_DATA` — Set `true` to seed demo data + admin user on startup.
+- `AUTO_MIGRATE` — Set `true` to run TypeORM migrations on startup. Dev/test auto-run; production self-hosted first boot needs this.
+- `EMAIL_PROVIDER` — `resend` | `mailgun` | `sendgrid`. Unified email provider used for Better Auth transactional emails AND threshold alerts.
+- `EMAIL_API_KEY` — API key for the chosen email provider.
+- `EMAIL_DOMAIN` — Sending domain. Required for Mailgun, unused for Resend/SendGrid.
+- `EMAIL_FROM` — Sender address (falls back to `NOTIFICATION_FROM_EMAIL` or `noreply@manifest.build`).
 
 ## Domain Terminology
 
@@ -428,8 +413,7 @@ To add a new font or icon library:
 - **Body parsing**: Disabled at NestJS level (`bodyParser: false`). Better Auth mounted first (needs raw body), then `express.json()` and `express.urlencoded()`.
 - **QueryBuilder API**: Analytics and ingestion services use TypeORM `Repository.createQueryBuilder()` instead of raw SQL. The `addTenantFilter()` helper in `query-helpers.ts` applies multi-tenant WHERE clauses. Only the database seeder and notification cron still use `DataSource.query()` with numbered `$1, $2, ...` placeholders.
 - **PostgreSQL time functions**: `NOW() - CAST(:interval AS interval)`, `to_char(date_trunc('hour', timestamp), ...)`, `timestamp::date`.
-- **Better Auth database**: In cloud mode, uses a `pg.Pool` instance passed directly to `betterAuth({ database: pool })`. In local mode, Better Auth is skipped entirely (`auth = null`) — `LocalAuthGuard` handles auth via loopback IP check, and simple Express handlers serve session data.
-- **Local mode database**: Uses `sql.js` (WASM-based SQLite, zero native deps). TypeORM driver type is `'sqljs'` with `autoSave: true` for file persistence.
+- **Better Auth database**: Uses a `pg.Pool` instance passed directly to `betterAuth({ database: pool })`. Secret validation runs unconditionally outside test mode — `BETTER_AUTH_SECRET` (min 32 chars) is required.
 - **PostgreSQL container**: `docker run -d --name postgres_db -e POSTGRES_USER=myuser -e POSTGRES_PASSWORD=mypassword -e POSTGRES_DB=mydatabase -p 5432:5432 postgres:16`
 - **Validation**: Global `ValidationPipe` with `whitelist: true`, `forbidNonWhitelisted: true`. Explicit `@Type()` decorators on numeric DTO fields.
 - **Agent key auth caching**: `AgentKeyAuthGuard` caches valid API keys in-memory for 5 minutes to avoid repeated DB lookups.
@@ -523,25 +507,23 @@ Version management and npm publishing use [Changesets](https://github.com/change
 
 | Package | npm name | Published |
 |---------|----------|-----------|
-| `packages/openclaw-plugins/manifest` | `manifest` | Yes (full self-hosted plugin with embedded server + dashboard) |
-| `packages/openclaw-plugins/manifest-model-router` | `manifest-model-router` | Yes (lightweight cloud-only provider plugin, ~22KB) |
+| `packages/openclaw-plugins/manifest-model-router` | `manifest-model-router` | Yes (lightweight OpenClaw provider plugin, ~22KB) |
 | `packages/backend` | `manifest-backend` | No (`private: true`) |
 | `packages/frontend` | `manifest-frontend` | No (`private: true`) |
 
-Both `manifest` and `manifest-model-router` are actively published.
+Only `manifest-model-router` is published to npm. The backend and frontend ship as the self-hosted Docker image at `manifestdotbuild/manifest`.
 
 ### CRITICAL: Every PR Needs a Changeset
 
 **Before creating any PR, you MUST add a changeset.** The `changeset-check` CI job will fail without one.
 
-- **Backend or frontend changes always need a `manifest` changeset.** These packages compile into `manifest`, so any change to `packages/backend/` or `packages/frontend/` must include a changeset bumping `manifest` (patch for fixes, minor for features). CI enforces this.
-- If the PR changes a **publishable package** directly (`openclaw-plugins/manifest` or `openclaw-plugins/manifest-model-router`): run `npx changeset` and select the appropriate bump level. Changes to `manifest-model-router` only need a `manifest-model-router` changeset (not `manifest`) unless the full plugin is also affected.
-- **Empty changesets** (`npx changeset add --empty`) should only be used for changes that don't affect any publishable package: CI config, docs, tooling, or dev-only scripts.
+- If the PR changes `openclaw-plugins/manifest-model-router`, run `npx changeset` and select the appropriate bump level.
+- **Empty changesets** (`npx changeset add --empty`) should only be used for changes that don't affect any publishable package: backend, frontend, CI config, docs, tooling, or dev-only scripts.
 - Commit the generated `.changeset/*.md` file as part of the PR.
 
 ### Workflow
 
-1. When changing backend, frontend, or `openclaw-plugins/manifest`, run `npx changeset` and select `manifest`. When changing `openclaw-plugins/manifest-model-router`, select `manifest-model-router`. Both can be included in a single changeset if both are affected.
+1. When changing `openclaw-plugins/manifest-model-router`, run `npx changeset` and select `manifest-model-router`.
 2. On merge to `main`, the release workflow (`.github/workflows/release.yml`) opens a "Version Packages" PR
 3. When that PR merges, the workflow publishes to npm using `NPM_TOKEN` secret
 
@@ -556,7 +538,7 @@ npm run release             # Publish to npm (used by CI)
 
 ### CI Integration
 
-The `changeset-check` job in `.github/workflows/ci.yml` runs `npx changeset status --since=origin/main` on PRs. It also enforces that any PR touching `packages/backend/` or `packages/frontend/` includes a `manifest` changeset. The job will fail if backend/frontend files changed without one.
+The `changeset-check` job in `.github/workflows/ci.yml` runs `npx changeset status --since=origin/main` on PRs. It enforces that any PR touching `packages/openclaw-plugins/manifest-model-router/` includes a `manifest-model-router` changeset.
 
 ## Code Coverage (Codecov)
 
@@ -569,7 +551,7 @@ Codecov runs on every PR via the `codecov/patch` and `codecov/project` checks. C
 
 ### CRITICAL: 100% Line Coverage Required
 
-**Every PR must maintain 100% line coverage across all four packages.** The codebase currently has full line coverage and every PR must preserve it. This means:
+**Every PR must maintain 100% line coverage across all packages.** The codebase currently has full line coverage and every PR must preserve it. This means:
 
 - All new source files must have corresponding tests with 100% line coverage
 - All modified functions must have tests covering every line, including error paths
@@ -577,14 +559,12 @@ Codecov runs on every PR via the `codecov/patch` and `codecov/project` checks. C
 - Run coverage locally before creating a PR:
   - `cd packages/backend && npx jest --coverage`
   - `cd packages/frontend && npx vitest run --coverage`
-  - `cd packages/openclaw-plugins/manifest && npx jest --coverage`
   - `cd packages/openclaw-plugins/manifest-model-router && npx jest --coverage`
 
 This applies to:
 
 - New services, guards, controllers, or utilities in `packages/backend/src/`
 - New components or functions in `packages/frontend/src/`
-- New modules in `packages/openclaw-plugins/manifest/src/`
 - New modules in `packages/openclaw-plugins/manifest-model-router/src/`
 
 ### Coverage Flags
@@ -593,8 +573,7 @@ This applies to:
 |------|-------|--------|
 | `backend` | `packages/backend/src/` | Backend (PostgreSQL) |
 | `frontend` | `packages/frontend/src/` | frontend |
-| `plugin` | `packages/openclaw-plugins/manifest/src/` | plugin |
-| `provider-plugin` | `packages/openclaw-plugins/manifest-model-router/src/` | provider-plugin |
+| `plugin` | `packages/openclaw-plugins/manifest-model-router/src/` | plugin |
 
 ### E2E Test Entities
 
