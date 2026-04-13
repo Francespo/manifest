@@ -153,6 +153,7 @@ The backend runs standalone and OpenClaw talks to it as a regular OpenAI-compati
 4. Run the test suite to make sure everything passes:
 
 ```bash
+npm test --workspace=packages/shared
 npm test --workspace=packages/backend
 npm run test:e2e --workspace=packages/backend
 npm test --workspace=packages/frontend
