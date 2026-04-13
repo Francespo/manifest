@@ -29,7 +29,8 @@
   "workspaces": [
     "packages/shared",
     "packages/frontend",
-    "packages/backend"
+    "packages/backend",
+    "packages/manifest"
   ],
   "scripts": {
     "dev": "turbo dev",
