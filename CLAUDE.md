@@ -504,21 +504,22 @@ Changesets are **not** required on every PR — they're optional and only meanin
 
 ### Cutting a Docker release
 
-1. Merge the pending `chore: version packages` PR to land the version bump in `packages/manifest/package.json`.
-2. Go to **GitHub Actions → Docker → Run workflow**, leave the `version` input blank, click Run.
-3. The `publish` job reads `packages/manifest/package.json`, resolves the version automatically, and pushes `manifestdotbuild/manifest:{version}` + `{major}.{minor}` + `{major}` + `sha-<short>` to Docker Hub. The image is multi-arch (amd64 + arm64) and cosign-signed.
-4. **Manually update the Docker Hub description** on hub.docker.com by copy-pasting the current contents of `docker/DOCKER_README.md`. (Automating this sync hit a wall because `docker-pushrm` and the Docker Hub web API need a personal-user PAT and the existing secrets are scoped to the org — tracked as a follow-up, not blocking releases.)
+Merging the `chore: version packages` PR to `main` automatically publishes a new Docker image — no manual step required.
 
-To retag an older commit or publish a hotfix version that doesn't match the current `package.json`, pass a semver string in the `version` input and it overrides the package.json lookup.
+1. Merge the pending `chore: version packages` PR. `release.yml` detects the version bump in `packages/manifest/package.json` (by diffing `HEAD~1` against `HEAD`) and calls `docker.yml` as a reusable workflow.
+2. The `publish` job reads `packages/manifest/package.json`, resolves the version automatically, and pushes `manifestdotbuild/manifest:{version}` + `{major}.{minor}` + `{major}` + `sha-<short>` to Docker Hub. The image is multi-arch (amd64 + arm64) and cosign-signed.
+3. **Manually update the Docker Hub description** on hub.docker.com by copy-pasting the current contents of `docker/DOCKER_README.md`. (Automating this sync hit a wall because `docker-pushrm` and the Docker Hub web API need a personal-user PAT and the existing secrets are scoped to the org — tracked as a follow-up, not blocking releases.)
+
+**Manual override:** `workflow_dispatch` on `Docker → Run workflow` still works for hotfixes and retags. Leave the `version` input blank to use `packages/manifest/package.json`, or pass a semver string to retag an older commit / publish a hotfix version.
 
 ### Summary of what CI does on each trigger
 
 | Trigger | What happens |
 |---------|--------------|
 | PR opened/updated (runtime files) | `ci.yml` runs tests, lint, typecheck, coverage. `docker.yml` validates the Docker build (no push). `changeset-check` warns softly if no changeset is present. |
-| Merge to `main` | `release.yml` runs `changesets/action` to open or update the `chore: version packages` PR. **No auto-publish** — neither npm nor Docker. |
-| Merge of `chore: version packages` PR | `release.yml` runs again. Version bump in `packages/manifest/package.json` and the CHANGELOG update land on `main`. Still no image publish. |
-| Manual `workflow_dispatch` on `Docker` workflow | Reads `packages/manifest/package.json` and pushes a new image tag to Docker Hub. This is the **only** path that publishes anything. |
+| Merge to `main` | `release.yml` runs `changesets/action` to open or update the `chore: version packages` PR. No publish — the version on `main` hasn't changed yet. |
+| Merge of `chore: version packages` PR | `release.yml` runs again, detects the version bump in `packages/manifest/package.json`, and calls `docker.yml` as a reusable workflow. This pushes a new image tag to Docker Hub automatically. |
+| Manual `workflow_dispatch` on `Docker` workflow | Reads `packages/manifest/package.json` (or the `version` input override) and pushes a new image tag to Docker Hub. Used for hotfixes and retags. |
 
 ## Code Coverage (Codecov)
 
