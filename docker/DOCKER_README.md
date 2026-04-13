@@ -31,9 +31,9 @@ Manifest is a smart model router for **personal AI agents** like OpenClaw, Herme
 - [Supported providers](#supported-providers)
 - [Manifest vs OpenRouter](#manifest-vs-openrouter)
 - [Installation](#installation)
-  - [Option 1: Docker Compose (recommended)](#option-1-docker-compose-recommended)
-  - [Option 2: Docker Run (bring your own PostgreSQL)](#option-2-docker-run-bring-your-own-postgresql)
-  - [Option 3: One-command install script](#option-3-one-command-install-script)
+  - [Option 1: Quickstart install script (recommended)](#option-1-quickstart-install-script-recommended)
+  - [Option 2: Docker Compose (manual)](#option-2-docker-compose-manual)
+  - [Option 3: Docker Run (bring your own PostgreSQL)](#option-3-docker-run-bring-your-own-postgresql)
   - [Verifying the image signature](#verifying-the-image-signature)
   - [Custom port](#custom-port)
 - [Image tags](#image-tags)
@@ -60,9 +60,29 @@ Works with 300+ models across OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, M
 
 ## Installation
 
-### Option 1: Docker Compose (recommended)
+Three paths, ordered from fastest to most hands-on. All three end in the same place: a running stack that walks you through the **setup wizard** at [http://localhost:3001](http://localhost:3001) to create your admin account.
 
-Runs Manifest with a PostgreSQL database. One command.
+### Option 1: Quickstart install script (recommended)
+
+One command. The script downloads `docker/docker-compose.yml`, generates a fresh `BETTER_AUTH_SECRET` and injects it into the compose file, brings up the stack, and waits for the healthcheck to go green.
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/mnfst/manifest/main/docker/install.sh)
+```
+
+Prefer to audit before running? Download, read, then execute:
+
+```bash
+curl -sSLO https://raw.githubusercontent.com/mnfst/manifest/main/docker/install.sh
+less install.sh
+bash install.sh
+```
+
+Flags: `--dir <path>` (install into a custom directory, defaults to `./manifest`), `--dry-run` (print what would happen without touching anything), `--yes` (skip the confirmation prompt).
+
+### Option 2: Docker Compose (manual)
+
+Same underlying flow as the install script, but you drive it yourself so you can edit the compose file before booting the stack.
 
 1. Download the compose file:
 
@@ -70,15 +90,19 @@ Runs Manifest with a PostgreSQL database. One command.
 curl -O https://raw.githubusercontent.com/mnfst/manifest/main/docker/docker-compose.yml
 ```
 
-2. Start it:
+2. Generate a secret and paste it over the `BETTER_AUTH_SECRET` placeholder in `docker-compose.yml`:
+
+```bash
+openssl rand -hex 32
+```
+
+3. Start it:
 
 ```bash
 docker compose up -d
 ```
 
-3. Open [http://localhost:3001](http://localhost:3001). The **setup wizard** walks you through creating the first admin account — pick your own email and password (min 8 chars). No hardcoded credentials.
-
-4. Connect a provider on the Routing page and you're set.
+4. Open [http://localhost:3001](http://localhost:3001) and complete the setup wizard.
 
 To stop:
 
@@ -87,7 +111,7 @@ docker compose down       # keeps data
 docker compose down -v    # deletes everything
 ```
 
-### Option 2: Docker Run (bring your own PostgreSQL)
+### Option 3: Docker Run (bring your own PostgreSQL)
 
 If you already have PostgreSQL running, pick the command for your shell.
 
@@ -140,27 +164,7 @@ docker run -d ^
 
 </details>
 
-`AUTO_MIGRATE=true` runs TypeORM migrations on first boot. Then visit http://localhost:3001 and complete the setup wizard to create your admin account.
-
-### Option 3: One-command install script
-
-Downloads the compose file, generates a `BETTER_AUTH_SECRET`, writes it into the compose file (replacing the placeholder), and brings up the stack. Prompts before making changes; supports `--dry-run`.
-
-**Review before running** (recommended):
-
-```bash
-curl -sSLO https://raw.githubusercontent.com/mnfst/manifest/main/docker/install.sh
-less install.sh
-bash install.sh
-```
-
-**One-shot** (if you trust the source):
-
-```bash
-bash <(curl -sSL https://raw.githubusercontent.com/mnfst/manifest/main/docker/install.sh)
-```
-
-Flags: `--dir <path>` (install into a custom directory, defaults to `./manifest`), `--dry-run` (print what would happen without touching anything), `--yes` (skip the confirmation prompt).
+`AUTO_MIGRATE=true` runs TypeORM migrations on first boot. Then visit [http://localhost:3001](http://localhost:3001) and complete the setup wizard to create your admin account.
 
 ### Verifying the image signature
 
