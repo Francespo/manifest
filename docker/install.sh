@@ -117,7 +117,6 @@ else
 # Regenerate BETTER_AUTH_SECRET before exposing beyond localhost.
 BETTER_AUTH_SECRET=$SECRET
 BETTER_AUTH_URL=http://localhost:3001
-POSTGRES_PASSWORD=manifest
 SEED_DATA=true
 EOF
 fi

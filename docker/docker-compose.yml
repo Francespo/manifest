@@ -4,7 +4,11 @@
 #     secret. Generate one with: openssl rand -hex 32
 #   - Set SEED_DATA=false to stop seeding the demo agent on every boot.
 #   - Change the seeded admin password (admin@manifest.build / manifest).
-#   - Pick a strong POSTGRES_PASSWORD.
+#
+# The Postgres credentials below are internal to the compose network and
+# never exposed on the host — there is no published port for postgres. If
+# you need a custom DB password (or an external Postgres), use Option 2
+# from DOCKER_README.md and supply your own DATABASE_URL end-to-end.
 #
 # All `${VAR:-default}` values below fall back to localhost-safe defaults
 # when no .env file is present, so `docker compose up -d` works out of the
@@ -16,7 +20,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - DATABASE_URL=postgresql://manifest:${POSTGRES_PASSWORD:-manifest}@postgres:5432/manifest
+      - DATABASE_URL=postgresql://manifest:manifest@postgres:5432/manifest
       # ⚠  Default is a placeholder. Replace via .env before any non-localhost use.
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-change-me-to-a-random-32-char-string!!}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
@@ -49,7 +53,7 @@ services:
     image: postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
     environment:
       - POSTGRES_USER=manifest
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-manifest}
+      - POSTGRES_PASSWORD=manifest
       - POSTGRES_DB=manifest
     volumes:
       - pgdata:/var/lib/postgresql/data
