@@ -76,7 +76,7 @@ describe('Proxy E2E — /v1/chat/completions', () => {
       .expect(200);
 
     // Auth errors are returned as friendly chat completion messages
-    expect(res.body.choices[0].message.content).toContain('Missing API key');
+    expect(res.body.choices[0].message.content).toContain('Missing the Authorization header');
   });
 
   it('returns friendly message when messages are missing', async () => {

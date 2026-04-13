@@ -51,7 +51,7 @@ describe('ProxyExceptionFilter', () => {
           choices: expect.arrayContaining([
             expect.objectContaining({
               message: expect.objectContaining({
-                content: expect.stringContaining('Missing API key'),
+                content: expect.stringContaining('Missing the Authorization header'),
               }),
             }),
           ]),
@@ -94,7 +94,7 @@ describe('ProxyExceptionFilter', () => {
 
       expect(res.status).toHaveBeenCalledWith(200);
       const content = res.json.mock.calls[0][0].choices[0].message.content;
-      expect(content).toContain("wasn't recognized");
+      expect(content).toContain("I don't recognize this key");
     });
 
     it('includes dashboard URL in auth error messages', () => {
@@ -164,7 +164,7 @@ describe('ProxyExceptionFilter', () => {
 
       expect(res.status).toHaveBeenCalledWith(200);
       const content = res.json.mock.calls[0][0].choices[0].message.content;
-      expect(content).toBe('[🦚 Manifest] Something broke on our end. Try again shortly.');
+      expect(content).toBe('[🦚 Manifest] Something broke on our end. Try again in a moment.');
     });
 
     it('converts unknown auth message to friendly message', () => {
