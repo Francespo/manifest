@@ -56,7 +56,7 @@ curl -O https://raw.githubusercontent.com/mnfst/manifest/main/docker/docker-comp
 docker compose up -d
 ```
 
-Open [http://localhost:3001](http://localhost:3001) and log in with `admin@manifest.build` / `manifest`. Full self-hosting guide: [docker/DOCKER_README.md](docker/DOCKER_README.md).
+Open [http://localhost:3001](http://localhost:3001) and the setup wizard walks you through creating your admin account. Full self-hosting guide: [docker/DOCKER_README.md](docker/DOCKER_README.md).
 
 > Docker is the only supported distribution. The legacy `manifest` npm package is deprecated and no longer published.
 

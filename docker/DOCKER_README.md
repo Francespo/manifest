@@ -76,11 +76,9 @@ curl -O https://raw.githubusercontent.com/mnfst/manifest/main/docker/docker-comp
 docker compose up -d
 ```
 
-3. Open [http://localhost:3001](http://localhost:3001) and log in:
-   - Email: `admin@manifest.build`
-   - Password: `manifest`
+3. Open [http://localhost:3001](http://localhost:3001). The **setup wizard** walks you through creating the first admin account — pick your own email and password (min 8 chars). No hardcoded credentials.
 
-Connect a provider on the Routing page and you're set.
+4. Connect a provider on the Routing page and you're set.
 
 To stop:
 
@@ -102,8 +100,7 @@ docker run -d \
   -e DATABASE_URL=postgresql://user:pass@host:5432/manifest \
   -e BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
   -e BETTER_AUTH_URL=http://localhost:3001 \
-  -e NODE_ENV=development \
-  -e MANIFEST_TRUST_LAN=true \
+  -e AUTO_MIGRATE=true \
   manifestdotbuild/manifest
 ```
 
@@ -120,8 +117,7 @@ docker run -d `
   -e DATABASE_URL=postgresql://user:pass@host:5432/manifest `
   -e BETTER_AUTH_SECRET=$secret `
   -e BETTER_AUTH_URL=http://localhost:3001 `
-  -e NODE_ENV=development `
-  -e MANIFEST_TRUST_LAN=true `
+  -e AUTO_MIGRATE=true `
   manifestdotbuild/manifest
 ```
 
@@ -138,18 +134,17 @@ docker run -d ^
   -e DATABASE_URL=postgresql://user:pass@host:5432/manifest ^
   -e BETTER_AUTH_SECRET=<your-64-char-secret> ^
   -e BETTER_AUTH_URL=http://localhost:3001 ^
-  -e NODE_ENV=development ^
-  -e MANIFEST_TRUST_LAN=true ^
+  -e AUTO_MIGRATE=true ^
   manifestdotbuild/manifest
 ```
 
 </details>
 
-`NODE_ENV=development` makes migrations run on startup. Without it you'd need to run them manually.
+`AUTO_MIGRATE=true` runs TypeORM migrations on first boot. Then visit http://localhost:3001 and complete the setup wizard to create your admin account.
 
 ### Option 3: One-command install script
 
-Downloads the compose file, generates a `BETTER_AUTH_SECRET`, writes a `.env`, and brings up the stack. Prompts before making changes; supports `--dry-run`.
+Downloads the compose file, generates a `BETTER_AUTH_SECRET`, writes it into the compose file (replacing the placeholder), and brings up the stack. Prompts before making changes; supports `--dry-run`.
 
 **Review before running** (recommended):
 
