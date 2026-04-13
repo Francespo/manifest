@@ -31,13 +31,13 @@ Works with 300+ models across OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, M
 
 ## Manifest vs OpenRouter
 
-|              | Manifest                                     | OpenRouter                                          |
-| ------------ | -------------------------------------------- | --------------------------------------------------- |
-| Architecture | Local. Your requests, your providers         | Cloud proxy. All traffic goes through their servers |
-| Cost         | Free                                         | 5% fee on every API call                            |
-| Source code  | MIT, fully open                              | Proprietary                                         |
-| Data privacy | Metadata only (cloud) or fully local         | Prompts and responses pass through a third party    |
-| Transparency | Open scoring. You see why a model was chosen | No visibility into routing decisions                |
+|              | Manifest                                             | OpenRouter                                          |
+| ------------ | ---------------------------------------------------- | --------------------------------------------------- |
+| Architecture | Your Manifest instance forwards to your providers    | Cloud proxy. All traffic goes through their servers |
+| Cost         | Free                                                 | 5% fee on every API call                            |
+| Source code  | MIT, fully open                                      | Proprietary                                         |
+| Data privacy | Metadata only (Cloud), no middleman (self-hosted)    | Prompts and responses pass through a third party    |
+| Transparency | Open scoring. You see why a model was chosen         | No visibility into routing decisions                |
 
 ---
 
@@ -89,22 +89,6 @@ docker run -d \
 
 `NODE_ENV=development` makes migrations run on startup. Without it you'd need to run them manually.
 
-### Option 3: Local mode (no database)
-
-For quick testing. Uses SQLite in-memory -- data goes away when the container stops unless you mount a volume.
-
-```bash
-docker run -d \
-  -p 3001:3001 \
-  -e MANIFEST_MODE=local \
-  -e BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
-  -e MANIFEST_TRUST_LAN=true \
-  -v manifest-data:/home/node/.openclaw/manifest \
-  manifestdotbuild/manifest
-```
-
-Local mode skips the login page. The dashboard is accessible directly.
-
 ### Verifying the image signature
 
 Published images are signed with cosign keyless signing (Sigstore). Verify before pulling:
@@ -141,12 +125,11 @@ If you see "Invalid origin" on the login page, `BETTER_AUTH_URL` doesn't match t
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes (cloud mode) | -- | PostgreSQL connection string |
+| `DATABASE_URL` | Yes | -- | PostgreSQL connection string |
 | `BETTER_AUTH_SECRET` | Yes | -- | Session signing secret (min 32 chars) |
 | `BETTER_AUTH_URL` | No | `http://localhost:3001` | Public URL. Set this when using a custom port |
 | `PORT` | No | `3001` | Internal server port |
 | `NODE_ENV` | No | `production` | Set `development` for auto-migrations |
-| `MANIFEST_MODE` | No | `cloud` | `cloud` (PostgreSQL) or `local` (SQLite) |
 | `SEED_DATA` | No | `false` | Seed demo data on startup |
 | `MANIFEST_TRUST_LAN` | No | `false` | Trust private network IPs (needed in Docker) |
 
