@@ -44,6 +44,8 @@ import {
   getFallbacks,
   setFallbacks,
   clearFallbacks,
+  getPricingHealth,
+  refreshPricing,
 } from '../../src/services/api.js';
 
 vi.mock('../../src/services/toast-store.js', () => ({
@@ -1003,13 +1005,40 @@ describe('testSavedEmailProvider', () => {
 
 describe('getRoutingStatus', () => {
   it('fetches /routing/:agentName/status', async () => {
-    const payload = { enabled: true };
+    const payload = { enabled: true, reason: null };
     mockOk(payload);
 
     const result = await getRoutingStatus('my-agent');
     expect(result).toEqual(payload);
     const url = mockFetch.mock.calls[0]?.[0] as string;
     expect(url).toContain('/api/v1/routing/my-agent/status');
+  });
+});
+
+describe('getPricingHealth', () => {
+  it('fetches /routing/pricing-health', async () => {
+    const payload = { model_count: 348, last_fetched_at: '2026-04-13T00:00:00.000Z' };
+    mockOk(payload);
+
+    const result = await getPricingHealth();
+    expect(result).toEqual(payload);
+    const url = mockFetch.mock.calls[0]?.[0] as string;
+    expect(url).toContain('/api/v1/routing/pricing-health');
+  });
+});
+
+describe('refreshPricing', () => {
+  it('POSTs /routing/pricing/refresh', async () => {
+    const payload = { ok: true, model_count: 350, last_fetched_at: '2026-04-13T12:00:00.000Z' };
+    mockMutateOk(payload);
+
+    const result = await refreshPricing();
+    expect(result).toEqual(payload);
+    const call = mockFetch.mock.calls[0];
+    const url = call?.[0] as string;
+    const init = call?.[1] as RequestInit;
+    expect(url).toContain('/api/v1/routing/pricing/refresh');
+    expect(init.method).toBe('POST');
   });
 });
 
