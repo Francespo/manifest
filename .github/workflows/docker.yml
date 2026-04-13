@@ -13,7 +13,9 @@ on:
       - "docker/Dockerfile"
       - ".dockerignore"
       - "docker/docker-compose.yml"
+      - "docker/.env.example"
       - "docker/DOCKER_README.md"
+      - "docker/install.sh"
       - "packages/backend/**"
       - "packages/frontend/**"
       - "packages/shared/**"
@@ -68,6 +70,8 @@ jobs:
         id: meta
         with:
           images: manifestdotbuild/manifest
+          flavor: |
+            latest=true
           tags: |
             type=semver,pattern={{version}},value=${{ inputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ inputs.version }}
@@ -98,3 +102,12 @@ jobs:
           for tag in ${TAGS}; do
             cosign sign --yes "${tag}@${DIGEST}"
           done
+
+      - name: Sync README to Docker Hub
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: manifestdotbuild/manifest
+          short-description: "Smart LLM router for personal AI agents. Self-host with Docker."
+          readme-filepath: ./docker/DOCKER_README.md

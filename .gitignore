@@ -4,6 +4,7 @@ dist/
 build/
 *.log
 .env*
+!docker/.env.example
 .DS_Store
 Thumbs.db
 *.tmp

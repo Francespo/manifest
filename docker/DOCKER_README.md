@@ -17,7 +17,7 @@
 
 ## What is Manifest?
 
-Manifest is a smart model router for OpenClaw. It sits between your agent and your LLM providers, scores each request, and routes it to the cheapest model that can handle it. Simple questions go to fast, cheap models. Hard problems go to expensive ones. You save money without thinking about it.
+Manifest is a smart model router for personal AI agents like OpenClaw, Hermes, or anything speaking the OpenAI-compatible HTTP API. It sits between your agent and your LLM providers, scores each request, and routes it to the cheapest model that can handle it. Simple questions go to fast, cheap models. Hard problems go to expensive ones. You save money without thinking about it.
 
 - Route requests to the right model: Cut costs up to 70%
 - Automatic fallbacks: If a model fails, the next one picks up
@@ -25,9 +25,24 @@ Manifest is a smart model router for OpenClaw. It sits between your agent and yo
 
 ![manifest-gh](https://github.com/user-attachments/assets/7dd74fc2-f7d6-4558-a95a-014ed754a125)
 
+## Table of contents
+
+- [Supported providers](#supported-providers)
+- [Manifest vs OpenRouter](#manifest-vs-openrouter)
+- [Installation](#installation)
+  - [Option 1: Docker Compose (recommended)](#option-1-docker-compose-recommended)
+  - [Option 2: Docker Run (bring your own PostgreSQL)](#option-2-docker-run-bring-your-own-postgresql)
+  - [Option 3: One-command install script](#option-3-one-command-install-script)
+  - [Verifying the image signature](#verifying-the-image-signature)
+  - [Custom port](#custom-port)
+- [Upgrading](#upgrading)
+- [Backup & persistence](#backup--persistence)
+- [Environment variables](#environment-variables)
+- [Links](#links)
+
 ## Supported providers
 
-Works with 300+ models across OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, Mistral, Qwen, MiniMax, Kimi, Amazon Nova, OpenRouter, Ollama, and any provider with an OpenAI-compatible API.
+Works with 300+ models across OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, Mistral, Qwen, MiniMax, Kimi, Z.ai, GitHub Copilot, OpenRouter, Ollama, and any provider with an OpenAI-compatible API. Reuse an existing paid subscription where supported (ChatGPT Plus/Pro, Claude Max/Pro, Copilot, MiniMax Coding Plan, GLM Coding Plan, Ollama Cloud).
 
 ## Manifest vs OpenRouter
 
@@ -74,7 +89,10 @@ docker compose down -v    # deletes everything
 
 ### Option 2: Docker Run (bring your own PostgreSQL)
 
-If you already have PostgreSQL running:
+If you already have PostgreSQL running, pick the command for your shell.
+
+<details open>
+<summary><strong>macOS / Linux (bash, zsh)</strong></summary>
 
 ```bash
 docker run -d \
@@ -87,7 +105,65 @@ docker run -d \
   manifestdotbuild/manifest
 ```
 
+</details>
+
+<details>
+<summary><strong>Windows (PowerShell)</strong></summary>
+
+```powershell
+$secret = -join ((48..57 + 97..122) | Get-Random -Count 64 | ForEach-Object { [char]$_ })
+
+docker run -d `
+  -p 3001:3001 `
+  -e DATABASE_URL=postgresql://user:pass@host:5432/manifest `
+  -e BETTER_AUTH_SECRET=$secret `
+  -e BETTER_AUTH_URL=http://localhost:3001 `
+  -e NODE_ENV=development `
+  -e MANIFEST_TRUST_LAN=true `
+  manifestdotbuild/manifest
+```
+
+</details>
+
+<details>
+<summary><strong>Windows (CMD)</strong></summary>
+
+Generate a 64-character hex secret with any tool you trust, then:
+
+```cmd
+docker run -d ^
+  -p 3001:3001 ^
+  -e DATABASE_URL=postgresql://user:pass@host:5432/manifest ^
+  -e BETTER_AUTH_SECRET=<your-64-char-secret> ^
+  -e BETTER_AUTH_URL=http://localhost:3001 ^
+  -e NODE_ENV=development ^
+  -e MANIFEST_TRUST_LAN=true ^
+  manifestdotbuild/manifest
+```
+
+</details>
+
 `NODE_ENV=development` makes migrations run on startup. Without it you'd need to run them manually.
+
+### Option 3: One-command install script
+
+Downloads the compose file, generates a `BETTER_AUTH_SECRET`, writes a `.env`, and brings up the stack. Prompts before making changes; supports `--dry-run`.
+
+**Review before running** (recommended):
+
+```bash
+curl -sSLO https://raw.githubusercontent.com/mnfst/manifest/main/docker/install.sh
+less install.sh
+bash install.sh
+```
+
+**One-shot** (if you trust the source):
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/mnfst/manifest/main/docker/install.sh)
+```
+
+Flags: `--dir <path>` (install into a custom directory, defaults to `./manifest`), `--dry-run` (print what would happen without touching anything), `--yes` (skip the confirmation prompt).
 
 ### Verifying the image signature
 
@@ -120,6 +196,42 @@ environment:
 ```
 
 If you see "Invalid origin" on the login page, `BETTER_AUTH_URL` doesn't match the port you're using.
+
+## Upgrading
+
+Manifest ships a new image on every release. To upgrade an existing compose install:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Database migrations run automatically on boot — no manual steps. Your data in the `pgdata` volume is preserved across upgrades. Pin to a specific major version (e.g. `manifestdotbuild/manifest:5`) in `docker-compose.yml` if you want control over when major upgrades happen.
+
+## Backup & persistence
+
+All state lives in the `pgdata` named volume mounted at `/var/lib/postgresql/data` in the `postgres` service. Nothing else in the Manifest container is stateful.
+
+**Back up** (from the host, with the stack running):
+
+```bash
+docker compose exec -T postgres pg_dump -U manifest manifest > manifest-backup-$(date +%F).sql
+```
+
+**Restore** into a fresh stack:
+
+```bash
+docker compose up -d postgres
+cat manifest-backup-2026-04-12.sql | docker compose exec -T postgres psql -U manifest manifest
+docker compose up -d
+```
+
+To list / remove the volume manually:
+
+```bash
+docker volume ls | grep pgdata
+docker compose down -v    # ⚠  destroys all data
+```
 
 ## Environment variables
 
