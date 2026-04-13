@@ -25,11 +25,7 @@ COPY packages/backend/package.json packages/backend/
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --ignore-scripts && \
     rm -rf node_modules/typescript node_modules/@types \
            node_modules/ts-node node_modules/acorn \
-           node_modules/create-require node_modules/v8-compile-cache-lib \
-           node_modules/sql.js/dist/sql-asm* \
-           node_modules/sql.js/dist/worker.* \
-           node_modules/sql.js/dist/sql-wasm-browser* \
-           node_modules/sql.js/dist/sql-wasm-debug* && \
+           node_modules/create-require node_modules/v8-compile-cache-lib && \
     find . -path "*/node_modules/vitest" -type d -exec rm -rf {} + 2>/dev/null; \
     find . -path "*/node_modules/vite-node" -type d -exec rm -rf {} + 2>/dev/null; \
     find . -path "*/node_modules/rollup" -type d -exec rm -rf {} + 2>/dev/null; \

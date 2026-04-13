@@ -2,10 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 
-vi.mock("../../src/services/local-mode.js", () => ({
-  checkLocalMode: vi.fn().mockResolvedValue(true),
-}));
-
 vi.mock("../../src/components/ProviderSelectModal.js", () => ({
   default: (props: any) => (
     <div data-testid="provider-modal">

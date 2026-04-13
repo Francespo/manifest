@@ -32,7 +32,7 @@ describe('DatabaseSeederService', () => {
 
   beforeEach(() => {
     mockDataSource = { query: jest.fn() };
-    configValues = { 'app.manifestMode': 'cloud', 'app.nodeEnv': 'development', SEED_DATA: 'true' };
+    configValues = { 'app.nodeEnv': 'development', SEED_DATA: 'true' };
     mockConfigService = {
       get: jest
         .fn()
@@ -66,16 +66,6 @@ describe('DatabaseSeederService', () => {
   });
 
   describe('onModuleInit', () => {
-    it('should skip everything in local mode', async () => {
-      configValues['app.manifestMode'] = 'local';
-
-      await service.onModuleInit();
-
-      // Nothing should be called — early return
-      expect(mockApiKeyRepo.count).not.toHaveBeenCalled();
-      expect(mockTenantRepo.count).not.toHaveBeenCalled();
-    });
-
     it('should run Better Auth migrations', async () => {
       const ctx = await auth.$context;
       await service.onModuleInit();
@@ -109,18 +99,20 @@ describe('DatabaseSeederService', () => {
       });
     });
 
-    it('should not seed demo data when env is production', async () => {
+    it('should seed demo data in production when SEED_DATA=true (self-hosted first boot)', async () => {
       configValues['app.nodeEnv'] = 'production';
       configValues['SEED_DATA'] = 'true';
 
       await service.onModuleInit();
 
-      expect(mockApiKeyRepo.count).not.toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'seed-api-key-001' } }),
-      );
-      expect(mockTenantRepo.count).not.toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'seed-tenant-001' } }),
-      );
+      // Seeding is now gated purely on SEED_DATA, so production + SEED_DATA=true seeds.
+      // The existing security warning log in the service makes misuse visible.
+      expect(mockApiKeyRepo.count).toHaveBeenCalledWith({
+        where: { id: 'seed-api-key-001' },
+      });
+      expect(mockTenantRepo.count).toHaveBeenCalledWith({
+        where: { id: 'seed-tenant-001' },
+      });
     });
 
     it('should not seed demo data when SEED_DATA is not true', async () => {

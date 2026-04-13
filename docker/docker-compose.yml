@@ -4,6 +4,8 @@
 #     with: openssl rand -hex 32
 #   - Set SEED_DATA=false to stop seeding the demo agent on every boot.
 #   - Change the seeded admin password (admin@manifest.build / manifest).
+#   - Set NODE_ENV=production to enable trust proxy, error sanitization,
+#     and strict Better Auth verification.
 
 services:
   manifest:
@@ -17,7 +19,21 @@ services:
       - BETTER_AUTH_URL=http://localhost:3001
       - SEED_DATA=true
       - NODE_ENV=development
-      - MANIFEST_TRUST_LAN=true
+      - AUTO_MIGRATE=true
+      # Email provider (optional). Covers both login/verification emails
+      # and threshold alert notifications. Set one provider block — see
+      # DOCKER_README.md "Email setup". Supports resend, mailgun, sendgrid.
+      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-}
+      - EMAIL_API_KEY=${EMAIL_API_KEY:-}
+      - EMAIL_DOMAIN=${EMAIL_DOMAIN:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      # OAuth providers (optional). Activate when both ID and SECRET are set.
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy

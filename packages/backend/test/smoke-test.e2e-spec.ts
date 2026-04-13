@@ -142,7 +142,7 @@ describe('ST-03: Seed agent data', () => {
 
     // Look up tenant and agent IDs created by ST-02
     const agents = await ds.query(
-      `SELECT id, tenant_id FROM agents WHERE name = ?`,
+      `SELECT id, tenant_id FROM agents WHERE name = $1`,
       [smokeAgentName],
     );
     expect(agents.length).toBe(1);
@@ -154,7 +154,7 @@ describe('ST-03: Seed agent data', () => {
 
     await ds.query(
       `INSERT INTO agent_messages (id, tenant_id, agent_id, timestamp, status, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, agent_name, user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [uuidv4(), tenantId, agentId, past, 'ok', 'test-model', 500, 200, 0, 0, smokeAgentName, 'test-user-001'],
     );
 

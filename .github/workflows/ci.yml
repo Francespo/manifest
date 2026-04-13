@@ -69,32 +69,6 @@ jobs:
           directory: packages/backend/coverage
           fail_ci_if_error: false
 
-  backend-sqljs:
-    name: Backend (sql.js / ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-
-    env:
-      MANIFEST_MODE: local
-      BETTER_AUTH_SECRET: ci-test-secret-at-least-32-characters-long!!
-      NODE_ENV: test
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build --workspace=packages/shared
-      - run: npm run build --workspace=packages/backend
-      - name: Unit tests (sql.js dialect)
-        run: npm test --workspace=packages/backend
-      - name: E2E tests (sql.js in-memory)
-        run: npm run test:e2e --workspace=packages/backend
-
   frontend:
     runs-on: ubuntu-latest
     steps:

@@ -1,6 +1,3 @@
-// Set MANIFEST_MODE before any entity imports so timestampType() picks up 'datetime' for sqljs
-process.env['MANIFEST_MODE'] = 'local';
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { CanActivate, ExecutionContext, INestApplication, Injectable, UnauthorizedException, ValidationPipe } from '@nestjs/common';
 import { APP_GUARD, Reflector } from '@nestjs/core';
@@ -12,7 +9,6 @@ import { DataSource } from 'typeorm';
 import { appConfig } from '../src/config/app.config';
 import { IS_PUBLIC_KEY } from '../src/common/decorators/public.decorator';
 import { hashKey, keyPrefix } from '../src/common/utils/hash.util';
-import { portableSql, detectDialect } from '../src/common/utils/sql-dialect';
 import { AgentMessage } from '../src/entities/agent-message.entity';
 import { LlmCall } from '../src/entities/llm-call.entity';
 import { ToolExecution } from '../src/entities/tool-execution.entity';
@@ -107,7 +103,10 @@ const OPENROUTER_MODELS_FIXTURE = {
 
 function buildTypeOrmConfig(): TypeOrmModuleOptions {
   return {
-    type: 'sqljs' as const,
+    type: 'postgres' as const,
+    url:
+      process.env['DATABASE_URL'] ??
+      'postgresql://myuser:mypassword@localhost:5432/mydatabase',
     entities,
     synchronize: true,
     dropSchema: true,
@@ -176,8 +175,7 @@ export async function createTestApp(): Promise<INestApplication> {
     await app.init();
 
     const ds = app.get(DataSource);
-    const dialect = detectDialect(ds.options.type as string);
-    const sql = (query: string) => portableSql(query, dialect);
+    const sql = (query: string) => query;
     const now = new Date().toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
 
     // Seed test API key (hashed)

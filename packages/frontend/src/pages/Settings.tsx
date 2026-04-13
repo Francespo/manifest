@@ -15,7 +15,6 @@ import {
   rotateAgentKey,
   updateAgent,
 } from '../services/api.js';
-import { isLocalMode } from '../services/local-mode.js';
 import { markAgentCreated } from '../services/recent-agents.js';
 import { toast } from '../services/toast-store.js';
 import { setAgentPlatform } from '../services/agent-platform-store.js';
@@ -321,31 +320,29 @@ const Settings: Component = () => {
       </ErrorBoundary>
 
       {/* -- Danger Zone -------------------------------- */}
-      <Show when={!isLocalMode() || agentName() !== 'local-agent'}>
-        <h3 class="settings-section__title settings-section__title--danger">Danger zone</h3>
-        <div class="settings-card settings-card--danger">
-          <div class="settings-card__row">
-            <div class="settings-card__label">
-              <span class="settings-card__label-title">Delete this agent</span>
-              <span class="settings-card__label-desc">
-                Permanently delete this agent, its API key, and all recorded messages and analytics.
-                This action cannot be undone.
-              </span>
-            </div>
-            <div class="settings-card__control">
-              <button
-                class="btn btn--danger btn--sm"
-                onClick={() => {
-                  setShowDeleteModal(true);
-                  setDeleteConfirmName('');
-                }}
-              >
-                Delete agent
-              </button>
-            </div>
+      <h3 class="settings-section__title settings-section__title--danger">Danger zone</h3>
+      <div class="settings-card settings-card--danger">
+        <div class="settings-card__row">
+          <div class="settings-card__label">
+            <span class="settings-card__label-title">Delete this agent</span>
+            <span class="settings-card__label-desc">
+              Permanently delete this agent, its API key, and all recorded messages and analytics.
+              This action cannot be undone.
+            </span>
+          </div>
+          <div class="settings-card__control">
+            <button
+              class="btn btn--danger btn--sm"
+              onClick={() => {
+                setShowDeleteModal(true);
+                setDeleteConfirmName('');
+              }}
+            >
+              Delete agent
+            </button>
           </div>
         </div>
-      </Show>
+      </div>
 
       {/* -- Delete Modal ------------------------------ */}
       <Show when={showDeleteModal()}>

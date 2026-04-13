@@ -1,22 +1,14 @@
-jest.mock('../../common/constants/local-mode.constants', () => ({
-  readLocalApiKey: jest.fn().mockReturnValue(null),
-  LOCAL_AGENT_NAME: 'local-agent',
-}));
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { CACHE_MANAGER, CacheModule } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
 import type { Cache } from 'cache-manager';
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { AgentsController } from './agents.controller';
 import { TimeseriesQueriesService } from '../services/timeseries-queries.service';
 import { AgentLifecycleService } from '../services/agent-lifecycle.service';
 import { ApiKeyGeneratorService } from '../../otlp/services/api-key.service';
-import { readLocalApiKey } from '../../common/constants/local-mode.constants';
 import { TenantCacheService } from '../../common/services/tenant-cache.service';
-
-const mockReadLocalApiKey = readLocalApiKey as jest.MockedFunction<typeof readLocalApiKey>;
 
 describe('AgentsController', () => {
   let controller: AgentsController;
@@ -28,13 +20,6 @@ describe('AgentsController', () => {
   let mockDeleteAgent: jest.Mock;
   let mockRenameAgent: jest.Mock;
   let mockTenantResolve: jest.Mock;
-
-  const origMode = process.env['MANIFEST_MODE'];
-
-  afterEach(() => {
-    if (origMode === undefined) delete process.env['MANIFEST_MODE'];
-    else process.env['MANIFEST_MODE'] = origMode;
-  });
 
   beforeEach(async () => {
     mockGetAgentList = jest.fn().mockResolvedValue([
@@ -113,15 +98,15 @@ describe('AgentsController', () => {
     expect(mockGetKeyForAgent).toHaveBeenCalledWith('u1', 'bot-1');
   });
 
-  it('returns full apiKey in local mode for default agent', async () => {
-    mockReadLocalApiKey.mockReturnValue('mnfst_full_local_key');
-    mockConfigGet.mockImplementation((key: string, fallback?: string) =>
-      key === 'MANIFEST_MODE' ? 'local' : (fallback ?? ''),
-    );
+  it('returns full apiKey when service returns fullKey', async () => {
+    mockGetKeyForAgent.mockResolvedValueOnce({
+      keyPrefix: 'mnfst_test1234',
+      fullKey: 'mnfst_full_decrypted',
+    });
     const user = { id: 'u1' };
-    const result = await controller.getAgentKey(user as never, 'local-agent');
+    const result = await controller.getAgentKey(user as never, 'bot-1');
 
-    expect(result).toMatchObject({ keyPrefix: 'mnfst_test1234', apiKey: 'mnfst_full_local_key' });
+    expect(result).toMatchObject({ keyPrefix: 'mnfst_test1234', apiKey: 'mnfst_full_decrypted' });
   });
 
   it('returns full apiKey when service returns fullKey', async () => {
@@ -137,18 +122,6 @@ describe('AgentsController', () => {
 
   it('does not return apiKey when service returns no fullKey', async () => {
     mockGetKeyForAgent.mockResolvedValue({ keyPrefix: 'mnfst_test1234' });
-    const user = { id: 'u1' };
-    const result = await controller.getAgentKey(user as never, 'bot-1');
-
-    expect(result).toMatchObject({ keyPrefix: 'mnfst_test1234' });
-    expect(result).not.toHaveProperty('apiKey');
-  });
-
-  it('does not return full apiKey in local mode for non-default agent', async () => {
-    mockReadLocalApiKey.mockReturnValue('mnfst_full_local_key');
-    mockConfigGet.mockImplementation((key: string, fallback?: string) =>
-      key === 'MANIFEST_MODE' ? 'local' : (fallback ?? ''),
-    );
     const user = { id: 'u1' };
     const result = await controller.getAgentKey(user as never, 'bot-1');
 
@@ -198,27 +171,6 @@ describe('AgentsController', () => {
     expect(result).toEqual({ deleted: true });
     expect(mockDeleteAgent).toHaveBeenCalledWith('u1', 'bot-1');
     expect(cacheManager.del).toHaveBeenCalledWith('u1:/api/v1/agents');
-  });
-
-  it('throws ForbiddenException when deleting default agent in local mode', async () => {
-    mockConfigGet.mockImplementation((key: string, fallback?: string) =>
-      key === 'MANIFEST_MODE' ? 'local' : (fallback ?? ''),
-    );
-    const user = { id: 'u1' };
-    await expect(controller.deleteAgent(user as never, 'local-agent')).rejects.toThrow(
-      ForbiddenException,
-    );
-    expect(mockDeleteAgent).not.toHaveBeenCalled();
-  });
-
-  it('allows deleting non-default agents in local mode', async () => {
-    mockConfigGet.mockImplementation((key: string, fallback?: string) =>
-      key === 'MANIFEST_MODE' ? 'local' : (fallback ?? ''),
-    );
-    const user = { id: 'u1' };
-    const result = await controller.deleteAgent(user as never, 'bot-1');
-    expect(result).toEqual({ deleted: true });
-    expect(mockDeleteAgent).toHaveBeenCalledWith('u1', 'bot-1');
   });
 
   it('passes agent_category and agent_platform to onboardAgent', async () => {
