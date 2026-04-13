@@ -24,7 +24,7 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -41,15 +41,26 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
       - name: Detect version bump
         id: detect
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
-          PREV=$(git show HEAD~1:packages/manifest/package.json 2>/dev/null | jq -r .version 2>/dev/null || echo "")
-          CURR=$(jq -r .version packages/manifest/package.json)
-          if [ -n "$PREV" ] && [ "$PREV" != "$CURR" ]; then
+          # Read CURR from HEAD (not the working tree) because
+          # changesets/action runs `npm run version-packages` in place and
+          # may have mutated packages/manifest/package.json on disk.
+          CURR=$(git show HEAD:packages/manifest/package.json 2>/dev/null | jq -r .version 2>/dev/null || echo "")
+          # Compare against the push base so multi-commit pushes are handled
+          # correctly. On first push to a branch, BEFORE_SHA is all zeros.
+          if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            PREV=$(git show "${BEFORE_SHA}:packages/manifest/package.json" 2>/dev/null | jq -r .version 2>/dev/null || echo "")
+          else
+            PREV=""
+          fi
+          if [ -n "$PREV" ] && [ -n "$CURR" ] && [ "$PREV" != "$CURR" ]; then
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
             echo "Version bumped: $PREV -> $CURR"
           else
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
-            echo "No version change ($CURR)"
+            echo "No version change (PREV=${PREV:-<none>} CURR=${CURR:-<none>})"
           fi
 
   publish-docker:
