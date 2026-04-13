@@ -29,38 +29,76 @@ export class SetupService {
   }
 
   /**
-   * Creates the first admin user via Better Auth, wrapped in a Postgres
-   * transaction with an advisory lock so concurrent POSTs can't both
-   * succeed. The created user is marked `emailVerified = true` so they
-   * can log in immediately without configuring an email provider.
+   * Creates the first admin user via Better Auth and marks them
+   * `emailVerified = true` so they can log in immediately without an
+   * email provider.
+   *
+   * Why not wrap this in `this.dataSource.transaction(...)`:
+   * `auth.api.signUpEmail()` runs against Better Auth's own `pg.Pool`,
+   * not the TypeORM connection. A TypeORM rollback after signUpEmail
+   * succeeds would NOT undo the user insert, leaving the account
+   * created but unverified and blocking subsequent retries with a 409.
+   *
+   * Instead we hold a session-level Postgres advisory lock (not
+   * transaction-level) across the whole sequence so concurrent setup
+   * attempts serialize, and we add a recovery branch: if the only
+   * existing user is unverified and matches the DTO email, we treat the
+   * previous attempt as partial and complete the verification step.
    */
   async createFirstAdmin(dto: CreateAdminDto): Promise<void> {
-    await this.dataSource.transaction(async (manager) => {
-      // Serialize concurrent setup attempts. The lock is released when
-      // the transaction ends (commit or rollback).
-      await manager.query(`SELECT pg_advisory_xact_lock($1)`, [SETUP_ADVISORY_LOCK_KEY]);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    try {
+      await queryRunner.query(`SELECT pg_advisory_lock($1)`, [SETUP_ADVISORY_LOCK_KEY]);
+      try {
+        const rows = (await queryRunner.query(`SELECT COUNT(*) AS count FROM "user"`)) as Array<{
+          count: string;
+        }>;
+        const count = Number(rows[0]?.count ?? 0);
 
-      const rows = await manager.query<{ count: string }[]>(`SELECT COUNT(*) AS count FROM "user"`);
-      const count = Number(rows[0]?.count ?? 0);
-      if (count > 0) {
-        throw new ConflictException('Setup already completed — an admin user exists');
+        if (count > 0) {
+          // Recovery branch: a previous attempt may have created the user
+          // but crashed before setting emailVerified. If there's exactly
+          // one user, it's unverified, and its email matches the DTO,
+          // finish the verification step instead of returning 409.
+          if (count === 1) {
+            const unverified = (await queryRunner.query(
+              `SELECT email FROM "user" WHERE "emailVerified" = false AND email = $1`,
+              [dto.email],
+            )) as Array<{ email: string }>;
+            if (unverified.length === 1) {
+              await queryRunner.query(`UPDATE "user" SET "emailVerified" = true WHERE email = $1`, [
+                dto.email,
+              ]);
+              this.logger.log(`First-run setup recovery — completed verification for ${dto.email}`);
+              return;
+            }
+          }
+          throw new ConflictException('Setup already completed — an admin user exists');
+        }
+
+        // Lazy-require so jest unit and e2e tests that don't exercise
+        // this path don't have to load Better Auth's ESM bundle.
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { auth } = require('../auth/auth.instance');
+        await auth.api.signUpEmail({
+          body: {
+            email: dto.email,
+            password: dto.password,
+            name: dto.name,
+          },
+        });
+
+        await queryRunner.query(`UPDATE "user" SET "emailVerified" = true WHERE email = $1`, [
+          dto.email,
+        ]);
+
+        this.logger.log(`First-run setup complete — admin user created: ${dto.email}`);
+      } finally {
+        await queryRunner.query(`SELECT pg_advisory_unlock($1)`, [SETUP_ADVISORY_LOCK_KEY]);
       }
-
-      // Lazy-require so jest unit and e2e tests that don't exercise this
-      // path don't have to load Better Auth's ESM bundle.
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { auth } = require('../auth/auth.instance');
-      await auth.api.signUpEmail({
-        body: {
-          email: dto.email,
-          password: dto.password,
-          name: dto.name,
-        },
-      });
-
-      await manager.query(`UPDATE "user" SET "emailVerified" = true WHERE email = $1`, [dto.email]);
-
-      this.logger.log(`First-run setup complete — admin user created: ${dto.email}`);
-    });
+    } finally {
+      await queryRunner.release();
+    }
   }
 }

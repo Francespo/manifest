@@ -35,7 +35,7 @@ describe("GuestGuard", () => {
       </GuestGuard>
     ));
     await vi.waitFor(() => {
-      expect(screen.queryByText("Guest content")).toBeDefined();
+      expect(screen.getByText("Guest content")).not.toBeNull();
     });
   });
 

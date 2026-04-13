@@ -13,28 +13,33 @@ const { auth } = require('../auth/auth.instance');
 
 import { SetupService } from './setup.service';
 
-interface MockManager {
+interface MockQueryRunner {
+  connect: jest.Mock;
+  release: jest.Mock;
   query: jest.Mock;
 }
 
-function buildMockDataSource(managerQuery: jest.Mock) {
-  const manager: MockManager = { query: managerQuery };
+function buildMockDataSource(runnerQuery: jest.Mock) {
+  const queryRunner: MockQueryRunner = {
+    connect: jest.fn().mockResolvedValue(undefined),
+    release: jest.fn().mockResolvedValue(undefined),
+    query: runnerQuery,
+  };
   return {
     query: jest.fn(),
-    transaction: jest.fn(async (fn: (m: MockManager) => Promise<void>) => {
-      await fn(manager);
-    }),
+    createQueryRunner: jest.fn(() => queryRunner),
+    _queryRunner: queryRunner,
   };
 }
 
 describe('SetupService', () => {
-  let mockManagerQuery: jest.Mock;
+  let runnerQuery: jest.Mock;
   let ds: ReturnType<typeof buildMockDataSource>;
   let service: SetupService;
 
   beforeEach(() => {
-    mockManagerQuery = jest.fn();
-    ds = buildMockDataSource(mockManagerQuery);
+    runnerQuery = jest.fn();
+    ds = buildMockDataSource(runnerQuery);
     service = new SetupService(ds as never);
     jest.clearAllMocks();
   });
@@ -65,24 +70,34 @@ describe('SetupService', () => {
   describe('createFirstAdmin', () => {
     const dto = { email: 'founder@example.com', name: 'Founder', password: 'secret-password' };
 
-    it('acquires an advisory lock before checking user count', async () => {
-      mockManagerQuery
-        .mockResolvedValueOnce(undefined) // advisory lock
+    function mockHappyPath(): void {
+      runnerQuery
+        .mockResolvedValueOnce(undefined) // pg_advisory_lock
         .mockResolvedValueOnce([{ count: '0' }]) // count check
-        .mockResolvedValueOnce(undefined); // emailVerified update
+        .mockResolvedValueOnce(undefined) // UPDATE emailVerified
+        .mockResolvedValueOnce(undefined); // pg_advisory_unlock
+    }
+
+    it('acquires and releases a session-level advisory lock around the flow', async () => {
+      mockHappyPath();
       (auth.api.signUpEmail as jest.Mock).mockResolvedValueOnce({});
 
       await service.createFirstAdmin(dto);
 
-      expect(mockManagerQuery.mock.calls[0][0]).toContain('pg_advisory_xact_lock');
-      expect(mockManagerQuery.mock.calls[1][0]).toContain('COUNT(*)');
+      const lockCall = runnerQuery.mock.calls.find(
+        (c) => typeof c[0] === 'string' && c[0].includes('pg_advisory_lock'),
+      );
+      const unlockCall = runnerQuery.mock.calls.find(
+        (c) => typeof c[0] === 'string' && c[0].includes('pg_advisory_unlock'),
+      );
+      expect(lockCall).toBeDefined();
+      expect(unlockCall).toBeDefined();
+      expect(ds._queryRunner.connect).toHaveBeenCalledTimes(1);
+      expect(ds._queryRunner.release).toHaveBeenCalledTimes(1);
     });
 
     it('calls Better Auth signUpEmail with the DTO', async () => {
-      mockManagerQuery
-        .mockResolvedValueOnce(undefined)
-        .mockResolvedValueOnce([{ count: '0' }])
-        .mockResolvedValueOnce(undefined);
+      mockHappyPath();
       (auth.api.signUpEmail as jest.Mock).mockResolvedValueOnce({});
 
       await service.createFirstAdmin(dto);
@@ -97,46 +112,113 @@ describe('SetupService', () => {
     });
 
     it('marks the new user as emailVerified', async () => {
-      mockManagerQuery
-        .mockResolvedValueOnce(undefined)
-        .mockResolvedValueOnce([{ count: '0' }])
-        .mockResolvedValueOnce(undefined);
+      mockHappyPath();
       (auth.api.signUpEmail as jest.Mock).mockResolvedValueOnce({});
 
       await service.createFirstAdmin(dto);
 
-      const lastCall = mockManagerQuery.mock.calls[mockManagerQuery.mock.calls.length - 1];
-      expect(lastCall[0]).toContain('UPDATE "user"');
-      expect(lastCall[0]).toContain('"emailVerified" = true');
-      expect(lastCall[1]).toEqual(['founder@example.com']);
+      const updateCall = runnerQuery.mock.calls.find(
+        (c) =>
+          typeof c[0] === 'string' &&
+          c[0].includes('UPDATE "user"') &&
+          c[0].includes('emailVerified'),
+      );
+      expect(updateCall).toBeDefined();
+      expect(updateCall?.[1]).toEqual(['founder@example.com']);
     });
 
-    it('throws ConflictException when a user already exists', async () => {
-      mockManagerQuery
-        .mockResolvedValueOnce(undefined) // advisory lock
-        .mockResolvedValueOnce([{ count: '1' }]); // count check
+    it('throws ConflictException when a user already exists and is verified', async () => {
+      runnerQuery
+        .mockResolvedValueOnce(undefined) // lock
+        .mockResolvedValueOnce([{ count: '1' }]) // count
+        .mockResolvedValueOnce([]) // unverified check returns none
+        .mockResolvedValueOnce(undefined); // unlock
 
       await expect(service.createFirstAdmin(dto)).rejects.toThrow(ConflictException);
       expect(auth.api.signUpEmail).not.toHaveBeenCalled();
     });
 
-    it('does not call signUpEmail when conflict is detected', async () => {
-      mockManagerQuery.mockResolvedValueOnce(undefined).mockResolvedValueOnce([{ count: '3' }]);
+    it('throws ConflictException when multiple users already exist', async () => {
+      runnerQuery
+        .mockResolvedValueOnce(undefined) // lock
+        .mockResolvedValueOnce([{ count: '3' }]) // count
+        .mockResolvedValueOnce(undefined); // unlock
 
       await expect(service.createFirstAdmin(dto)).rejects.toThrow('already completed');
       expect(auth.api.signUpEmail).not.toHaveBeenCalled();
     });
 
-    it('wraps the whole operation in a transaction', async () => {
-      mockManagerQuery
-        .mockResolvedValueOnce(undefined)
-        .mockResolvedValueOnce([{ count: '0' }])
-        .mockResolvedValueOnce(undefined);
+    it('releases the advisory lock even when the flow throws', async () => {
+      runnerQuery
+        .mockResolvedValueOnce(undefined) // lock
+        .mockResolvedValueOnce([{ count: '5' }]) // count — triggers 409
+        .mockResolvedValueOnce(undefined); // unlock
+
+      await expect(service.createFirstAdmin(dto)).rejects.toThrow(ConflictException);
+
+      const unlockCalls = runnerQuery.mock.calls.filter(
+        (c) => typeof c[0] === 'string' && c[0].includes('pg_advisory_unlock'),
+      );
+      expect(unlockCalls).toHaveLength(1);
+      expect(ds._queryRunner.release).toHaveBeenCalledTimes(1);
+    });
+
+    describe('recovery branch', () => {
+      it('completes verification when the only existing user is unverified and matches the DTO email', async () => {
+        runnerQuery
+          .mockResolvedValueOnce(undefined) // lock
+          .mockResolvedValueOnce([{ count: '1' }]) // count = 1
+          .mockResolvedValueOnce([{ email: 'founder@example.com' }]) // unverified match
+          .mockResolvedValueOnce(undefined) // UPDATE emailVerified
+          .mockResolvedValueOnce(undefined); // unlock
+
+        await service.createFirstAdmin(dto);
+
+        expect(auth.api.signUpEmail).not.toHaveBeenCalled();
+        const updateCall = runnerQuery.mock.calls.find(
+          (c) =>
+            typeof c[0] === 'string' &&
+            c[0].includes('UPDATE "user"') &&
+            c[0].includes('emailVerified'),
+        );
+        expect(updateCall).toBeDefined();
+        expect(updateCall?.[1]).toEqual(['founder@example.com']);
+      });
+
+      it('throws ConflictException when count=1 but the existing user is already verified', async () => {
+        runnerQuery
+          .mockResolvedValueOnce(undefined) // lock
+          .mockResolvedValueOnce([{ count: '1' }]) // count = 1
+          .mockResolvedValueOnce([]) // no unverified users
+          .mockResolvedValueOnce(undefined); // unlock
+
+        await expect(service.createFirstAdmin(dto)).rejects.toThrow(ConflictException);
+        expect(auth.api.signUpEmail).not.toHaveBeenCalled();
+      });
+
+      it('throws ConflictException when count=1 but email does not match', async () => {
+        runnerQuery
+          .mockResolvedValueOnce(undefined) // lock
+          .mockResolvedValueOnce([{ count: '1' }]) // count = 1
+          .mockResolvedValueOnce([]) // unverified query with matching email returns none
+          .mockResolvedValueOnce(undefined); // unlock
+
+        await expect(service.createFirstAdmin(dto)).rejects.toThrow(ConflictException);
+        expect(auth.api.signUpEmail).not.toHaveBeenCalled();
+      });
+    });
+
+    it('does not wrap the flow in a TypeORM transaction', async () => {
+      // If we ever revert to this.dataSource.transaction(), a rollback
+      // would leave the Better Auth user insert committed on its own
+      // pool while the emailVerified update gets reverted. The current
+      // implementation uses a session-level advisory lock instead.
+      mockHappyPath();
       (auth.api.signUpEmail as jest.Mock).mockResolvedValueOnce({});
 
       await service.createFirstAdmin(dto);
 
-      expect(ds.transaction).toHaveBeenCalledTimes(1);
+      expect(ds.createQueryRunner).toHaveBeenCalledTimes(1);
     });
   });
 });
