@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to publish (e.g. 5.38.1)"
-        required: true
+        description: "Optional version override (e.g. 5.38.1). Leave blank to use the current version from packages/manifest/package.json."
+        required: false
         type: string
   pull_request:
     branches: [main]
@@ -55,6 +55,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            echo "Using version from workflow input: $VERSION"
+          else
+            VERSION=$(jq -r .version packages/manifest/package.json)
+            echo "Using version from packages/manifest/package.json: $VERSION"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-qemu-action@v3
 
       - uses: docker/setup-buildx-action@v3
@@ -69,9 +81,9 @@ jobs:
         with:
           images: manifestdotbuild/manifest
           tags: |
-            type=semver,pattern={{version}},value=${{ inputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.version }}
-            type=semver,pattern={{major}},value=${{ inputs.version }}
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
             type=sha
 
       - uses: docker/build-push-action@v6

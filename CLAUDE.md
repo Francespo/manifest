@@ -481,13 +481,43 @@ All pricing comes from a single source:
 
 ## Releases
 
-There are **no publishable npm packages** in this repo anymore. `packages/backend`, `packages/frontend`, and `packages/shared` are all `private: true`. Manifest ships exclusively as the Docker image at `manifestdotbuild/manifest` (built from `docker/Dockerfile`).
+There are **no publishable npm packages** in this repo. `packages/backend`, `packages/frontend`, `packages/shared`, and `packages/manifest` are all `private: true`. Manifest ships exclusively as the Docker image at `manifestdotbuild/manifest` (built from `docker/Dockerfile`).
 
-Changesets are still installed and wired into the release workflow for internal `CHANGELOG.md` bookkeeping on private packages — they are **not** required on every PR. Use `npx changeset add --empty` if you want to record a changelog entry for a private-package change, otherwise skip it.
+### `packages/manifest/` is the canonical version
 
-The Docker image is built and published via `.github/workflows/docker.yml`:
-- **PR**: validates the Docker build on changes to `docker/`, `.dockerignore`, `packages/backend/`, `packages/frontend/`, `packages/shared/`, or root `package.json`/`turbo.json`.
-- **Manual publish**: `workflow_dispatch` with a `version` input, run by a maintainer when a new image tag should be pushed.
+`packages/manifest/` is a **code-free shell package** that exists only to hold the canonical "Manifest version". It has no `src/`, no tests, no dependencies — just `package.json`, `README.md`, and (after the first release) a `CHANGELOG.md`. The real backend and frontend live under `packages/backend/` and `packages/frontend/` as before.
+
+`.changeset/config.json` has `"ignore": ["manifest-backend", "manifest-frontend", "manifest-shared"]`, so when a contributor runs `npx changeset`, **only `manifest` is a selectable target**. Bumps to `manifest-backend` / `manifest-frontend` / `manifest-shared` are silently discarded. Always target `manifest` regardless of which files you actually changed.
+
+### Adding a changeset
+
+```bash
+npx changeset
+# → select "manifest"
+# → choose patch / minor / major
+# → write a one-line summary (this becomes the CHANGELOG entry)
+```
+
+Commit the generated `.changeset/*.md` file alongside your code. On merge to `main`, `release.yml` runs `changesets/action`, which opens (or updates) a `chore: version packages` PR bumping `packages/manifest/package.json` and appending to `packages/manifest/CHANGELOG.md`.
+
+Changesets are **not** required on every PR — they're optional and only meaningful for changes you want in the changelog. Use `npx changeset add --empty` for purely internal work if you want an explicit "no release" marker.
+
+### Cutting a Docker release
+
+1. Merge the pending `chore: version packages` PR to land the version bump in `packages/manifest/package.json`.
+2. Go to **GitHub Actions → Docker → Run workflow**, leave the `version` input blank, click Run.
+3. The `publish` job reads `packages/manifest/package.json`, resolves the version automatically, and pushes `manifestdotbuild/manifest:{version}` + `{major}.{minor}` + `{major}` + `sha-<short>` to Docker Hub. The image is multi-arch (amd64 + arm64) and cosign-signed.
+
+To retag an older commit or publish a hotfix version that doesn't match the current `package.json`, pass a semver string in the `version` input and it overrides the package.json lookup.
+
+### Summary of what CI does on each trigger
+
+| Trigger | What happens |
+|---------|--------------|
+| PR opened/updated | `ci.yml` runs tests, lint, typecheck, coverage. `docker.yml` validates the Docker build (no push) if the PR touches runtime files. `changeset-check` warns softly if no changeset is present. |
+| Merge to `main` | `release.yml` runs `changesets/action` to open or update the `chore: version packages` PR. **No auto-publish** — neither npm nor Docker. |
+| Merge of `chore: version packages` PR | `release.yml` runs again. Version bump in `packages/manifest/package.json` and the CHANGELOG update land on `main`. Still no publish. |
+| Manual `workflow_dispatch` on `Docker` workflow | Reads `packages/manifest/package.json` and pushes a new image tag to Docker Hub. This is the **only** path that publishes anything. |
 
 ## Code Coverage (Codecov)
 

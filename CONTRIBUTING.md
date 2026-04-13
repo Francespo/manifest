@@ -150,7 +150,20 @@ The backend runs standalone and OpenClaw talks to it as a regular OpenAI-compati
 1. Create a branch from `main` for your change
 2. Make your changes in the relevant package(s)
 3. Write or update tests as needed
-4. Run the test suite to make sure everything passes:
+4. Add a changeset if your change should appear in the release notes:
+
+```bash
+npx changeset
+# → select "manifest"
+# → choose patch / minor / major
+# → write a one-line summary
+```
+
+Always target `manifest` — it's the canonical release version for the whole project, and it's the only package changesets will accept. `manifest-backend`, `manifest-frontend`, and `manifest-shared` are ignored regardless of what you pick. Commit the generated `.changeset/*.md` alongside your code. Changesets are optional for internal/tooling changes; skip this step if the change doesn't need a CHANGELOG entry.
+
+See [`packages/manifest/README.md`](packages/manifest/README.md) for why this package exists.
+
+5. Run the test suite to make sure everything passes:
 
 ```bash
 npm test --workspace=packages/shared
@@ -159,13 +172,23 @@ npm run test:e2e --workspace=packages/backend
 npm test --workspace=packages/frontend
 ```
 
-5. Verify the production build works:
+6. Verify the production build works:
 
 ```bash
 npm run build
 ```
 
-6. Open a pull request against `main`
+7. Open a pull request against `main`
+
+### Cutting a Docker release
+
+Manifest ships as the Docker image at [`manifestdotbuild/manifest`](https://hub.docker.com/r/manifestdotbuild/manifest). Releases are manual:
+
+1. After merging PRs with changesets, a `chore: version packages` PR will be open on `main` — merge it to land the version bump in `packages/manifest/package.json` and update `packages/manifest/CHANGELOG.md`.
+2. Go to **GitHub Actions → Docker → Run workflow**, leave the `version` input blank, click Run.
+3. The workflow reads the version from `packages/manifest/package.json` and pushes `manifestdotbuild/manifest:{version}` (plus `{major}.{minor}`, `{major}`, and a `sha-<short>` rollback tag).
+
+If you need to retag an older commit or publish a version that doesn't match the current `package.json`, pass a semver string in the `version` input and it overrides the auto-detected value.
 
 ### Commit Messages
 
