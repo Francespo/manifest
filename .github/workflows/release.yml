@@ -13,6 +13,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.detect.outputs.should_publish }}
     steps:
       - name: Generate GitHub App token
         id: app-token
@@ -21,6 +23,8 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -35,3 +39,24 @@ jobs:
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+      - name: Detect version bump
+        id: detect
+        run: |
+          PREV=$(git show HEAD~1:packages/manifest/package.json 2>/dev/null | jq -r .version 2>/dev/null || echo "")
+          CURR=$(jq -r .version packages/manifest/package.json)
+          if [ -n "$PREV" ] && [ "$PREV" != "$CURR" ]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "Version bumped: $PREV -> $CURR"
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "No version change ($CURR)"
+          fi
+
+  publish-docker:
+    needs: release
+    if: needs.release.outputs.should_publish == 'true'
+    uses: ./.github/workflows/docker.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
