@@ -23,6 +23,7 @@ import { CommonModule } from './common/common.module';
 import { SseModule } from './sse/sse.module';
 import { GithubModule } from './github/github.module';
 import { PublicStatsModule } from './public-stats/public-stats.module';
+import { SetupModule } from './setup/setup.module';
 
 const frontendPath = resolveFrontendDir();
 const ONE_YEAR_S = 365 * 24 * 60 * 60;
@@ -70,6 +71,7 @@ const serveStaticImports = frontendPath
     SseModule,
     GithubModule,
     PublicStatsModule,
+    SetupModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: SessionGuard },
