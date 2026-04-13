@@ -14,10 +14,10 @@ services:
       - "3001:3001"
     environment:
       - DATABASE_URL=postgresql://manifest:manifest@postgres:5432/manifest
-      # ⚠  Placeholder. Replace before any non-localhost use (see top of file).
-      - BETTER_AUTH_SECRET=change-me-to-a-random-32-char-string!!
-      - BETTER_AUTH_URL=http://localhost:3001
-      - SEED_DATA=true
+      # ⚠  Placeholder. Override via .env before any non-localhost use.
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-change-me-to-a-random-32-char-string!!}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
+      - SEED_DATA=${SEED_DATA:-true}
       - NODE_ENV=development
       - AUTO_MIGRATE=true
       # Email provider (optional). Covers both login/verification emails
