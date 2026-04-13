@@ -100,7 +100,7 @@ cp .env.example .env
 openssl rand -hex 32
 ```
 
-(Optional: set `POSTGRES_PASSWORD=` in `.env` to use something other than the default `manifest` password. The compose file feeds the same value into both the Postgres container and `DATABASE_URL`, so changing it in `.env` is sufficient.)
+(Optional: to use a stronger database password, set BOTH `POSTGRES_PASSWORD` and `DATABASE_URL` in `.env` — they must agree, and any special characters in the password need to be percent-encoded in the URL.)
 
 3. Start it:
 

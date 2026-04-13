@@ -8,7 +8,10 @@
 #
 # Before exposing this instance beyond localhost:
 #   - Set a real BETTER_AUTH_SECRET in .env (openssl rand -hex 32).
-#   - Override POSTGRES_PASSWORD in .env for a stronger database password.
+#   - To harden the database password, set BOTH `POSTGRES_PASSWORD` AND
+#     `DATABASE_URL` in .env. They must agree — the password in the URL
+#     must match POSTGRES_PASSWORD, and any special characters must be
+#     percent-encoded in the URL.
 #   - Confirm your admin password is strong (the setup wizard enforces
 #     at least 8 characters).
 #   - If you enable email verification (set EMAIL_PROVIDER / EMAIL_API_KEY),
@@ -24,7 +27,7 @@ services:
     ports:
       - "127.0.0.1:3001:3001"
     environment:
-      - DATABASE_URL=postgresql://manifest:${POSTGRES_PASSWORD:-manifest}@postgres:5432/manifest
+      - DATABASE_URL=${DATABASE_URL:-postgresql://manifest:manifest@postgres:5432/manifest}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set in .env}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
       - SEED_DATA=false
