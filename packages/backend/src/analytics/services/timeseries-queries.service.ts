@@ -202,7 +202,10 @@ export class TimeseriesQueriesService {
     const statsQb = this.turnRepo
       .createQueryBuilder('at')
       .select('at.agent_name', 'agent_name')
-      .addSelect('COUNT(*)', 'message_count')
+      .addSelect(
+        `COUNT(*) FILTER (WHERE at.status IS NULL OR at.status NOT IN ('error', 'fallback_error'))`,
+        'message_count',
+      )
       .addSelect('MAX(at.timestamp)', 'last_active')
       .addSelect(`COALESCE(SUM(${costExpr}), 0)`, 'total_cost')
       .addSelect('COALESCE(SUM(at.input_tokens + at.output_tokens), 0)', 'total_tokens')
