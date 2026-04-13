@@ -7,6 +7,11 @@ on:
         description: "Optional version override (e.g. 5.38.1). Leave blank to use the current version from packages/manifest/package.json."
         required: false
         type: string
+  push:
+    branches: [main]
+    paths:
+      - "docker/DOCKER_README.md"
+      - ".github/workflows/docker.yml"
   pull_request:
     branches: [main]
     paths:
@@ -14,7 +19,6 @@ on:
       - ".dockerignore"
       - "docker/docker-compose.yml"
       - "docker/.env.example"
-      - "docker/DOCKER_README.md"
       - "docker/install.sh"
       - "packages/backend/**"
       - "packages/frontend/**"
@@ -115,11 +119,31 @@ jobs:
             cosign sign --yes "${tag}@${DIGEST}"
           done
 
-      - name: Sync README to Docker Hub
-        uses: peter-evans/dockerhub-description@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: manifestdotbuild/manifest
-          short-description: "Smart LLM router for personal AI agents. Self-host with Docker."
-          readme-filepath: ./docker/DOCKER_README.md
+  sync-description:
+    name: Sync Docker Hub description
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push README to Docker Hub
+        env:
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          # Pinned to immutable digest for supply-chain safety.
+          # The underlying tool is chko/docker-pushrm:1. When bumping the tag,
+          # fetch the current digest with:
+          #   TOKEN=$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:chko/docker-pushrm:pull" | jq -r .token)
+          #   curl -sI -H "Authorization: Bearer $TOKEN" \
+          #     -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+          #     https://registry-1.docker.io/v2/chko/docker-pushrm/manifests/1 | grep -i docker-content-digest
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/docker/DOCKER_README.md:/data/README.md:ro" \
+            -e DOCKER_USER \
+            -e DOCKER_PASS \
+            chko/docker-pushrm@sha256:812a950e5be7dca26cef33b61eb2076bfcfb6c2a8ec96c126371fc049c3b6608 \
+            --file /data/README.md \
+            --short "Smart LLM router for personal AI agents. Cut costs up to 70%." \
+            --debug \
+            manifestdotbuild/manifest

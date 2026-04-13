@@ -6,9 +6,9 @@
   </picture>
 </p>
 <p align="center">
-  <a href="https://github.com/mnfst/manifest/stargazers"><img src="https://img.shields.io/github/stars/mnfst/manifest?style=flat" alt="GitHub stars" /></a>
+  <a href="https://hub.docker.com/r/manifestdotbuild/manifest"><img src="https://img.shields.io/docker/pulls/manifestdotbuild/manifest?color=2496ED&label=docker%20pulls" alt="Docker pulls" /></a>
   &nbsp;
-  <a href="https://www.npmjs.com/package/manifest"><img src="https://img.shields.io/npm/v/manifest?color=cb3837&label=npm" alt="npm version" /></a>
+  <a href="https://github.com/mnfst/manifest/stargazers"><img src="https://img.shields.io/github/stars/mnfst/manifest?style=flat" alt="GitHub stars" /></a>
   &nbsp;
   <a href="https://github.com/mnfst/manifest/blob/main/LICENSE"><img src="https://img.shields.io/github/license/mnfst/manifest?color=blue" alt="license" /></a>
   &nbsp;
@@ -17,13 +17,14 @@
 
 ## What is Manifest?
 
-Manifest is a smart model router for personal AI agents like OpenClaw, Hermes, or anything speaking the OpenAI-compatible HTTP API. It sits between your agent and your LLM providers, scores each request, and routes it to the cheapest model that can handle it. Simple questions go to fast, cheap models. Hard problems go to expensive ones. You save money without thinking about it.
+Manifest is a smart model router for **personal AI agents** like OpenClaw, Hermes, or anything speaking the OpenAI-compatible HTTP API. It sits between your agent and your LLM providers, scores each request, and routes it to the cheapest model that can handle it. Simple questions go to fast, cheap models. Hard problems go to expensive ones. You save money without thinking about it.
 
-- Route requests to the right model: Cut costs up to 70%
-- Automatic fallbacks: If a model fails, the next one picks up
-- Set limits: Don't exceed your budget
+- Route requests to the right model: cut costs up to 70%
+- Automatic fallbacks: if a model fails, the next one picks up
+- Set limits: don't exceed your budget
+- Self-hosted: your requests, your providers, your data
 
-![manifest-gh](https://github.com/user-attachments/assets/7dd74fc2-f7d6-4558-a95a-014ed754a125)
+![manifest-gh](https://raw.githubusercontent.com/mnfst/manifest/HEAD/.github/assets/manifest-screenshot.png)
 
 ## Table of contents
 
@@ -35,6 +36,7 @@ Manifest is a smart model router for personal AI agents like OpenClaw, Hermes, o
   - [Option 3: One-command install script](#option-3-one-command-install-script)
   - [Verifying the image signature](#verifying-the-image-signature)
   - [Custom port](#custom-port)
+- [Image tags](#image-tags)
 - [Upgrading](#upgrading)
 - [Backup & persistence](#backup--persistence)
 - [Environment variables](#environment-variables)
@@ -42,7 +44,7 @@ Manifest is a smart model router for personal AI agents like OpenClaw, Hermes, o
 
 ## Supported providers
 
-Works with 300+ models across OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, Mistral, Qwen, MiniMax, Kimi, Z.ai, GitHub Copilot, OpenRouter, Ollama, and any provider with an OpenAI-compatible API. Reuse an existing paid subscription where supported (ChatGPT Plus/Pro, Claude Max/Pro, Copilot, MiniMax Coding Plan, GLM Coding Plan, Ollama Cloud).
+Works with 300+ models across OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, Mistral, Qwen, MiniMax, Kimi, Amazon Nova, Z.ai, OpenRouter, Ollama, and any provider with an OpenAI-compatible API. Connect with an API key, or reuse an existing paid subscription (ChatGPT Plus/Pro, Claude Max/Pro, GLM Coding Plan, etc.) where supported.
 
 ## Manifest vs OpenRouter
 
@@ -51,7 +53,7 @@ Works with 300+ models across OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, M
 | Architecture | Your Manifest instance forwards to your providers    | Cloud proxy. All traffic goes through their servers |
 | Cost         | Free                                                 | 5% fee on every API call                            |
 | Source code  | MIT, fully open                                      | Proprietary                                         |
-| Data privacy | Metadata only (Cloud), no middleman (self-hosted)    | Prompts and responses pass through a third party    |
+| Data privacy | Self-hosted — no middleman                           | Prompts and responses pass through a third party    |
 | Transparency | Open scoring. You see why a model was chosen         | No visibility into routing decisions                |
 
 ---
@@ -196,6 +198,18 @@ environment:
 ```
 
 If you see "Invalid origin" on the login page, `BETTER_AUTH_URL` doesn't match the port you're using.
+
+## Image tags
+
+Every release is published with the following tags:
+
+- `{major}.{minor}.{patch}` — fully pinned (e.g. `5.46.0`)
+- `{major}.{minor}` — latest patch within a minor (e.g. `5.46`)
+- `{major}` — latest minor+patch within a major (e.g. `5`)
+- `latest` — latest stable release
+- `sha-<short>` — exact commit for rollback
+
+Images are built for both `linux/amd64` and `linux/arm64`.
 
 ## Upgrading
 
