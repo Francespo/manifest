@@ -1,5 +1,5 @@
 import { type Component, Show, createResource, createSignal } from 'solid-js';
-import { CopyButton } from './SetupStepInstall.jsx';
+import CopyButton from './CopyButton.jsx';
 import ModelSelectDropdown from './ModelSelectDropdown.jsx';
 import SetupStepAddProvider from './SetupStepAddProvider.jsx';
 import { PROVIDERS } from '../services/providers.js';
@@ -34,8 +34,6 @@ const RoutingInstructionModal: Component<Props> = (props) => {
 
   const baseUrl = () => {
     if (isLocal()) return `${window.location.origin}/v1`;
-    const custom = apiKeyData()?.pluginEndpoint;
-    if (custom) return custom;
     const host = window.location.hostname;
     if (host === 'app.manifest.build') return 'https://app.manifest.build/v1';
     return `${window.location.origin}/v1`;

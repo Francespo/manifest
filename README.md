@@ -53,9 +53,6 @@ Go to [app.manifest.build](https://app.manifest.build) and follow the guide.
 
 Our <a href="https://hub.docker.com/r/manifestdotbuild/manifest">Manifest Docker Image</a> allows you to self-host Manifest router in your own infrastructure.
 
-> [!WARNING]
-> Our [OpenClaw plugin](https://www.npmjs.com/package/manifest) is deprecated, for self-hosting we suggest using Docker instead.
-
 ## How it works
 
 Every request to `manifest/auto` goes through a 23-dimension scoring algorithm (runs in under 2ms). The scorer picks a tier (simple, standard, complex, or reasoning) and routes to the best model in that tier from your connected providers.
@@ -74,24 +71,24 @@ All routing data (tokens, costs, model, duration) is recorded automatically. You
 
 ## Supported providers
 
-Works with 300+ models across these providers:
+Works with 300+ models across these providers. Connect with an API key, or reuse an existing paid subscription where supported:
 
-| Provider                                                                       | Models                                                               |
-| ------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| [OpenAI](https://platform.openai.com/)                                         | `gpt-5.3`, `gpt-4.1`, `o3`, `o4-mini` + 54 more                      |
-| [Anthropic](https://www.anthropic.com/)                                        | `claude-opus-4-6`, `claude-sonnet-4.5`, `claude-haiku-4.5` + 14 more |
-| [Google Gemini](https://ai.google.dev/)                                        | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3-pro` + 19 more       |
-| [DeepSeek](https://www.deepseek.com/)                                          | `deepseek-chat`, `deepseek-reasoner` + 11 more                       |
-| [xAI](https://x.ai/)                                                           | `grok-4`, `grok-3`, `grok-3-mini` + 8 more                           |
-| [Mistral AI](https://mistral.ai/)                                              | `mistral-large`, `codestral`, `devstral` + 26 more                   |
-| [Qwen (Alibaba)](https://www.alibabacloud.com/en/solutions/generative-ai/qwen) | `qwen3-235b`, `qwen3-coder`, `qwq-32b` + 42 more                     |
-| [MiniMax](https://www.minimax.io/)                                             | `minimax-m2.5`, `minimax-m1`, `minimax-m2` + 5 more                  |
-| [Kimi (Moonshot)](https://kimi.ai/)                                            | `kimi-k2`, `kimi-k2.5` + 3 more                                      |
-| [Amazon Nova](https://aws.amazon.com/ai/nova/)                                 | `nova-pro`, `nova-lite`, `nova-micro` + 5 more                       |
-| [Z.ai (Zhipu)](https://z.ai/)                                                  | `glm-5`, `glm-4.7`, `glm-4.5` + 5 more                               |
-| [OpenRouter](https://openrouter.ai/)                                           | 300+ models from all providers                                       |
-| [Ollama](https://ollama.com/)                                                  | Run any model locally (Llama, Gemma, Mistral, ...)                   |
-| Custom providers                                                               | Any provider with an OpenAI-compatible API endpoint                  |
+| Provider                                                                       | API key | Subscription               |
+| ------------------------------------------------------------------------------ | :-----: | :------------------------- |
+| [OpenAI](https://platform.openai.com/)                                         |   ✅    | ✅ ChatGPT Plus / Pro / Team |
+| [Anthropic](https://www.anthropic.com/)                                        |   ✅    | ✅ Claude Max / Pro          |
+| [Google Gemini](https://ai.google.dev/)                                        |   ✅    |                            |
+| [DeepSeek](https://www.deepseek.com/)                                          |   ✅    |                            |
+| [xAI](https://x.ai/)                                                           |   ✅    |                            |
+| [Mistral AI](https://mistral.ai/)                                              |   ✅    |                            |
+| [Qwen (Alibaba)](https://www.alibabacloud.com/en/solutions/generative-ai/qwen) |   ✅    |                            |
+| [MiniMax](https://www.minimax.io/)                                             |   ✅    | ✅ MiniMax Coding Plan       |
+| [Kimi (Moonshot)](https://kimi.ai/)                                            |   ✅    |                            |
+| [Z.ai (Zhipu)](https://z.ai/)                                                  |   ✅    | ✅ GLM Coding Plan           |
+| [GitHub Copilot](https://github.com/features/copilot)                          |         | ✅ Copilot subscription      |
+| [OpenRouter](https://openrouter.ai/)                                           |   ✅    |                            |
+| [Ollama](https://ollama.com/)                                                  |   ✅ Local   | ✅ Ollama Cloud              |
+| Custom providers (OpenAI-compatible)                                           |   ✅    |                            |
 
 ## Contributing
 

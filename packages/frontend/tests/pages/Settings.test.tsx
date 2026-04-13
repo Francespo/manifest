@@ -125,7 +125,7 @@ describe("Settings", () => {
     vi.clearAllMocks();
     mockAgentName = "test-agent";
     mockSetupThrows = false;
-    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", pluginEndpoint: null });
+    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc" });
     mockGetAgentInfo.mockResolvedValue({ agent_name: "test-agent", agent_category: "personal", agent_platform: "openclaw" });
     mockDeleteAgent.mockResolvedValue(undefined);
     mockRenameAgent.mockResolvedValue({ renamed: true, name: "new-name" });
@@ -187,7 +187,7 @@ describe("Settings", () => {
   });
 
   it("shows reveal button when API returns full key", async () => {
-    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_full_key_123", pluginEndpoint: null });
+    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_full_key_123" });
     const { container } = render(() => <Settings />);
     await vi.waitFor(() => {
       expect(container.querySelector('[aria-label="Reveal API key"]')).not.toBeNull();
@@ -195,7 +195,7 @@ describe("Settings", () => {
   });
 
   it("reveals full key when reveal button is clicked", async () => {
-    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_full_key_123", pluginEndpoint: null });
+    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_full_key_123" });
     const { container } = render(() => <Settings />);
     await vi.waitFor(() => {
       expect(container.querySelector('[aria-label="Reveal API key"]')).not.toBeNull();
@@ -207,7 +207,7 @@ describe("Settings", () => {
   });
 
   it("hides full key when hide button is clicked", async () => {
-    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_full_key_123", pluginEndpoint: null });
+    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_full_key_123" });
     const { container } = render(() => <Settings />);
     await vi.waitFor(() => {
       expect(container.querySelector('[aria-label="Reveal API key"]')).not.toBeNull();
@@ -360,16 +360,6 @@ describe("Settings", () => {
       window.removeEventListener("error", suppress, true);
       mockSetupThrows = false;
     }
-  });
-
-  it("uses custom pluginEndpoint when available", async () => {
-    mockGetAgentKey.mockResolvedValue({ keyPrefix: "mnfst_abc", pluginEndpoint: "https://custom.endpoint" });
-    const { container } = render(() => <Settings />);
-    await vi.waitFor(() => {
-      const el = container.querySelector('[data-testid="setup-add-provider"]');
-      expect(el).not.toBeNull();
-      expect(el!.getAttribute("data-base-url")).toBe("https://custom.endpoint");
-    });
   });
 
   it("calls updateAgent when type changed via modal Save", async () => {

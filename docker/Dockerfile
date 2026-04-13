@@ -6,7 +6,6 @@ COPY package.json package-lock.json turbo.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/frontend/package.json packages/frontend/
 COPY packages/backend/package.json packages/backend/
-COPY packages/openclaw-plugins/manifest-model-router/package.json packages/openclaw-plugins/manifest-model-router/
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 # Stage 2: Build the application
@@ -23,7 +22,6 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/frontend/package.json packages/frontend/
 COPY packages/backend/package.json packages/backend/
-COPY packages/openclaw-plugins/manifest-model-router/package.json packages/openclaw-plugins/manifest-model-router/
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --ignore-scripts && \
     rm -rf node_modules/typescript node_modules/@types \
            node_modules/ts-node node_modules/acorn \
@@ -69,7 +67,7 @@ COPY packages/backend/package.json packages/backend/
 
 EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3001/api/v1/health || exit 1
 
 USER node

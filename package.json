@@ -29,21 +29,18 @@
   "workspaces": [
     "packages/shared",
     "packages/frontend",
-    "packages/backend",
-    "packages/openclaw-plugins/manifest-model-router"
+    "packages/backend"
   ],
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test",
     "start": "node packages/backend/dist/main.js",
-    "build:provider": "npm run build --workspace=packages/openclaw-plugins/manifest-model-router",
-    "publish:provider": "npm publish --access public --workspace=packages/openclaw-plugins/manifest-model-router",
     "check:api-prefix": "node scripts/check-api-prefix.js",
-    "lint": "eslint packages/shared/src packages/backend/src packages/frontend/src packages/openclaw-plugins/manifest-model-router/src",
+    "lint": "eslint packages/shared/src packages/backend/src packages/frontend/src",
     "format": "prettier --write 'packages/*/src/**/*.{ts,tsx,css}'",
     "changeset": "changeset",
-    "version-packages": "changeset version && node scripts/sync-plugin-version.js",
+    "version-packages": "changeset version",
     "release": "changeset publish",
     "prepare": "husky"
   },

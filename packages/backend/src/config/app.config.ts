@@ -32,6 +32,5 @@ export const appConfig = registerAs('app', () => ({
   mailgunApiKey: process.env['MAILGUN_API_KEY'] ?? '',
   mailgunDomain: process.env['MAILGUN_DOMAIN'] ?? '',
   notificationFromEmail: process.env['NOTIFICATION_FROM_EMAIL'] ?? 'noreply@manifest.build',
-  pluginOtlpEndpoint: process.env['PLUGIN_OTLP_ENDPOINT'] ?? '',
   dbPoolMax: Number(process.env['DB_POOL_MAX'] ?? 20),
 }));

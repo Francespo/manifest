@@ -12,7 +12,7 @@ vi.mock("../../src/components/ProviderSelectModal.js", () => ({
 
 vi.mock("../../src/services/api.js", () => ({
   getModelPrices: vi.fn().mockResolvedValue({ models: [], lastSyncedAt: null }),
-  getAgentKey: vi.fn().mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_abc123", pluginEndpoint: null }),
+  getAgentKey: vi.fn().mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_abc123" }),
   getHealth: vi.fn().mockResolvedValue({ mode: "cloud" }),
 }));
 

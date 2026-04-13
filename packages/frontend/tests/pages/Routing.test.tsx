@@ -63,7 +63,7 @@ vi.mock("../../src/services/api.js", () => ({
   setFallbacks: vi.fn().mockResolvedValue([]),
   clearFallbacks: vi.fn().mockResolvedValue(undefined),
   getModelPrices: vi.fn().mockResolvedValue([]),
-  getAgentKey: vi.fn().mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_abc123", pluginEndpoint: null }),
+  getAgentKey: vi.fn().mockResolvedValue({ keyPrefix: "mnfst_abc", apiKey: "mnfst_abc123" }),
   getHealth: vi.fn().mockResolvedValue({ mode: "cloud" }),
   getSpecificityAssignments: vi.fn().mockResolvedValue([]),
   overrideSpecificity: vi.fn().mockResolvedValue({}),

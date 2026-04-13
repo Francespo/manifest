@@ -25,87 +25,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          registry-url: 'https://registry.npmjs.org'
       - run: npm ci
       - run: npm run build
       - uses: changesets/action@v1
         id: changesets
         with:
           createGithubReleases: false
-          publish: npm run release
           version: npm run version-packages
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-
-      - name: Create GitHub Releases
-        if: steps.changesets.outputs.published == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
-        run: |
-          echo "$PUBLISHED_PACKAGES" | jq -c '.[]' | while read -r PKG; do
-            NAME=$(echo "$PKG" | jq -r '.name')
-            VERSION=$(echo "$PKG" | jq -r '.version')
-            TAG="${NAME}@${VERSION}"
-
-            # Determine changelog path based on package name
-            if [ "$NAME" = "manifest-model-router" ]; then
-              CHANGELOG_PATH="packages/openclaw-plugins/manifest-model-router/CHANGELOG.md"
-            else
-              echo "Unknown package $NAME — skipping release"
-              continue
-            fi
-
-            git tag "$TAG" 2>/dev/null || true
-            git push origin "$TAG" 2>/dev/null || true
-
-            BODY=""
-            if [ -f "$CHANGELOG_PATH" ]; then
-              BODY=$(awk -v ver="## ${VERSION}" \
-                '$0 == ver { found=1; next } found && /^## / { exit } found { print }' \
-                "$CHANGELOG_PATH")
-
-              BODY=$(echo "$BODY" | sed \
-                -e 's/^### Major Changes$/### 💥 Major Changes/' \
-                -e 's/^### Minor Changes$/### ✨ Minor Changes/' \
-                -e 's/^### Patch Changes$/### 🐛 Patch Changes/')
-            fi
-
-            gh release create "$TAG" --title "${NAME} v${VERSION}" --notes "${BODY:-No changelog}" --verify-tag
-            echo "Created release $TAG"
-          done
-
-      - name: Publish to ClawHub
-        if: steps.changesets.outputs.published == 'true'
-        env:
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
-          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
-        run: |
-          npx clawhub@latest login --token "$CLAWHUB_TOKEN" --no-browser || { echo "ClawHub login failed (non-fatal)"; exit 0; }
-
-          HAS_PROVIDER=$(echo "$PUBLISHED_PACKAGES" | jq '[.[] | select(.name == "manifest-model-router")] | length')
-          PROVIDER_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "manifest-model-router") | .version // empty')
-
-          # Publish manifest-model-router plugin to ClawHub
-          if [ "$HAS_PROVIDER" -gt 0 ]; then
-            echo "Publishing manifest-model-router@${PROVIDER_VERSION} to ClawHub..."
-            npx clawhub@latest package publish packages/openclaw-plugins/manifest-model-router \
-              --source-repo mnfst/manifest \
-              --source-commit "$GITHUB_SHA" || echo "ClawHub plugin publish failed (non-fatal)"
-          fi
-
-      - name: Publish Docker image
-        if: steps.changesets.outputs.published == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
-        run: |
-          PROVIDER_VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[] | select(.name == "manifest-model-router") | .version // empty')
-          if [ -n "$PROVIDER_VERSION" ]; then
-            echo "Triggering Docker build for manifest-model-router@${PROVIDER_VERSION}..."
-            gh workflow run docker.yml -f version="$PROVIDER_VERSION"
-          fi

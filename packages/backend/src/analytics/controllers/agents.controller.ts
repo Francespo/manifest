@@ -14,7 +14,6 @@ import {
 import { QueryFailedError } from 'typeorm';
 import { CACHE_MANAGER, CacheTTL } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
-import { ConfigService } from '@nestjs/config';
 import { TimeseriesQueriesService } from '../services/timeseries-queries.service';
 import { AgentLifecycleService } from '../services/agent-lifecycle.service';
 import { ApiKeyGeneratorService } from '../../otlp/services/api-key.service';
@@ -33,7 +32,6 @@ export class AgentsController {
     private readonly timeseries: TimeseriesQueriesService,
     private readonly lifecycle: AgentLifecycleService,
     private readonly apiKeyGenerator: ApiKeyGeneratorService,
-    private readonly config: ConfigService,
     private readonly tenantCache: TenantCacheService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
@@ -90,12 +88,10 @@ export class AgentsController {
   @Get('agents/:agentName/key')
   async getAgentKey(@CurrentUser() user: AuthUser, @Param('agentName') agentName: string) {
     const keyData = await this.apiKeyGenerator.getKeyForAgent(user.id, agentName);
-    const customEndpoint = this.config.get<string>('app.pluginOtlpEndpoint', '');
     const apiKey = keyData.fullKey ?? undefined;
     return {
       keyPrefix: keyData.keyPrefix,
       ...(apiKey ? { apiKey } : {}),
-      ...(customEndpoint ? { pluginEndpoint: customEndpoint } : {}),
     };
   }
 

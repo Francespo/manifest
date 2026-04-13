@@ -90,24 +90,23 @@ describe('AgentsController', () => {
     expect(mockGetAgentList).toHaveBeenCalledWith('u1', undefined);
   });
 
-  it('returns agent key prefix without pluginEndpoint when env is not set', async () => {
+  it('returns agent key prefix', async () => {
     const user = { id: 'u1' };
     const result = await controller.getAgentKey(user as never, 'bot-1');
 
     expect(result).toMatchObject({ keyPrefix: 'mnfst_test1234' });
-    expect(result).not.toHaveProperty('pluginEndpoint');
     expect(mockGetKeyForAgent).toHaveBeenCalledWith('u1', 'bot-1');
   });
 
-  it('returns agent key prefix with pluginEndpoint when env is set', async () => {
-    mockConfigGet.mockReturnValue('http://localhost:3001/otlp');
+  it('returns full apiKey when service returns fullKey', async () => {
+    mockGetKeyForAgent.mockResolvedValueOnce({
+      keyPrefix: 'mnfst_test1234',
+      fullKey: 'mnfst_full_decrypted',
+    });
     const user = { id: 'u1' };
     const result = await controller.getAgentKey(user as never, 'bot-1');
 
-    expect(result).toMatchObject({
-      keyPrefix: 'mnfst_test1234',
-      pluginEndpoint: 'http://localhost:3001/otlp',
-    });
+    expect(result).toMatchObject({ keyPrefix: 'mnfst_test1234', apiKey: 'mnfst_full_decrypted' });
   });
 
   it('returns full apiKey when service returns fullKey', async () => {
