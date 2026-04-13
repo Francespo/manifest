@@ -18,7 +18,7 @@ export function getAgentInfo(agentName: string): Promise<AgentInfo | null> {
 }
 
 export function getAgentKey(agentName: string) {
-  return fetchJson<{ keyPrefix: string; apiKey?: string; pluginEndpoint?: string }>(
+  return fetchJson<{ keyPrefix: string; apiKey?: string }>(
     `/agents/${encodeURIComponent(agentName)}/key`,
   );
 }

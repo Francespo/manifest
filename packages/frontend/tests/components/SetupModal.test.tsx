@@ -8,7 +8,7 @@ beforeAll(() => process.on("unhandledRejection", noop));
 afterAll(() => process.off("unhandledRejection", noop));
 
 vi.mock("../../src/services/api.js", () => ({
-  getAgentKey: vi.fn().mockResolvedValue({ keyPrefix: "mnfst_abc", pluginEndpoint: null }),
+  getAgentKey: vi.fn().mockResolvedValue({ keyPrefix: "mnfst_abc" }),
 }));
 
 vi.mock("../../src/components/SetupStepAddProvider.jsx", () => ({
@@ -148,21 +148,6 @@ describe("SetupModal", () => {
     Object.defineProperty(window, "location", { value: origLocation, writable: true, configurable: true });
   });
 
-  it("renders Add Provider step with baseUrl from custom pluginEndpoint", async () => {
-    const { getAgentKey } = await import("../../src/services/api.js");
-    (getAgentKey as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      keyPrefix: "mnfst_abc",
-      pluginEndpoint: "https://custom.endpoint",
-    });
-    const { container } = render(() => (
-      <SetupModal open={true} agentName="test-agent" onClose={onClose} />
-    ));
-    await vi.waitFor(() => {
-      const step = container.querySelector('[data-testid="step-add-provider"]');
-      expect(step?.getAttribute("data-base-url")).toBe("https://custom.endpoint");
-    });
-  });
-
   it("has role dialog and aria-modal", () => {
     const { container } = render(() => (
       <SetupModal open={true} agentName="test-agent" onClose={onClose} />
@@ -212,7 +197,6 @@ describe("SetupModal", () => {
     (getAgentKey as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       keyPrefix: "mnfst_abc",
       apiKey: "mnfst_fetched_key",
-      pluginEndpoint: null,
     });
     const { container } = render(() => (
       <SetupModal open={true} agentName="test-agent" onClose={onClose} />

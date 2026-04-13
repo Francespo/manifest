@@ -198,18 +198,6 @@ describe('getAgentKey', () => {
     expect(result).not.toHaveProperty('apiKey');
   });
 
-  it('should include pluginEndpoint when present', async () => {
-    const payload = { keyPrefix: 'mnfst_xyz99', pluginEndpoint: 'https://example.com/otlp' };
-    mockOk(payload);
-
-    const result = await getAgentKey('my-agent');
-
-    expect(result).toEqual({
-      keyPrefix: 'mnfst_xyz99',
-      pluginEndpoint: 'https://example.com/otlp',
-    });
-  });
-
   it('should fetch the correct URL with encoded agent name', async () => {
     mockOk({ keyPrefix: 'mnfst_test' });
 

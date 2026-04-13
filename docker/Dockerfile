@@ -6,8 +6,6 @@ COPY package.json package-lock.json turbo.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/frontend/package.json packages/frontend/
 COPY packages/backend/package.json packages/backend/
-COPY packages/openclaw-plugins/manifest/package.json packages/openclaw-plugins/manifest/
-COPY packages/openclaw-plugins/manifest-model-router/package.json packages/openclaw-plugins/manifest-model-router/
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 # Stage 2: Build the application
@@ -24,8 +22,6 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/frontend/package.json packages/frontend/
 COPY packages/backend/package.json packages/backend/
-COPY packages/openclaw-plugins/manifest/package.json packages/openclaw-plugins/manifest/
-COPY packages/openclaw-plugins/manifest-model-router/package.json packages/openclaw-plugins/manifest-model-router/
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --ignore-scripts && \
     rm -rf node_modules/typescript node_modules/@types \
            node_modules/ts-node node_modules/acorn \
@@ -72,8 +68,6 @@ COPY --from=build /app/packages/backend/dist packages/backend/dist
 COPY --from=build /app/packages/frontend/dist packages/frontend/dist
 COPY packages/shared/package.json packages/shared/
 COPY packages/backend/package.json packages/backend/
-
-RUN mkdir -p /home/node/.openclaw/manifest && chown -R node:node /home/node/.openclaw
 
 EXPOSE 3001
 
