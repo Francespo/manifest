@@ -16,11 +16,9 @@
   &nbsp;
   <a href="https://github.com/mnfst/manifest/stargazers"><img src="https://img.shields.io/github/stars/mnfst/manifest?style=flat" alt="GitHub stars" /></a>
   &nbsp;
-  <a href="https://www.npmjs.com/package/manifest"><img src="https://img.shields.io/npm/v/manifest?color=cb3837&label=npm" alt="npm version" /></a>
-  &nbsp;
-  <a href="https://www.npmjs.com/package/manifest"><img src="https://img.shields.io/npm/dw/manifest?color=cb3837" alt="npm downloads" /></a>
-  &nbsp;
   <a href="https://hub.docker.com/r/manifestdotbuild/manifest"><img src="https://img.shields.io/docker/pulls/manifestdotbuild/manifest?color=2496ED&label=docker%20pulls" alt="Docker pulls" /></a>
+  &nbsp;
+  <a href="https://hub.docker.com/r/manifestdotbuild/manifest/tags"><img src="https://img.shields.io/docker/image-size/manifestdotbuild/manifest/latest?color=2496ED&label=image%20size" alt="Docker image size" /></a>
   &nbsp;
   <a href="https://github.com/mnfst/manifest/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mnfst/manifest/ci.yml?branch=main&label=CI" alt="CI status" /></a>
   &nbsp;
@@ -51,7 +49,16 @@ Go to [app.manifest.build](https://app.manifest.build) and follow the guide.
 
 ### Self-hosted (Docker)
 
-Our <a href="https://hub.docker.com/r/manifestdotbuild/manifest">Manifest Docker Image</a> allows you to self-host Manifest router in your own infrastructure.
+Manifest ships as a [Docker image](https://hub.docker.com/r/manifestdotbuild/manifest). Two commands:
+
+```bash
+curl -O https://raw.githubusercontent.com/mnfst/manifest/main/docker/docker-compose.yml
+docker compose up -d
+```
+
+Open [http://localhost:3001](http://localhost:3001) and the setup wizard walks you through creating your admin account. Full self-hosting guide: [docker/DOCKER_README.md](docker/DOCKER_README.md).
+
+> Docker is the only supported distribution. The legacy `manifest` npm package is deprecated and no longer published.
 
 ## How it works
 

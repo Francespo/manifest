@@ -13,6 +13,8 @@ on:
       - "docker/Dockerfile"
       - ".dockerignore"
       - "docker/docker-compose.yml"
+      - "docker/.env.example"
+      - "docker/install.sh"
       - "packages/backend/**"
       - "packages/frontend/**"
       - "packages/shared/**"
@@ -79,6 +81,8 @@ jobs:
         id: meta
         with:
           images: manifestdotbuild/manifest
+          flavor: |
+            latest=true
           tags: |
             type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}

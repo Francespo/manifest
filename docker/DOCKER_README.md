@@ -17,7 +17,7 @@
 
 ## What is Manifest?
 
-Manifest is a smart model router for **personal AI agents** like OpenClaw or Hermes. It sits between your agent and your LLM providers, scores each request, and routes it to the cheapest model that can handle it. Simple questions go to fast, cheap models. Hard problems go to expensive ones. You save money without thinking about it.
+Manifest is a smart model router for **personal AI agents** like OpenClaw, Hermes, or anything speaking the OpenAI-compatible HTTP API. It sits between your agent and your LLM providers, scores each request, and routes it to the cheapest model that can handle it. Simple questions go to fast, cheap models. Hard problems go to expensive ones. You save money without thinking about it.
 
 - Route requests to the right model: cut costs up to 70%
 - Automatic fallbacks: if a model fails, the next one picks up
@@ -25,6 +25,22 @@ Manifest is a smart model router for **personal AI agents** like OpenClaw or Her
 - Self-hosted: your requests, your providers, your data
 
 ![manifest-gh](https://raw.githubusercontent.com/mnfst/manifest/HEAD/.github/assets/manifest-screenshot.png)
+
+## Table of contents
+
+- [Supported providers](#supported-providers)
+- [Manifest vs OpenRouter](#manifest-vs-openrouter)
+- [Installation](#installation)
+  - [Option 1: Docker Compose (recommended)](#option-1-docker-compose-recommended)
+  - [Option 2: Docker Run (bring your own PostgreSQL)](#option-2-docker-run-bring-your-own-postgresql)
+  - [Option 3: One-command install script](#option-3-one-command-install-script)
+  - [Verifying the image signature](#verifying-the-image-signature)
+  - [Custom port](#custom-port)
+- [Image tags](#image-tags)
+- [Upgrading](#upgrading)
+- [Backup & persistence](#backup--persistence)
+- [Environment variables](#environment-variables)
+- [Links](#links)
 
 ## Supported providers
 
@@ -73,7 +89,10 @@ docker compose down -v    # deletes everything
 
 ### Option 2: Docker Run (bring your own PostgreSQL)
 
-If you already have PostgreSQL running:
+If you already have PostgreSQL running, pick the command for your shell.
+
+<details open>
+<summary><strong>macOS / Linux (bash, zsh)</strong></summary>
 
 ```bash
 docker run -d \
@@ -85,7 +104,63 @@ docker run -d \
   manifestdotbuild/manifest
 ```
 
+</details>
+
+<details>
+<summary><strong>Windows (PowerShell)</strong></summary>
+
+```powershell
+$secret = -join ((48..57 + 97..122) | Get-Random -Count 64 | ForEach-Object { [char]$_ })
+
+docker run -d `
+  -p 3001:3001 `
+  -e DATABASE_URL=postgresql://user:pass@host:5432/manifest `
+  -e BETTER_AUTH_SECRET=$secret `
+  -e BETTER_AUTH_URL=http://localhost:3001 `
+  -e AUTO_MIGRATE=true `
+  manifestdotbuild/manifest
+```
+
+</details>
+
+<details>
+<summary><strong>Windows (CMD)</strong></summary>
+
+Generate a 64-character hex secret with any tool you trust, then:
+
+```cmd
+docker run -d ^
+  -p 3001:3001 ^
+  -e DATABASE_URL=postgresql://user:pass@host:5432/manifest ^
+  -e BETTER_AUTH_SECRET=<your-64-char-secret> ^
+  -e BETTER_AUTH_URL=http://localhost:3001 ^
+  -e AUTO_MIGRATE=true ^
+  manifestdotbuild/manifest
+```
+
+</details>
+
 `AUTO_MIGRATE=true` runs TypeORM migrations on first boot. Then visit http://localhost:3001 and complete the setup wizard to create your admin account.
+
+### Option 3: One-command install script
+
+Downloads the compose file, generates a `BETTER_AUTH_SECRET`, writes it into the compose file (replacing the placeholder), and brings up the stack. Prompts before making changes; supports `--dry-run`.
+
+**Review before running** (recommended):
+
+```bash
+curl -sSLO https://raw.githubusercontent.com/mnfst/manifest/main/docker/install.sh
+less install.sh
+bash install.sh
+```
+
+**One-shot** (if you trust the source):
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/mnfst/manifest/main/docker/install.sh)
+```
+
+Flags: `--dir <path>` (install into a custom directory, defaults to `./manifest`), `--dry-run` (print what would happen without touching anything), `--yes` (skip the confirmation prompt).
 
 ### Verifying the image signature
 
@@ -130,6 +205,42 @@ Every release is published with the following tags:
 - `sha-<short>` — exact commit for rollback
 
 Images are built for both `linux/amd64` and `linux/arm64`.
+
+## Upgrading
+
+Manifest ships a new image on every release. To upgrade an existing compose install:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Database migrations run automatically on boot — no manual steps. Your data in the `pgdata` volume is preserved across upgrades. Pin to a specific major version (e.g. `manifestdotbuild/manifest:5`) in `docker-compose.yml` if you want control over when major upgrades happen.
+
+## Backup & persistence
+
+All state lives in the `pgdata` named volume mounted at `/var/lib/postgresql/data` in the `postgres` service. Nothing else in the Manifest container is stateful.
+
+**Back up** (from the host, with the stack running):
+
+```bash
+docker compose exec -T postgres pg_dump -U manifest manifest > manifest-backup-$(date +%F).sql
+```
+
+**Restore** into a fresh stack:
+
+```bash
+docker compose up -d postgres
+cat manifest-backup-2026-04-12.sql | docker compose exec -T postgres psql -U manifest manifest
+docker compose up -d
+```
+
+To list / remove the volume manually:
+
+```bash
+docker volume ls | grep pgdata
+docker compose down -v    # ⚠  destroys all data
+```
 
 ## Environment variables
 
