@@ -37,6 +37,7 @@ export class MessagesController {
       limit: Math.min(query.limit ?? 50, 200),
       cursor: query.cursor,
       agent_name: query.agent_name,
+      status: query.status,
     });
   }
 

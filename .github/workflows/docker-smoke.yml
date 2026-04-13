@@ -1,0 +1,123 @@
+name: Docker Smoke
+
+# Boots the production compose stack with `read_only: true` and verifies the
+# app comes up cleanly and answers /api/v1/health. Catches regressions from
+# code that silently writes outside /tmp at boot, which would crash users on
+# the locked-down default deployment.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/docker-smoke.yml"
+      - "docker/Dockerfile"
+      - ".dockerignore"
+      - "docker/docker-compose.yml"
+      - "docker/.env.example"
+      - "docker/install.sh"
+      - "packages/backend/**"
+      - "packages/frontend/**"
+      - "packages/shared/**"
+      - "package.json"
+      - "package-lock.json"
+      - "turbo.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Compose smoke test (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build local image as manifestdotbuild/manifest:latest
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          tags: manifestdotbuild/manifest:latest
+          platforms: linux/amd64
+          cache-from: type=gha,scope=smoke-amd64
+          cache-to: type=gha,mode=max,scope=smoke-amd64
+
+      - name: Prepare .env from .env.example
+        working-directory: docker
+        run: |
+          cp .env.example .env
+          # Generate a real secret so BETTER_AUTH_SECRET=${VAR:?…} succeeds.
+          secret=$(openssl rand -hex 32)
+          # Replace the empty `BETTER_AUTH_SECRET=` line.
+          new=""
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" == "BETTER_AUTH_SECRET=" ]]; then
+              new+="BETTER_AUTH_SECRET=${secret}"$'\n'
+            else
+              new+="$line"$'\n'
+            fi
+          done < .env
+          printf '%s' "$new" > .env
+
+      - name: Boot the stack
+        working-directory: docker
+        run: |
+          docker compose up -d
+          docker compose ps
+
+      - name: Wait for /api/v1/health
+        run: |
+          set -e
+          for i in $(seq 1 60); do
+            if curl -sSf http://127.0.0.1:3001/api/v1/health >/dev/null; then
+              echo "healthy after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "health never returned 200" >&2
+          (cd docker && docker compose logs manifest)
+          exit 1
+
+      - name: Verify health payload shape
+        run: |
+          response=$(curl -sS http://127.0.0.1:3001/api/v1/health)
+          echo "$response"
+          echo "$response" | grep -q '"status":"healthy"'
+
+      - name: Verify SPA index loads
+        run: |
+          curl -sSf http://127.0.0.1:3001/ -o /tmp/index.html
+          test -s /tmp/index.html
+          grep -q '<title>Manifest</title>' /tmp/index.html
+
+      - name: Verify public stats are gated off by default
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/api/v1/public/usage)
+          if [[ "$status" != "404" ]]; then
+            echo "expected 404 for /public/usage when MANIFEST_PUBLIC_STATS is unset, got $status" >&2
+            exit 1
+          fi
+
+      - name: Dump backend logs on success (for diff inspection)
+        if: success()
+        working-directory: docker
+        run: docker compose logs --tail=200 manifest
+
+      - name: Dump backend logs on failure
+        if: failure()
+        working-directory: docker
+        run: |
+          docker compose logs manifest || true
+          docker compose logs postgres || true
+
+      - name: Tear down
+        if: always()
+        working-directory: docker
+        run: docker compose down -v

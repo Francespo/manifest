@@ -1,4 +1,5 @@
-import { Controller, Get, Logger } from '@nestjs/common';
+import { Controller, Get, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Public } from '../common/decorators/public.decorator';
 import { PUBLIC_STATS_CACHE_TTL_MS } from '../common/constants/cache.constants';
 import {
@@ -41,11 +42,23 @@ let providerTokensInflight: Promise<ProviderTokensResponse> | null = null;
 export class PublicStatsController {
   private readonly logger = new Logger(PublicStatsController.name);
 
-  constructor(private readonly service: PublicStatsService) {}
+  constructor(
+    private readonly service: PublicStatsService,
+    private readonly config: ConfigService,
+  ) {}
+
+  private assertEnabled(): void {
+    if (!this.config.get<boolean>('app.publicStatsEnabled')) {
+      // Use 404 rather than 403 so unauthenticated probes can't distinguish
+      // "endpoint exists but disabled" from "endpoint doesn't exist".
+      throw new NotFoundException();
+    }
+  }
 
   @Public()
   @Get('usage')
   async getUsage(): Promise<UsageResponse> {
+    this.assertEnabled();
     if (cachedUsage && Date.now() - usageTimestamp < PUBLIC_STATS_CACHE_TTL_MS) {
       return cachedUsage;
     }
@@ -62,6 +75,7 @@ export class PublicStatsController {
   @Public()
   @Get('free-models')
   async getFreeModels(): Promise<FreeModelsResponse> {
+    this.assertEnabled();
     if (cachedFree && Date.now() - freeTimestamp < PUBLIC_STATS_CACHE_TTL_MS) {
       return cachedFree;
     }
@@ -78,6 +92,7 @@ export class PublicStatsController {
   @Public()
   @Get('provider-tokens')
   async getProviderTokens(): Promise<ProviderTokensResponse> {
+    this.assertEnabled();
     if (cachedProviderTokens && Date.now() - providerTokensTimestamp < PUBLIC_STATS_CACHE_TTL_MS) {
       return cachedProviderTokens;
     }

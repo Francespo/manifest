@@ -28,7 +28,7 @@ import {
   handleNonStreamResponse,
   recordSuccess,
 } from './proxy-response-handler';
-import { ProxyExceptionFilter } from './proxy-exception.filter';
+import { ProxyExceptionFilter, isChatRenderingClient } from './proxy-exception.filter';
 import { sendFriendlyResponse } from './proxy-friendly-response';
 
 const MAX_SEEN_USERS = 10_000;
@@ -188,11 +188,25 @@ export class ProxyController {
       }
 
       const isStream = (req.body as Record<string, unknown>)?.stream === true;
-      const clientMessage =
-        status >= 500
-          ? '[🦚 Manifest] Something broke on our end. Try again in a moment.'
-          : message;
-      sendFriendlyResponse(res, clientMessage, isStream);
+      const isChatClient = isChatRenderingClient(req);
+
+      if (isChatClient) {
+        const clientMessage =
+          status >= 500 ? '[🦚 Manifest] Something broke on our end. Try again in a moment.' : message;
+        sendFriendlyResponse(res, clientMessage, isStream);
+      } else {
+        // Tool/monitor caller — surface the real HTTP status with a structured
+        // envelope so CI pipelines can detect failures instead of treating the
+        // friendly stub as success.
+        const errorMessage =
+          status >= 500 ? 'Manifest encountered an internal error. Try again shortly.' : message;
+        res.status(status).json({
+          error: {
+            message: errorMessage,
+            type: status >= 500 ? 'server_error' : 'invalid_request_error',
+          },
+        });
+      }
     } finally {
       if (slotAcquired) this.rateLimiter.releaseSlot(userId);
     }

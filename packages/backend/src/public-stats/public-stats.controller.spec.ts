@@ -1,3 +1,4 @@
+import type { ConfigService } from '@nestjs/config';
 import type {
   PublicStatsService,
   UsageStats,
@@ -10,6 +11,12 @@ const mockService: Record<string, jest.Mock> = {
   getFreeModels: jest.fn(),
   getProviderDailyTokens: jest.fn(),
 };
+
+function makeConfig(enabled: boolean): ConfigService {
+  return {
+    get: jest.fn((key: string) => (key === 'app.publicStatsEnabled' ? enabled : undefined)),
+  } as unknown as ConfigService;
+}
 
 jest.mock('./public-stats.service', () => ({
   PublicStatsService: jest.fn().mockImplementation(() => mockService),
@@ -39,9 +46,12 @@ const FREE_FIXTURE: FreeModel[] = [
 describe('PublicStatsController', () => {
   let controller: InstanceType<typeof import('./public-stats.controller').PublicStatsController>;
 
-  async function freshImport() {
+  async function freshImport(enabled = true) {
     const mod = await import('./public-stats.controller');
-    return new mod.PublicStatsController(mockService as unknown as PublicStatsService);
+    return new mod.PublicStatsController(
+      mockService as unknown as PublicStatsService,
+      makeConfig(enabled),
+    );
   }
 
   beforeEach(async () => {
@@ -251,6 +261,51 @@ describe('PublicStatsController', () => {
 
       expect(result.providers).toHaveLength(1);
       expect(mockService.getProviderDailyTokens).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('disabled via MANIFEST_PUBLIC_STATS', () => {
+    // jest.resetModules() inside freshImport gives this suite a different
+    // `NotFoundException` reference than the one imported above, so assert
+    // on the HTTP status instead of the class identity.
+    function expectNotFound(err: unknown): void {
+      expect(err).toBeDefined();
+      expect((err as { getStatus?: () => number }).getStatus?.()).toBe(404);
+    }
+
+    beforeEach(async () => {
+      jest.resetModules();
+      controller = await freshImport(false);
+    });
+
+    it('returns 404 from getUsage without calling the service', async () => {
+      await controller.getUsage().then(
+        () => {
+          throw new Error('expected NotFoundException');
+        },
+        (err) => expectNotFound(err),
+      );
+      expect(mockService.getUsageStats).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 from getFreeModels without calling the service', async () => {
+      await controller.getFreeModels().then(
+        () => {
+          throw new Error('expected NotFoundException');
+        },
+        (err) => expectNotFound(err),
+      );
+      expect(mockService.getFreeModels).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 from getProviderTokens without calling the service', async () => {
+      await controller.getProviderTokens().then(
+        () => {
+          throw new Error('expected NotFoundException');
+        },
+        (err) => expectNotFound(err),
+      );
+      expect(mockService.getProviderDailyTokens).not.toHaveBeenCalled();
     });
   });
 

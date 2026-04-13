@@ -15,7 +15,7 @@ export async function bootstrap() {
     logger: new ConsoleLogger({ prefix: 'Manifest' }),
   });
   app.enableShutdownHooks();
-  app.useGlobalFilters(new SpaFallbackFilter());
+  app.useGlobalFilters(new SpaFallbackFilter(process.env['BETTER_AUTH_URL']));
 
   app.use(
     helmet({
