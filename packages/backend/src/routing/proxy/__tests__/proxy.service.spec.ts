@@ -313,7 +313,7 @@ describe('ProxyService', () => {
     });
   });
 
-  it('includes dashboard URL with agent name in no-provider response', async () => {
+  it('points no-provider response at the agent Routing page', async () => {
     resolveService.resolve.mockResolvedValue({
       tier: 'simple',
       model: null,
@@ -333,10 +333,10 @@ describe('ProxyService', () => {
 
     const json = (await result.forward.response.json()) as Record<string, unknown>;
     const choices = json.choices as { message: { content: string } }[];
-    expect(choices[0].message.content).toContain('http://localhost:3001/agents/my-agent');
+    expect(choices[0].message.content).toContain('http://localhost:3001/agents/my-agent/routing');
   });
 
-  it('uses /routing path when agentName is not provided', async () => {
+  it('uses bare base URL in no-provider response when agentName is missing', async () => {
     resolveService.resolve.mockResolvedValue({
       tier: 'simple',
       model: null,
@@ -355,8 +355,9 @@ describe('ProxyService', () => {
 
     const json = (await result.forward.response.json()) as Record<string, unknown>;
     const choices = json.choices as { message: { content: string } }[];
-    expect(choices[0].message.content).toContain('http://localhost:3001/routing');
-    expect(choices[0].message.content).not.toContain('/routing/');
+    expect(choices[0].message.content).toContain('http://localhost:3001');
+    expect(choices[0].message.content).not.toContain('/routing');
+    expect(choices[0].message.content).not.toContain('/agents/');
   });
 
   it('falls back to localhost URL when betterAuthUrl is empty', async () => {
@@ -385,7 +386,7 @@ describe('ProxyService', () => {
 
     const json = (await result.forward.response.json()) as Record<string, unknown>;
     const choices = json.choices as { message: { content: string } }[];
-    expect(choices[0].message.content).toContain('http://localhost:4000/agents/test-agent');
+    expect(choices[0].message.content).toContain('http://localhost:4000/agents/test-agent/routing');
   });
 
   it('returns synthetic streaming response when no model is resolved', async () => {
@@ -438,7 +439,7 @@ describe('ProxyService', () => {
       choices: { message: { content: string } }[];
     };
     expect(json.choices[0].message.content).toContain('No API key set for OpenAI');
-    expect(json.choices[0].message.content).toContain('/agents/my-agent');
+    expect(json.choices[0].message.content).toContain('/agents/my-agent/routing');
     expect(result.meta.reason).toBe('no_provider_key');
   });
 
@@ -1138,6 +1139,9 @@ describe('ProxyService', () => {
       };
       expect(json.choices[0].message.content).toContain('Usage limit hit');
       expect(json.choices[0].message.content).toContain('tokens');
+      expect(json.choices[0].message.content).toContain(
+        'http://localhost:3001/agents/my-agent/limits',
+      );
       expect(result.meta.reason).toBe('limit_exceeded');
     });
 

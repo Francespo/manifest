@@ -2,7 +2,6 @@ import { ExceptionFilter, Catch, ArgumentsHost, HttpException, Injectable } from
 import { ConfigService } from '@nestjs/config';
 import { Request, Response as ExpressResponse } from 'express';
 import { getDashboardUrl, sendFriendlyResponse } from './proxy-friendly-response';
-import { IngestionContext } from '../../otlp/interfaces/ingestion-context.interface';
 
 /** Guard-thrown messages that should become friendly chat responses. */
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
@@ -48,13 +47,10 @@ export class ProxyExceptionFilter implements ExceptionFilter {
     }
 
     const isStream = (req.body as Record<string, unknown>)?.stream === true;
-    const ingestionCtx = (req as Request & { ingestionContext?: IngestionContext })
-      .ingestionContext;
-    const agentName = ingestionCtx?.agentName;
 
     const friendly = AUTH_ERROR_MESSAGES[message];
     if (friendly) {
-      const dashboardUrl = getDashboardUrl(this.config, agentName);
+      const dashboardUrl = getDashboardUrl(this.config);
       const content =
         message === 'API key expired'
           ? `${friendly}: ${dashboardUrl}`

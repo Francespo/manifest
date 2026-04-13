@@ -129,7 +129,7 @@ export class ProxyService {
       resolved.auth_type,
     );
     if (apiKey === null) {
-      const dashboardUrl = getDashboardUrl(this.config, agentName);
+      const dashboardUrl = getDashboardUrl(this.config, agentName, 'routing');
       const content = `[🦚 Manifest] No API key set for ${resolved.provider} yet. Add one here: ${dashboardUrl}`;
       return buildFriendlyResponse(content, body.stream === true, 'no_provider_key');
     }
@@ -282,7 +282,7 @@ export class ProxyService {
       exceeded.metricType === 'cost'
         ? `$${Number(exceeded.threshold).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : Number(exceeded.threshold).toLocaleString(undefined, { maximumFractionDigits: 0 });
-    const dashboardUrl = getDashboardUrl(this.config, agentName);
+    const dashboardUrl = getDashboardUrl(this.config, agentName, 'limits');
     return `[🦚 Manifest] Usage limit hit: ${exceeded.metricType} is at ${fmt} (limit: ${threshFmt}/${exceeded.period}). You can adjust it here: ${dashboardUrl}`;
   }
 
@@ -305,7 +305,7 @@ export class ProxyService {
   }
 
   private buildNoProviderResult(stream: boolean, agentName?: string): ProxyResult {
-    const dashboardUrl = getDashboardUrl(this.config, agentName);
+    const dashboardUrl = getDashboardUrl(this.config, agentName, 'routing');
     const content = `[🦚 Manifest] Manifest is connected successfully. To start routing requests, connect a model provider: ${dashboardUrl}`;
     return buildFriendlyResponse(content, stream, 'no_provider');
   }
