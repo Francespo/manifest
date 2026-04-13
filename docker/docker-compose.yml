@@ -1,3 +1,10 @@
+# This compose file is intended for local testing only. Before exposing
+# this instance beyond localhost:
+#   - Replace BETTER_AUTH_SECRET below with a real secret. Generate one
+#     with: openssl rand -hex 32
+#   - Set SEED_DATA=false to stop seeding the demo agent on every boot.
+#   - Change the seeded admin password (admin@manifest.build / manifest).
+
 services:
   manifest:
     image: manifestdotbuild/manifest:latest
@@ -5,6 +12,7 @@ services:
       - "3001:3001"
     environment:
       - DATABASE_URL=postgresql://manifest:manifest@postgres:5432/manifest
+      # ⚠  Placeholder. Replace before any non-localhost use (see top of file).
       - BETTER_AUTH_SECRET=change-me-to-a-random-32-char-string!!
       - BETTER_AUTH_URL=http://localhost:3001
       - SEED_DATA=true
