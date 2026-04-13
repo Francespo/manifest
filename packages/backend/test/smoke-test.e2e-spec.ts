@@ -298,7 +298,7 @@ describe('ST-08: Hard limit blocks', () => {
       .expect(200);
 
     // Limit exceeded returns a friendly chat completion message
-    expect(res.body.choices[0].message.content).toContain('Usage limit hit');
+    expect(res.body.choices[0].message.content).toContain('You hit your tokens limit');
     // Mock server should NOT have been called — blocked before forwarding
     expect(mockCallLog.length).toBe(0);
   });

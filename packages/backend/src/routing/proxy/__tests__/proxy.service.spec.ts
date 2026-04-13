@@ -303,7 +303,8 @@ describe('ProxyService', () => {
     expect(json.object).toBe('chat.completion');
     expect(json.model).toBe('manifest');
     const choices = json.choices as { message: { content: string } }[];
-    expect(choices[0].message.content).toContain('Manifest is connected successfully');
+    expect(choices[0].message.content).toContain("You're connected");
+    expect(choices[0].message.content).toContain('no providers are set up yet');
     expect(result.meta).toEqual({
       tier: 'simple',
       model: 'manifest',
@@ -410,7 +411,7 @@ describe('ProxyService', () => {
     const text = await result.forward.response.text();
     expect(text).toContain('data: {');
     expect(text).toContain('chat.completion.chunk');
-    expect(text).toContain('Manifest is connected successfully');
+    expect(text).toContain("You're connected");
     expect(text).toContain('data: [DONE]');
     expect(result.meta.reason).toBe('no_provider');
   });
@@ -438,7 +439,7 @@ describe('ProxyService', () => {
     const json = (await result.forward.response.json()) as {
       choices: { message: { content: string } }[];
     };
-    expect(json.choices[0].message.content).toContain('No API key set for OpenAI');
+    expect(json.choices[0].message.content).toContain('No OpenAI API key yet');
     expect(json.choices[0].message.content).toContain('/agents/my-agent/routing');
     expect(result.meta.reason).toBe('no_provider_key');
   });
@@ -1137,8 +1138,7 @@ describe('ProxyService', () => {
       const json = (await result.forward.response.json()) as {
         choices: { message: { content: string } }[];
       };
-      expect(json.choices[0].message.content).toContain('Usage limit hit');
-      expect(json.choices[0].message.content).toContain('tokens');
+      expect(json.choices[0].message.content).toContain('You hit your tokens limit');
       expect(json.choices[0].message.content).toContain(
         'http://localhost:3001/agents/my-agent/limits',
       );
@@ -1726,7 +1726,7 @@ describe('ProxyService', () => {
       const json = (await result.forward.response.json()) as {
         choices: { message: { content: string } }[];
       };
-      expect(json.choices[0].message.content).toContain('No API key set for Anthropic');
+      expect(json.choices[0].message.content).toContain('No Anthropic API key yet');
       expect(result.meta.reason).toBe('no_provider_key');
     });
   });
