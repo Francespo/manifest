@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Manifest — self-host quick install
 #
-# Downloads the Docker Compose file, generates a BETTER_AUTH_SECRET and
-# writes it into the compose file (replacing the placeholder), then brings
-# up the stack. Designed for first-time self-hosters who want a one-command
-# setup. After the stack is healthy, visit http://localhost:3001 — the
-# setup wizard walks you through creating the first admin account.
+# Downloads the Docker Compose file and the `.env.example` template,
+# generates a BETTER_AUTH_SECRET, writes it into a local `.env`, then
+# brings up the stack. Designed for first-time self-hosters who want a
+# one-command setup. After the stack is healthy, visit http://localhost:3001
+# — the setup wizard walks you through creating the first admin account.
 #
 # Usage:
 #   bash install.sh                  # install into ./manifest
@@ -97,6 +97,15 @@ else
     || die "Failed to download docker-compose.yml"
 fi
 
+log "Downloading .env.example"
+ENV_PATH="$INSTALL_DIR/.env"
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  printf '    \033[2m$ curl -sSLf %s/.env.example -o %s\033[0m\n' "$REPO_RAW" "$ENV_PATH"
+else
+  curl -sSLf "$REPO_RAW/.env.example" -o "$ENV_PATH" \
+    || die "Failed to download .env.example"
+fi
+
 log "Generating BETTER_AUTH_SECRET"
 if [[ "$DRY_RUN" -eq 1 ]]; then
   SECRET="<generated-at-install-time>"
@@ -108,18 +117,25 @@ else
   esac
 fi
 
-log "Writing secret into docker-compose.yml"
-COMPOSE_PATH="$INSTALL_DIR/docker-compose.yml"
-PLACEHOLDER='BETTER_AUTH_SECRET=change-me-to-a-random-32-char-string!!'
+log "Writing secret into .env"
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  printf '    \033[2m$ replace "%s" → BETTER_AUTH_SECRET=<generated> in %s\033[0m\n' "$PLACEHOLDER" "$COMPOSE_PATH"
+  printf '    \033[2m$ replace "BETTER_AUTH_SECRET=" → "BETTER_AUTH_SECRET=<generated>" in %s\033[0m\n' "$ENV_PATH"
 else
-  if ! grep -qF "$PLACEHOLDER" "$COMPOSE_PATH"; then
-    die "Placeholder BETTER_AUTH_SECRET not found in $COMPOSE_PATH — refusing to proceed."
+  if ! grep -qE '^BETTER_AUTH_SECRET=$' "$ENV_PATH"; then
+    die "Expected empty BETTER_AUTH_SECRET= line not found in $ENV_PATH — refusing to proceed."
   fi
-  # openssl rand -hex produces only [0-9a-f], so plain bash string replacement is safe.
-  compose_content=$(<"$COMPOSE_PATH")
-  printf '%s' "${compose_content//$PLACEHOLDER/BETTER_AUTH_SECRET=$SECRET}" > "$COMPOSE_PATH"
+  # Line-based rewrite — no sed, no quoting edge cases. openssl rand -hex
+  # produces only [0-9a-f], so interpolation into the line is safe.
+  new_content=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == "BETTER_AUTH_SECRET=" ]]; then
+      new_content+="BETTER_AUTH_SECRET=$SECRET"$'\n'
+    else
+      new_content+="$line"$'\n'
+    fi
+  done < "$ENV_PATH"
+  printf '%s' "$new_content" > "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
 fi
 
 log "Starting the stack"
@@ -141,8 +157,14 @@ for _ in $(seq 1 24); do
     log "Manifest is up."
     cat <<EOF
 
-  Open:  http://localhost:3001
-  Setup: the first visit walks you through creating your admin account.
+  Open:   http://localhost:3001
+  Setup:  the first visit walks you through creating your admin account.
+  Config: $INSTALL_DIR/.env  (BETTER_AUTH_SECRET, OAuth keys, email provider)
+
+  Note:   Port 3001 is bound to 127.0.0.1 only. To expose on your LAN,
+          edit $INSTALL_DIR/docker-compose.yml and change the ports line
+          from "127.0.0.1:3001:3001" to "3001:3001", then update
+          BETTER_AUTH_URL in .env to match the host you'll access it on.
 
   Stop:  (cd $INSTALL_DIR && docker compose down)
   Wipe:  (cd $INSTALL_DIR && docker compose down -v)

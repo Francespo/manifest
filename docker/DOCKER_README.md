@@ -62,9 +62,11 @@ Works with 300+ models across OpenAI, Anthropic, Google Gemini, DeepSeek, xAI, M
 
 Three paths, ordered from fastest to most hands-on. All three end in the same place: a running stack that walks you through the **setup wizard** at [http://localhost:3001](http://localhost:3001) to create your admin account.
 
+> **Heads up on network binding.** The bundled compose file binds port 3001 to `127.0.0.1` only, so the dashboard is reachable on the host machine but not over the LAN. See [Custom port](#custom-port) to expose it beyond localhost.
+
 ### Option 1: Quickstart install script (recommended)
 
-One command. The script downloads `docker/docker-compose.yml`, generates a fresh `BETTER_AUTH_SECRET` and injects it into the compose file, brings up the stack, and waits for the healthcheck to go green.
+One command. The script downloads `docker/docker-compose.yml` and `docker/.env.example`, writes a fresh `BETTER_AUTH_SECRET` into `.env`, brings up the stack, and waits for the healthcheck to go green.
 
 ```bash
 bash <(curl -sSL https://raw.githubusercontent.com/mnfst/manifest/main/docker/install.sh)
@@ -82,19 +84,23 @@ Flags: `--dir <path>` (install into a custom directory, defaults to `./manifest`
 
 ### Option 2: Docker Compose (manual)
 
-Same underlying flow as the install script, but you drive it yourself so you can edit the compose file before booting the stack.
+Same underlying flow as the install script, but you drive it yourself so you can edit the config before booting the stack.
 
-1. Download the compose file:
+1. Download the compose file and the env template into the same directory:
 
 ```bash
 curl -O https://raw.githubusercontent.com/mnfst/manifest/main/docker/docker-compose.yml
+curl -O https://raw.githubusercontent.com/mnfst/manifest/main/docker/.env.example
+cp .env.example .env
 ```
 
-2. Generate a secret and paste it over the `BETTER_AUTH_SECRET` placeholder in `docker-compose.yml`:
+2. Generate a secret and paste it into the `BETTER_AUTH_SECRET=` line in `.env`:
 
 ```bash
 openssl rand -hex 32
 ```
+
+(Optional: set `POSTGRES_PASSWORD=` in `.env` to use something other than the default `manifest` password. The compose file feeds the same value into both the Postgres container and `DATABASE_URL`, so changing it in `.env` is sufficient.)
 
 3. Start it:
 
@@ -191,12 +197,24 @@ Or in docker-compose.yml:
 
 ```yaml
 ports:
-  - "8080:3001"
-environment:
-  - BETTER_AUTH_URL=http://localhost:8080
+  - "127.0.0.1:8080:3001"
 ```
 
-If you see "Invalid origin" on the login page, `BETTER_AUTH_URL` doesn't match the port you're using.
+…and in `.env`:
+
+```env
+BETTER_AUTH_URL=http://localhost:8080
+```
+
+### Exposing on the LAN
+
+By default the compose file binds port 3001 to `127.0.0.1` only — the dashboard is reachable from the host but not from other machines on the network. To expose it on the LAN:
+
+1. Edit `docker-compose.yml` and change the `ports` line from `"127.0.0.1:3001:3001"` to `"3001:3001"`.
+2. In `.env`, set `BETTER_AUTH_URL` to the host you'll reach the dashboard on — e.g. `http://192.168.1.20:3001` or `https://manifest.mydomain.com`. This MUST match the URL in the browser or Better Auth will reject the login with "Invalid origin".
+3. `docker compose up -d` to apply.
+
+If you see "Invalid origin" on the login page, `BETTER_AUTH_URL` doesn't match the URL you're accessing the dashboard on. The host matters as much as the port.
 
 ## Image tags
 
@@ -256,7 +274,6 @@ docker compose down -v    # ⚠  destroys all data
 | `PORT` | No | `3001` | Internal server port |
 | `NODE_ENV` | No | `production` | Set `development` for auto-migrations |
 | `SEED_DATA` | No | `false` | Seed demo data on startup |
-| `MANIFEST_TRUST_LAN` | No | `false` | Trust private network IPs (needed in Docker) |
 
 Full env var reference: [github.com/mnfst/manifest](https://github.com/mnfst/manifest)
 

@@ -70,6 +70,9 @@ vi.mock("../../src/services/api.js", () => ({
   resetSpecificity: vi.fn().mockResolvedValue({}),
   setSpecificityFallbacks: vi.fn().mockResolvedValue({}),
   clearSpecificityFallbacks: vi.fn().mockResolvedValue({}),
+  refreshModels: vi.fn().mockResolvedValue({ ok: true }),
+  getPricingHealth: vi.fn().mockResolvedValue({ model_count: 100, last_fetched_at: "2026-04-13T00:00:00.000Z" }),
+  refreshPricing: vi.fn().mockResolvedValue({ ok: true, model_count: 100, last_fetched_at: "2026-04-13T00:00:00.000Z" }),
 }));
 
 import Routing from "../../src/pages/Routing";
