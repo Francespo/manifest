@@ -151,9 +151,13 @@ const migrations = [
         url: config.get<string>('app.databaseUrl'),
         entities,
         synchronize: false,
-        migrationsRun:
-          process.env['AUTO_MIGRATE'] === 'true' ||
-          ['development', 'test'].includes(config.get<string>('app.nodeEnv') ?? ''),
+        // Run migrations on every boot. `synchronize: false` is permanent, so
+        // committed migrations are the only source of schema changes — there's
+        // no scenario where production should boot with pending migrations
+        // unapplied (the dashboard 500s on missing tables). Previously this
+        // was gated on AUTO_MIGRATE=true / NODE_ENV, which broke fresh
+        // production installs whose env didn't set the var (see #1551 / 5.45.1).
+        migrationsRun: true,
         migrationsTransactionMode: 'all' as const,
         migrations,
         logging: false,

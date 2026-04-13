@@ -12,7 +12,6 @@ export const appConfig = registerAs('app', () => ({
   port: Number(process.env['PORT'] ?? 3001),
   nodeEnv: process.env['NODE_ENV'] ?? 'development',
   databaseUrl: resolveDatabaseUrl(),
-  autoMigrate: process.env['AUTO_MIGRATE'] === 'true',
 
   corsOrigin: process.env['CORS_ORIGIN'] ?? 'http://localhost:3000',
   betterAuthUrl: process.env['BETTER_AUTH_URL'] ?? '',

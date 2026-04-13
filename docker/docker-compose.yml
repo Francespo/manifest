@@ -33,7 +33,6 @@ services:
       - OLLAMA_HOST=http://ollama:11434
       - SEED_DATA=false
       - NODE_ENV=production
-      - AUTO_MIGRATE=true
       # Email provider (optional). Covers both login/verification emails
       # and threshold alert notifications. Set one provider block — see
       # DOCKER_README.md "Email setup". Supports resend, mailgun, sendgrid.
