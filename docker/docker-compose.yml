@@ -30,6 +30,8 @@ services:
       - DATABASE_URL=${DATABASE_URL:-postgresql://manifest:manifest@postgres:5432/manifest}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set in .env}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
+      - MANIFEST_MODE=local
+      - OLLAMA_HOST=http://ollama:11434
       - SEED_DATA=false
       - NODE_ENV=production
       - AUTO_MIGRATE=true
@@ -87,6 +89,22 @@ services:
     networks:
       - internal
 
+  # Optional: run local LLMs via Ollama.
+  # Start with: docker compose --profile ollama up -d
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge
@@ -96,3 +114,4 @@ networks:
 
 volumes:
   pgdata:
+  ollama_data:

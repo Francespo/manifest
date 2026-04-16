@@ -36,7 +36,10 @@ describe('First-run setup wizard', () => {
   describe('GET /api/v1/setup/status', () => {
     it('returns needsSetup=true when user table is empty', async () => {
       const res = await request(app.getHttpServer()).get('/api/v1/setup/status').expect(200);
-      expect(res.body).toEqual({ needsSetup: true });
+      expect(res.body).toMatchObject({ needsSetup: true });
+      expect(res.body).toHaveProperty('socialProviders');
+      expect(res.body).toHaveProperty('isLocalMode');
+      expect(res.body).toHaveProperty('ollamaAvailable');
     });
 
     it('returns needsSetup=false after a user has been inserted', async () => {
@@ -47,7 +50,7 @@ describe('First-run setup wizard', () => {
       );
 
       const res = await request(app.getHttpServer()).get('/api/v1/setup/status').expect(200);
-      expect(res.body).toEqual({ needsSetup: false });
+      expect(res.body).toMatchObject({ needsSetup: false });
     });
 
     it('is a public endpoint (no auth required)', async () => {

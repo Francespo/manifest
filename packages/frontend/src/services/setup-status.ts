@@ -2,31 +2,64 @@
  * First-run setup status check. Cached per page load so the login page,
  * setup page, and any guards can all ask without spamming the endpoint.
  */
-let cachedPromise: Promise<boolean> | null = null;
 
 interface SetupStatusResponse {
   needsSetup: boolean;
+  socialProviders?: string[];
+  isLocalMode?: boolean;
+  ollamaAvailable?: boolean;
 }
 
-async function fetchSetupStatus(): Promise<boolean> {
+interface SetupStatusResult {
+  needsSetup: boolean;
+  socialProviders: string[];
+  isLocalMode: boolean;
+  ollamaAvailable: boolean;
+}
+
+let cachedPromise: Promise<SetupStatusResult> | null = null;
+
+async function fetchSetupStatus(): Promise<SetupStatusResult> {
   try {
     const res = await fetch('/api/v1/setup/status', {
       credentials: 'include',
       cache: 'no-store',
     });
-    if (!res.ok) return false;
+    if (!res.ok)
+      return { needsSetup: false, socialProviders: [], isLocalMode: false, ollamaAvailable: false };
     const data = (await res.json()) as SetupStatusResponse;
-    return data.needsSetup === true;
+    return {
+      needsSetup: data.needsSetup === true,
+      socialProviders: data.socialProviders ?? [],
+      isLocalMode: data.isLocalMode === true,
+      ollamaAvailable: data.ollamaAvailable === true,
+    };
   } catch {
-    return false;
+    return { needsSetup: false, socialProviders: [], isLocalMode: false, ollamaAvailable: false };
   }
 }
 
-export function checkNeedsSetup(): Promise<boolean> {
+function getSetupStatus(): Promise<SetupStatusResult> {
   if (!cachedPromise) {
     cachedPromise = fetchSetupStatus();
   }
   return cachedPromise;
+}
+
+export async function checkNeedsSetup(): Promise<boolean> {
+  return (await getSetupStatus()).needsSetup;
+}
+
+export async function checkSocialProviders(): Promise<string[]> {
+  return (await getSetupStatus()).socialProviders;
+}
+
+export async function checkIsLocalMode(): Promise<boolean> {
+  return (await getSetupStatus()).isLocalMode;
+}
+
+export async function checkIsOllamaAvailable(): Promise<boolean> {
+  return (await getSetupStatus()).ollamaAvailable;
 }
 
 /** Invalidate the cached status. Call this after a successful setup. */

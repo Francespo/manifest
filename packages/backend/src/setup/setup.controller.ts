@@ -9,8 +9,19 @@ export class SetupController {
 
   @Public()
   @Get('status')
-  async getStatus(): Promise<{ needsSetup: boolean }> {
-    return { needsSetup: await this.setupService.needsSetup() };
+  async getStatus(): Promise<{
+    needsSetup: boolean;
+    socialProviders: string[];
+    isLocalMode: boolean;
+    ollamaAvailable: boolean;
+  }> {
+    const isLocal = this.setupService.isLocalMode();
+    return {
+      needsSetup: await this.setupService.needsSetup(),
+      socialProviders: this.setupService.getEnabledSocialProviders(),
+      isLocalMode: isLocal,
+      ollamaAvailable: isLocal ? await this.setupService.isOllamaAvailable() : false,
+    };
   }
 
   @Public()

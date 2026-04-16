@@ -44,6 +44,112 @@ describe('SetupService', () => {
     jest.clearAllMocks();
   });
 
+  describe('isLocalMode', () => {
+    const originalMode = process.env['MANIFEST_MODE'];
+
+    afterEach(() => {
+      if (originalMode === undefined) delete process.env['MANIFEST_MODE'];
+      else process.env['MANIFEST_MODE'] = originalMode;
+    });
+
+    it('returns true when MANIFEST_MODE is local', () => {
+      process.env['MANIFEST_MODE'] = 'local';
+      expect(service.isLocalMode()).toBe(true);
+    });
+
+    it('returns false when MANIFEST_MODE is cloud', () => {
+      process.env['MANIFEST_MODE'] = 'cloud';
+      expect(service.isLocalMode()).toBe(false);
+    });
+
+    it('returns false when MANIFEST_MODE is not set', () => {
+      delete process.env['MANIFEST_MODE'];
+      expect(service.isLocalMode()).toBe(false);
+    });
+  });
+
+  describe('isOllamaAvailable', () => {
+    const originalFetch = global.fetch;
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('returns true when Ollama responds OK', async () => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: true }) as unknown as typeof fetch;
+      expect(await service.isOllamaAvailable()).toBe(true);
+    });
+
+    it('returns false when Ollama responds with error status', async () => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: false }) as unknown as typeof fetch;
+      expect(await service.isOllamaAvailable()).toBe(false);
+    });
+
+    it('returns false when fetch throws (Ollama unreachable)', async () => {
+      global.fetch = jest
+        .fn()
+        .mockRejectedValue(new Error('ECONNREFUSED')) as unknown as typeof fetch;
+      expect(await service.isOllamaAvailable()).toBe(false);
+    });
+
+    it('returns false when fetch is aborted (timeout)', async () => {
+      global.fetch = jest
+        .fn()
+        .mockRejectedValue(new DOMException('aborted', 'AbortError')) as unknown as typeof fetch;
+      expect(await service.isOllamaAvailable()).toBe(false);
+    });
+  });
+
+  describe('getEnabledSocialProviders', () => {
+    const envKeys = [
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'GITHUB_CLIENT_ID',
+      'GITHUB_CLIENT_SECRET',
+      'DISCORD_CLIENT_ID',
+      'DISCORD_CLIENT_SECRET',
+    ];
+
+    let savedEnv: Record<string, string | undefined>;
+
+    beforeEach(() => {
+      savedEnv = {};
+      for (const k of envKeys) {
+        savedEnv[k] = process.env[k];
+        delete process.env[k];
+      }
+    });
+
+    afterEach(() => {
+      for (const k of envKeys) {
+        if (savedEnv[k] === undefined) delete process.env[k];
+        else process.env[k] = savedEnv[k];
+      }
+    });
+
+    it('returns empty array when no providers are configured', () => {
+      expect(service.getEnabledSocialProviders()).toEqual([]);
+    });
+
+    it('returns google when both Google env vars are set', () => {
+      process.env['GOOGLE_CLIENT_ID'] = 'id';
+      process.env['GOOGLE_CLIENT_SECRET'] = 'secret';
+      expect(service.getEnabledSocialProviders()).toEqual(['google']);
+    });
+
+    it('returns all three when all providers are configured', () => {
+      for (const k of envKeys) process.env[k] = 'val';
+      expect(service.getEnabledSocialProviders()).toEqual(['google', 'github', 'discord']);
+    });
+
+    it('omits providers with only CLIENT_ID set (no secret)', () => {
+      process.env['GOOGLE_CLIENT_ID'] = 'id';
+      process.env['GITHUB_CLIENT_ID'] = 'id';
+      process.env['GITHUB_CLIENT_SECRET'] = 'secret';
+      expect(service.getEnabledSocialProviders()).toEqual(['github']);
+    });
+  });
+
   describe('needsSetup', () => {
     it('returns true when user table is empty', async () => {
       ds.query.mockResolvedValueOnce([{ count: '0' }]);

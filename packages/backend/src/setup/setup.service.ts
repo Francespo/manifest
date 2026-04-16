@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CreateAdminDto } from './dto/create-admin.dto';
+import { OLLAMA_HOST } from '../common/constants/ollama';
 
 /**
  * Postgres advisory lock key reserved for the first-run setup wizard.
@@ -14,6 +15,43 @@ export class SetupService {
   private readonly logger = new Logger(SetupService.name);
 
   constructor(private readonly dataSource: DataSource) {}
+
+  /**
+   * Returns true when MANIFEST_MODE is 'local' (Docker/self-hosted).
+   */
+  isLocalMode(): boolean {
+    return process.env['MANIFEST_MODE'] === 'local';
+  }
+
+  /**
+   * Returns the list of social OAuth providers that have both
+   * CLIENT_ID and CLIENT_SECRET configured in the environment.
+   */
+  getEnabledSocialProviders(): string[] {
+    const providers: string[] = [];
+    if (process.env['GOOGLE_CLIENT_ID'] && process.env['GOOGLE_CLIENT_SECRET'])
+      providers.push('google');
+    if (process.env['GITHUB_CLIENT_ID'] && process.env['GITHUB_CLIENT_SECRET'])
+      providers.push('github');
+    if (process.env['DISCORD_CLIENT_ID'] && process.env['DISCORD_CLIENT_SECRET'])
+      providers.push('discord');
+    return providers;
+  }
+
+  /**
+   * Pings the Ollama server and returns true if it responds.
+   */
+  async isOllamaAvailable(): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${OLLAMA_HOST}/api/tags`, { signal: controller.signal });
+      clearTimeout(timeout);
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
 
   /**
    * Returns true when no Better Auth user exists yet. The login flow uses
