@@ -211,10 +211,7 @@ export async function handleStreamResponse(
 
   if (forward.isGoogle) {
     return pipeStream(forward.response.body!, res, (chunk) => {
-      const { chunk: out, signatures } = providerClient.convertGoogleStreamChunk(
-        chunk,
-        meta.model,
-      );
+      const { chunk: out, signatures } = providerClient.convertGoogleStreamChunk(chunk, meta.model);
       if (signatureCache && sessionKey) {
         for (const s of signatures) {
           signatureCache.store(sessionKey, s.toolCallId, s.signature);

@@ -174,12 +174,49 @@ const ProviderDetailView: Component<ProviderDetailViewProps> = (props) => {
           )}
         </span>
         <div class="provider-detail__title-group">
-          <div class="provider-detail__name">{provDef.name}</div>
+          <div class="provider-detail__name">
+            {provDef.name}
+            <Show when={provDef.beta}>
+              <span class="provider-detail__beta-badge">beta</span>
+            </Show>
+          </div>
         </div>
         <Show when={props.provId === 'anthropic'}>
           <AnthropicCreditsLink />
         </Show>
       </div>
+
+      {/* Subscription sign-in URL instruction (token mode with external sign-in) */}
+      <Show when={isSubMode() && provDef.subscriptionSignInUrl}>
+        <p class="provider-detail__hint">
+          {provDef.subscriptionSignInHint ??
+            `Sign in to your ${provDef.name} account to get your API key, then paste it below.`}
+        </p>
+        <a
+          class="btn btn--primary btn--sm provider-detail__signin-btn"
+          href={provDef.subscriptionSignInUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${provDef.subscriptionSignInLabel ?? 'Sign in'} (opens in a new tab)`}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
+          </svg>
+          {provDef.subscriptionSignInLabel ?? 'Sign in'}
+        </a>
+      </Show>
 
       {/* Subscription terminal instruction */}
       <Show when={isSubMode() && provDef.subscriptionCommand}>

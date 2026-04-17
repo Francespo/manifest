@@ -79,6 +79,14 @@ export class ProviderClient {
         resolved = 'minimax-subscription';
       } else if (resolved === 'zai' && authType === 'subscription') {
         resolved = 'zai-subscription';
+      } else if (resolved === 'opencode-go') {
+        // OpenCode Go uses two different API formats depending on the model:
+        // MiniMax models use Anthropic /v1/messages, all others use OpenAI /v1/chat/completions.
+        const slashIdx = model.indexOf('/');
+        const bare = slashIdx > 0 ? model.substring(slashIdx + 1) : model;
+        if (bare.toLowerCase().startsWith('minimax-')) {
+          resolved = 'opencode-go-anthropic';
+        }
       }
       endpointKey = resolved;
       endpoint = PROVIDER_ENDPOINTS[endpointKey];

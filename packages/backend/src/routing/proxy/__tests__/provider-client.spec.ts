@@ -523,6 +523,96 @@ describe('ProviderClient', () => {
     });
   });
 
+  describe('OpenCode Go provider', () => {
+    it('routes non-minimax models to OpenAI /v1/chat/completions', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      const result = await client.forward({
+        provider: 'opencode-go',
+        apiKey: 'og-token',
+        model: 'opencode-go/glm-5.1',
+        body,
+        stream: false,
+        authType: 'subscription',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://opencode.ai/zen/go/v1/chat/completions',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer og-token',
+            'Content-Type': 'application/json',
+          }),
+        }),
+      );
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      // Model prefix is stripped before forwarding
+      expect(sentBody.model).toBe('glm-5.1');
+      expect(result.isAnthropic).toBe(false);
+      expect(result.isChatGpt).toBe(false);
+    });
+
+    it('routes minimax-* models to Anthropic /v1/messages', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      const result = await client.forward({
+        provider: 'opencode-go',
+        apiKey: 'og-token',
+        model: 'opencode-go/minimax-m2.7',
+        body,
+        stream: false,
+        authType: 'subscription',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://opencode.ai/zen/go/v1/messages',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'x-api-key': 'og-token',
+            'anthropic-version': '2023-06-01',
+          }),
+        }),
+      );
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.model).toBe('minimax-m2.7');
+      expect(result.isAnthropic).toBe(true);
+    });
+
+    it('also routes minimax-m2.5 to the Anthropic endpoint', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'opencode-go',
+        apiKey: 'og-token',
+        model: 'opencode-go/minimax-m2.5',
+        body,
+        stream: false,
+        authType: 'subscription',
+      });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toBe('https://opencode.ai/zen/go/v1/messages');
+    });
+
+    it('routes kimi-k2.5 through the OpenAI endpoint', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'opencode-go',
+        apiKey: 'og-token',
+        model: 'opencode-go/kimi-k2.5',
+        body,
+        stream: false,
+        authType: 'subscription',
+      });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toBe('https://opencode.ai/zen/go/v1/chat/completions');
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.model).toBe('kimi-k2.5');
+    });
+  });
+
   describe('convertChatGptResponse', () => {
     it('delegates to fromResponsesResponse', () => {
       const data = {

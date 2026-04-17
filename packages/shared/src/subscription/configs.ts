@@ -86,6 +86,19 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
       supportsBatching: false,
     }),
   }),
+  'opencode-go': Object.freeze({
+    supportsSubscription: true as const,
+    subscriptionLabel: 'OpenCode Go (beta)',
+    subscriptionAuthMode: 'token' as const,
+    subscriptionKeyPlaceholder: 'Paste your OpenCode API key',
+    // Model list is fetched dynamically from the public OpenCode Go docs source;
+    // see OpencodeGoCatalogService in the backend.
+    subscriptionCapabilities: Object.freeze({
+      maxContextWindow: 200000,
+      supportsPromptCaching: false,
+      supportsBatching: false,
+    }),
+  }),
   copilot: Object.freeze({
     supportsSubscription: true as const,
     subscriptionLabel: 'GitHub Copilot subscription',

@@ -34,6 +34,14 @@ export interface ProviderDef {
   subscriptionOAuth?: boolean;
   /** Provider is subscription-only and should not appear in the API Keys tab. */
   subscriptionOnly?: boolean;
+  /** External URL the user should open to sign in and retrieve their token (token mode). */
+  subscriptionSignInUrl?: string;
+  /** Label for the sign-in button shown alongside the token paste field. */
+  subscriptionSignInLabel?: string;
+  /** Custom instruction text shown above the sign-in button (overrides the default). */
+  subscriptionSignInHint?: string;
+  /** Show a beta badge next to the provider name. */
+  beta?: boolean;
 }
 
 export const PROVIDERS: ProviderDef[] = [
@@ -209,6 +217,27 @@ export const PROVIDERS: ProviderDef[] = [
       { label: 'o1 Mini', value: 'o1-mini' },
       { label: 'o1 Preview', value: 'o1-preview' },
     ],
+  },
+  {
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    color: '#7C3AED',
+    initial: 'OG',
+    subtitle: 'GLM, Kimi, MiMo, MiniMax',
+    keyPrefix: '',
+    minKeyLength: 20,
+    keyPlaceholder: '',
+    supportsSubscription: true,
+    subscriptionLabel: 'OpenCode Go (beta)',
+    subscriptionAuthMode: 'token',
+    subscriptionKeyPlaceholder: 'Paste your OpenCode API key',
+    subscriptionSignInUrl: 'https://opencode.ai/auth',
+    subscriptionSignInLabel: 'Sign in to OpenCode Go',
+    subscriptionSignInHint: 'Sign in to OpenCode Go to get your API key.',
+    subscriptionOnly: true,
+    beta: true,
+    // Models are discovered dynamically from the OpenCode Go docs catalog.
+    models: [],
   },
   {
     id: 'openrouter',

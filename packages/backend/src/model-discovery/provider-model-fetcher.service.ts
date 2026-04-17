@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { DiscoveredModel, FetcherConfig } from './model-fetcher';
 import { OLLAMA_CLOUD_HOST, OLLAMA_HOST } from '../common/constants/ollama';
 import { normalizeMinimaxSubscriptionBaseUrl } from '../routing/provider-base-url';
 import { getQwenCompatibleBaseUrl, normalizeQwenCompatibleBaseUrl } from '../routing/qwen-region';
+import { OpencodeGoCatalogService } from './opencode-go-catalog.service';
 
 const FETCH_TIMEOUT_MS = 5000;
 const DEFAULT_CONTEXT_WINDOW = 128000;
@@ -436,9 +437,17 @@ export const PROVIDER_CONFIGS: Record<string, FetcherConfig> = {
   },
 };
 
+const OPENCODE_GO_CONTEXT_WINDOW = 200000;
+
 @Injectable()
 export class ProviderModelFetcherService {
   private readonly logger = new Logger(ProviderModelFetcherService.name);
+
+  constructor(
+    @Optional()
+    @Inject(OpencodeGoCatalogService)
+    private readonly opencodeGoCatalog: OpencodeGoCatalogService | null = null,
+  ) {}
 
   async fetch(
     providerId: string,
@@ -454,6 +463,8 @@ export class ProviderModelFetcherService {
       configKey = 'minimax-subscription';
     } else if (configKey === 'zai' && authType === 'subscription') {
       configKey = 'zai-subscription';
+    } else if (configKey === 'opencode-go') {
+      return this.fetchOpencodeGoCatalog();
     }
     const config = PROVIDER_CONFIGS[configKey];
     if (!config) {
@@ -504,5 +515,21 @@ export class ProviderModelFetcherService {
       this.logger.warn(`Failed to fetch models from ${providerId}: ${message}`);
       return [];
     }
+  }
+
+  private async fetchOpencodeGoCatalog(): Promise<DiscoveredModel[]> {
+    if (!this.opencodeGoCatalog) return [];
+    const entries = await this.opencodeGoCatalog.list();
+    return entries.map((entry) => ({
+      id: `opencode-go/${entry.id}`,
+      displayName: entry.displayName,
+      provider: 'opencode-go',
+      contextWindow: OPENCODE_GO_CONTEXT_WINDOW,
+      inputPricePerToken: 0,
+      outputPricePerToken: 0,
+      capabilityReasoning: true,
+      capabilityCode: true,
+      qualityScore: 3,
+    }));
   }
 }

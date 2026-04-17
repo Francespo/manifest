@@ -508,7 +508,11 @@ describe('proxy-response-handler', () => {
       expect(typeof callback).toBe('function');
       const blocks = [{ type: 'thinking', thinking: 'r', signature: 's' }];
       callback('toolu_stream', blocks);
-      expect(thinkingCache.store).toHaveBeenCalledWith('sess-anthro-stream', 'toolu_stream', blocks);
+      expect(thinkingCache.store).toHaveBeenCalledWith(
+        'sess-anthro-stream',
+        'toolu_stream',
+        blocks,
+      );
     });
 
     it('should use ChatGPT adapter for ChatGPT responses', async () => {

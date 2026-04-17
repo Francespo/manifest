@@ -1369,6 +1369,42 @@ describe('ProviderModelFetcherService', () => {
     });
   });
 
+  describe('opencode-go provider', () => {
+    it('delegates to the catalog service instead of hitting the network', async () => {
+      const catalog = {
+        list: jest.fn().mockResolvedValue([
+          { id: 'glm-5.1', displayName: 'GLM-5.1', format: 'openai' as const },
+          { id: 'minimax-m2.7', displayName: 'MiniMax M2.7', format: 'anthropic' as const },
+        ]),
+      };
+      const withCatalog = new ProviderModelFetcherService(
+        catalog as unknown as ConstructorParameters<typeof ProviderModelFetcherService>[0],
+      );
+
+      const result = await withCatalog.fetch('opencode-go', 'og-token', 'subscription');
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(catalog.list).toHaveBeenCalledTimes(1);
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          id: 'opencode-go/glm-5.1',
+          displayName: 'GLM-5.1',
+          provider: 'opencode-go',
+          inputPricePerToken: 0,
+          outputPricePerToken: 0,
+        }),
+      );
+      expect(result[1].id).toBe('opencode-go/minimax-m2.7');
+    });
+
+    it('returns [] when no catalog service is wired up', async () => {
+      const result = await service.fetch('opencode-go', 'og-token', 'subscription');
+      expect(result).toEqual([]);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
   /* ── OpenAI subscription routing ── */
 
   it('should route openai+subscription to openai-subscription config', async () => {

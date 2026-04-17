@@ -126,6 +126,14 @@ export const PROVIDER_REGISTRY: readonly ProviderRegistryEntry[] = [
     localOnly: false,
   },
   {
+    id: 'opencode-go',
+    displayName: 'OpenCode Go',
+    aliases: ['opencodego'],
+    openRouterPrefixes: [],
+    requiresApiKey: true,
+    localOnly: false,
+  },
+  {
     id: 'openrouter',
     displayName: 'OpenRouter',
     aliases: [],

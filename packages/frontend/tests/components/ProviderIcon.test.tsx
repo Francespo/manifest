@@ -17,6 +17,7 @@ const KNOWN_PROVIDERS = [
   "ollama-cloud",
   "minimax",
   "zai",
+  "opencode-go",
 ];
 
 describe("providerIcon", () => {

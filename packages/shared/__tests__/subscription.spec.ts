@@ -8,9 +8,17 @@ import {
 } from '../src/subscription';
 
 describe('SUBSCRIPTION_PROVIDER_CONFIGS', () => {
-  it('contains anthropic, openai, minimax, copilot, ollama-cloud, zai', () => {
+  it('contains all supported subscription provider IDs', () => {
     expect(Object.keys(SUBSCRIPTION_PROVIDER_CONFIGS)).toEqual(
-      expect.arrayContaining(['anthropic', 'openai', 'minimax', 'copilot', 'ollama-cloud', 'zai']),
+      expect.arrayContaining([
+        'anthropic',
+        'openai',
+        'minimax',
+        'copilot',
+        'ollama-cloud',
+        'zai',
+        'opencode-go',
+      ]),
     );
   });
 
@@ -90,6 +98,26 @@ describe('getSubscriptionProviderConfig', () => {
     });
   });
 
+  it('returns config for opencode-go', () => {
+    const config = getSubscriptionProviderConfig('opencode-go');
+    expect(config).toMatchObject({
+      supportsSubscription: true,
+      subscriptionLabel: 'OpenCode Go (beta)',
+      subscriptionAuthMode: 'token',
+      subscriptionKeyPlaceholder: 'Paste your OpenCode API key',
+    });
+    expect(config?.subscriptionCapabilities).toMatchObject({
+      maxContextWindow: 200000,
+      supportsPromptCaching: false,
+      supportsBatching: false,
+    });
+  });
+
+  it('does not publish a hardcoded known-models list for opencode-go', () => {
+    const config = getSubscriptionProviderConfig('opencode-go');
+    expect(config?.knownModels).toBeUndefined();
+  });
+
   it('is case-insensitive', () => {
     expect(getSubscriptionProviderConfig('ANTHROPIC')).not.toBeNull();
     expect(getSubscriptionProviderConfig('OpenAI')).not.toBeNull();
@@ -112,6 +140,7 @@ describe('supportsSubscriptionProvider', () => {
     expect(supportsSubscriptionProvider('copilot')).toBe(true);
     expect(supportsSubscriptionProvider('ollama-cloud')).toBe(true);
     expect(supportsSubscriptionProvider('zai')).toBe(true);
+    expect(supportsSubscriptionProvider('opencode-go')).toBe(true);
   });
 
   it('returns false for unsupported providers', () => {
@@ -143,6 +172,10 @@ describe('getSubscriptionKnownModels', () => {
     expect(models).toContain('glm-5.1');
     expect(models).toContain('glm-5');
     expect(models).toContain('glm-4.7');
+  });
+
+  it('returns null for opencode-go (dynamic catalog, no hardcoded list)', () => {
+    expect(getSubscriptionKnownModels('opencode-go')).toBeNull();
   });
 
   it('returns null for unsupported providers', () => {
