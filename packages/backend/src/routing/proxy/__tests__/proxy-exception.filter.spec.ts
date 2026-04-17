@@ -203,7 +203,7 @@ describe('ProxyExceptionFilter', () => {
           error: expect.objectContaining({
             type: 'auth_error',
             code: 'manifest_auth',
-            message: expect.stringContaining("wasn't recognized"),
+            message: expect.stringContaining("don't recognize this key"),
           }),
         }),
       );
