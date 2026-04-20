@@ -54,6 +54,7 @@ export interface MessageDetailResponse {
     routing_tier: string | null;
     routing_reason: string | null;
     specificity_category: string | null;
+    specificity_miscategorized: boolean;
     auth_type: string | null;
     skill_name: string | null;
     fallback_from_model: string | null;
@@ -100,6 +101,18 @@ export function setMessageFeedback(
 
 export function clearMessageFeedback(id: string) {
   return fetchMutate<void>(`${BASE_URL}/messages/${encodeURIComponent(id)}/feedback`, {
+    method: 'DELETE',
+  });
+}
+
+export function flagMessageMiscategorized(id: string) {
+  return fetchMutate<void>(`${BASE_URL}/messages/${encodeURIComponent(id)}/miscategorized`, {
+    method: 'PATCH',
+  });
+}
+
+export function clearMessageMiscategorized(id: string) {
+  return fetchMutate<void>(`${BASE_URL}/messages/${encodeURIComponent(id)}/miscategorized`, {
     method: 'DELETE',
   });
 }
