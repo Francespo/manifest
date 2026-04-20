@@ -12,15 +12,15 @@ export class SetupController {
   async getStatus(): Promise<{
     needsSetup: boolean;
     socialProviders: string[];
-    isLocalMode: boolean;
+    isSelfHosted: boolean;
     ollamaAvailable: boolean;
   }> {
-    const isLocal = this.setupService.isLocalMode();
+    const selfHosted = this.setupService.isSelfHosted();
     return {
       needsSetup: await this.setupService.needsSetup(),
       socialProviders: this.setupService.getEnabledSocialProviders(),
-      isLocalMode: isLocal,
-      ollamaAvailable: isLocal ? await this.setupService.isOllamaAvailable() : false,
+      isSelfHosted: selfHosted,
+      ollamaAvailable: selfHosted ? await this.setupService.isOllamaAvailable() : false,
     };
   }
 

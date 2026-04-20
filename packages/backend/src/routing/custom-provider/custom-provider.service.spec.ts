@@ -1,6 +1,9 @@
 jest.mock('../../common/utils/url-validation', () => ({
   validatePublicUrl: jest.fn(),
 }));
+jest.mock('../../common/utils/detect-self-hosted', () => ({
+  isSelfHosted: jest.fn().mockReturnValue(false),
+}));
 
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
@@ -11,6 +14,8 @@ import { RoutingCacheService } from '../routing-core/routing-cache.service';
 import { TierAutoAssignService } from '../routing-core/tier-auto-assign.service';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { validatePublicUrl } = require('../../common/utils/url-validation');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { isSelfHosted } = require('../../common/utils/detect-self-hosted');
 
 function makeDeps(overrides: {
   findOneResults?: (CustomProvider | null)[];
@@ -67,6 +72,8 @@ describe('CustomProviderService', () => {
     jest.clearAllMocks();
     (validatePublicUrl as jest.Mock).mockReset();
     (validatePublicUrl as jest.Mock).mockResolvedValue(undefined);
+    (isSelfHosted as jest.Mock).mockReset();
+    (isSelfHosted as jest.Mock).mockReturnValue(false);
   });
 
   describe('static helpers', () => {
@@ -145,6 +152,17 @@ describe('CustomProviderService', () => {
       expect(cp.name).toBe('my-openai');
       expect(cp.models[0].context_window).toBe(128_000);
       expect(upsertProvider).toHaveBeenCalledWith('agent-1', 'user-1', `custom:${cp.id}`, 'sk-x');
+      expect(validatePublicUrl).toHaveBeenCalledWith(dto.base_url, { allowPrivate: false });
+    });
+
+    it('passes allowPrivate=true in the self-hosted version so private URLs are accepted', async () => {
+      (isSelfHosted as jest.Mock).mockReturnValue(true);
+      const selfHostedDto = { ...dto, base_url: 'http://host.docker.internal:11434/v1' };
+      const { svc } = makeDeps({ findOneResults: [null] });
+      await svc.create('agent-1', 'user-1', selfHostedDto);
+      expect(validatePublicUrl).toHaveBeenCalledWith(selfHostedDto.base_url, {
+        allowPrivate: true,
+      });
     });
   });
 
@@ -186,8 +204,20 @@ describe('CustomProviderService', () => {
       } as CustomProvider;
       const { svc } = makeDeps({ findOneResults: [existing] });
       await svc.update('agent-1', 'cp1', 'user-1', { base_url: 'https://b.example' });
-      expect(validatePublicUrl).toHaveBeenCalledWith('https://b.example');
+      expect(validatePublicUrl).toHaveBeenCalledWith('https://b.example', { allowPrivate: false });
       expect(existing.base_url).toBe('https://b.example');
+    });
+
+    it('passes allowPrivate=true to validatePublicUrl in the self-hosted version', async () => {
+      (isSelfHosted as jest.Mock).mockReturnValue(true);
+      const existing = { id: 'cp1', agent_id: 'agent-1', name: 'n' } as CustomProvider;
+      const { svc } = makeDeps({ findOneResults: [existing] });
+      await svc.update('agent-1', 'cp1', 'user-1', {
+        base_url: 'http://host.docker.internal:8000/v1',
+      });
+      expect(validatePublicUrl).toHaveBeenCalledWith('http://host.docker.internal:8000/v1', {
+        allowPrivate: true,
+      });
     });
 
     it('throws BadRequest when the new base_url fails validation', async () => {
@@ -266,6 +296,187 @@ describe('CustomProviderService', () => {
       const { svc, findOne } = makeDeps({ findOneResults: [cp] });
       await expect(svc.getById('cp1')).resolves.toBe(cp);
       expect(findOne).toHaveBeenCalledWith({ where: { id: 'cp1' } });
+    });
+  });
+
+  describe('probeModels', () => {
+    const originalFetch = global.fetch;
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    const jsonResponse = (payload: unknown) =>
+      ({
+        ok: true,
+        headers: {
+          get: (k: string) => (k.toLowerCase() === 'content-type' ? 'application/json' : null),
+        },
+        json: async () => payload,
+      }) as unknown as Response;
+
+    it('returns the parsed model list on success', async () => {
+      const { svc } = makeDeps({});
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ data: [{ id: 'm1' }, { id: 'm2' }] }),
+        ) as unknown as typeof fetch;
+
+      const result = await svc.probeModels('http://host.docker.internal:8000/v1', 'sk-x');
+      expect(result).toEqual([{ model_name: 'm1' }, { model_name: 'm2' }]);
+      expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
+        'http://host.docker.internal:8000/v1/models',
+      );
+      const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+      expect(headers.Authorization).toBe('Bearer sk-x');
+    });
+
+    it('strips trailing slashes from the base URL before appending /models', async () => {
+      const { svc } = makeDeps({});
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(jsonResponse({ data: [{ id: 'm1' }] })) as unknown as typeof fetch;
+
+      await svc.probeModels('http://host.docker.internal:8000/v1///');
+      expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
+        'http://host.docker.internal:8000/v1/models',
+      );
+    });
+
+    it('omits Authorization header when no apiKey is given', async () => {
+      const { svc } = makeDeps({});
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(jsonResponse({ data: [] })) as unknown as typeof fetch;
+
+      await svc.probeModels('http://host.docker.internal:8000/v1');
+      const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+      expect(headers.Authorization).toBeUndefined();
+    });
+
+    it('returns an empty array when the server returns no data', async () => {
+      const { svc } = makeDeps({});
+      global.fetch = jest.fn().mockResolvedValue(jsonResponse({})) as unknown as typeof fetch;
+
+      const result = await svc.probeModels('http://host.docker.internal:8000/v1');
+      expect(result).toEqual([]);
+    });
+
+    it('drops entries without a string id', async () => {
+      const { svc } = makeDeps({});
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ data: [{ id: 'm1' }, { id: null }, {}, { id: '' }] }),
+        ) as unknown as typeof fetch;
+
+      const result = await svc.probeModels('http://host.docker.internal:8000/v1');
+      expect(result).toEqual([{ model_name: 'm1' }]);
+    });
+
+    it('rejects non-JSON responses (HTML, binary, no content-type)', async () => {
+      const { svc } = makeDeps({});
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'text/html; charset=utf-8' },
+        json: async () => ({ data: [] }),
+      }) as unknown as typeof fetch;
+
+      await expect(svc.probeModels('http://host.docker.internal:8000/v1')).rejects.toThrow(
+        /did not return JSON/,
+      );
+    });
+
+    it('rejects when the server omits the content-type header', async () => {
+      const { svc } = makeDeps({});
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => null },
+        json: async () => ({ data: [] }),
+      }) as unknown as typeof fetch;
+
+      await expect(svc.probeModels('http://host.docker.internal:8000/v1')).rejects.toThrow(
+        /no content-type/,
+      );
+    });
+
+    it('throws BadRequest when the URL fails validation', async () => {
+      (validatePublicUrl as jest.Mock).mockRejectedValue(new Error('private or internal'));
+      const { svc } = makeDeps({});
+      await expect(svc.probeModels('http://127.0.0.1:11434/v1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('throws BadRequest when the server responds with a non-2xx status', async () => {
+      const { svc } = makeDeps({});
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      }) as unknown as typeof fetch;
+
+      await expect(svc.probeModels('http://host.docker.internal:8000/v1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('throws BadRequest when the fetch itself fails (e.g. ECONNREFUSED)', async () => {
+      const { svc } = makeDeps({});
+      global.fetch = jest
+        .fn()
+        .mockRejectedValue(new Error('ECONNREFUSED')) as unknown as typeof fetch;
+      await expect(svc.probeModels('http://host.docker.internal:8000/v1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('surfaces AbortError as a timeout-specific error message', async () => {
+      const { svc } = makeDeps({});
+      const abortErr = Object.assign(new Error('aborted'), { name: 'AbortError' });
+      global.fetch = jest.fn().mockRejectedValue(abortErr) as unknown as typeof fetch;
+
+      await expect(svc.probeModels('http://host.docker.internal:8000/v1')).rejects.toThrow(
+        /Timed out probing/,
+      );
+    });
+
+    it('aborts the request when the 5s timeout fires', async () => {
+      const { svc } = makeDeps({});
+      // Use a fake setTimeout that we can manually trigger. We can't rely
+      // on jest.useFakeTimers() here because it doesn't cooperate cleanly
+      // with the service's AbortController signal in async flows.
+      const realSetTimeout = global.setTimeout;
+      let fired: (() => void) | null = null;
+      global.setTimeout = ((cb: () => void) => {
+        fired = cb;
+        return 0 as unknown as NodeJS.Timeout;
+      }) as unknown as typeof setTimeout;
+
+      try {
+        // Hang the fetch until the abort signal fires so the service's
+        // own timeout callback drives the failure path.
+        global.fetch = jest.fn().mockImplementation((_url, init) => {
+          return new Promise((_resolve, reject) => {
+            (init as RequestInit).signal?.addEventListener('abort', () => {
+              reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+            });
+          });
+        }) as unknown as typeof fetch;
+
+        const pending = svc.probeModels('http://host.docker.internal:8000/v1');
+        // probeModels first awaits validatePublicUrl and only then calls
+        // setTimeout — let the async prologue run before asserting our
+        // fake setTimeout captured the callback.
+        await new Promise((resolve) => realSetTimeout(resolve, 0));
+        expect(fired).not.toBeNull();
+        // Manually drive the AbortController.abort() callback registered
+        // in probeModels so the timeout path is exercised end-to-end.
+        fired!();
+        await expect(pending).rejects.toThrow(/Timed out probing/);
+      } finally {
+        global.setTimeout = realSetTimeout;
+      }
     });
   });
 });

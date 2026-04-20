@@ -6,14 +6,14 @@
 interface SetupStatusResponse {
   needsSetup: boolean;
   socialProviders?: string[];
-  isLocalMode?: boolean;
+  isSelfHosted?: boolean;
   ollamaAvailable?: boolean;
 }
 
 interface SetupStatusResult {
   needsSetup: boolean;
   socialProviders: string[];
-  isLocalMode: boolean;
+  isSelfHosted: boolean;
   ollamaAvailable: boolean;
 }
 
@@ -26,16 +26,21 @@ async function fetchSetupStatus(): Promise<SetupStatusResult> {
       cache: 'no-store',
     });
     if (!res.ok)
-      return { needsSetup: false, socialProviders: [], isLocalMode: false, ollamaAvailable: false };
+      return {
+        needsSetup: false,
+        socialProviders: [],
+        isSelfHosted: false,
+        ollamaAvailable: false,
+      };
     const data = (await res.json()) as SetupStatusResponse;
     return {
       needsSetup: data.needsSetup === true,
       socialProviders: data.socialProviders ?? [],
-      isLocalMode: data.isLocalMode === true,
+      isSelfHosted: data.isSelfHosted === true,
       ollamaAvailable: data.ollamaAvailable === true,
     };
   } catch {
-    return { needsSetup: false, socialProviders: [], isLocalMode: false, ollamaAvailable: false };
+    return { needsSetup: false, socialProviders: [], isSelfHosted: false, ollamaAvailable: false };
   }
 }
 
@@ -54,8 +59,8 @@ export async function checkSocialProviders(): Promise<string[]> {
   return (await getSetupStatus()).socialProviders;
 }
 
-export async function checkIsLocalMode(): Promise<boolean> {
-  return (await getSetupStatus()).isLocalMode;
+export async function checkIsSelfHosted(): Promise<boolean> {
+  return (await getSetupStatus()).isSelfHosted;
 }
 
 export async function checkIsOllamaAvailable(): Promise<boolean> {

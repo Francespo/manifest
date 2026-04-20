@@ -84,11 +84,11 @@ This section walks through **OpenClaw** because it's the deepest integration and
 
 To test routing against your local backend, add Manifest as a model provider in your OpenClaw config:
 
-1. Build and start the backend in local mode:
+1. Build and start the backend in self-hosted mode:
 
 ```bash
 npm run build
-MANIFEST_MODE=local PORT=38238 BIND_ADDRESS=127.0.0.1 \
+MANIFEST_MODE=selfhosted PORT=38238 BIND_ADDRESS=127.0.0.1 \
   node -r dotenv/config packages/backend/dist/main.js
 ```
 

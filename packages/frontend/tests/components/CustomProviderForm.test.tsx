@@ -4,11 +4,18 @@ import { render, screen, fireEvent, waitFor } from "@solidjs/testing-library";
 const mockCreateCustomProvider = vi.fn();
 const mockUpdateCustomProvider = vi.fn();
 const mockDeleteCustomProvider = vi.fn();
+const mockProbeCustomProvider = vi.fn();
+const mockCheckIsSelfHosted = vi.fn().mockResolvedValue(false);
 
 vi.mock("../../src/services/api.js", () => ({
   createCustomProvider: (...args: unknown[]) => mockCreateCustomProvider(...args),
   updateCustomProvider: (...args: unknown[]) => mockUpdateCustomProvider(...args),
   deleteCustomProvider: (...args: unknown[]) => mockDeleteCustomProvider(...args),
+  probeCustomProvider: (...args: unknown[]) => mockProbeCustomProvider(...args),
+}));
+
+vi.mock("../../src/services/setup-status.js", () => ({
+  checkIsSelfHosted: () => mockCheckIsSelfHosted(),
 }));
 
 vi.mock("../../src/services/toast-store.js", () => ({
@@ -444,6 +451,139 @@ describe("CustomProviderForm", () => {
     await waitFor(() => {
       expect(screen.getAllByPlaceholderText("Model name")).toHaveLength(1);
     });
+  });
+});
+
+describe("CustomProviderForm — self-hosted presets and probe", () => {
+  const onCreated = vi.fn();
+  const onBack = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCheckIsSelfHosted.mockResolvedValue(true);
+  });
+
+  it("shows local server preset chips only when self-hosted", async () => {
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    // Wait for the async isSelfHosted resource to resolve and render
+    await waitFor(() => {
+      expect(screen.getByText("Local server presets")).toBeDefined();
+      expect(screen.getByText("vLLM")).toBeDefined();
+      expect(screen.getByText("LM Studio")).toBeDefined();
+      expect(screen.getByText("llama.cpp")).toBeDefined();
+      expect(screen.getByText("Ollama")).toBeDefined();
+    });
+  });
+
+  it("hides preset chips in cloud mode", async () => {
+    mockCheckIsSelfHosted.mockResolvedValue(false);
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    // Resource resolves, but the block should stay hidden
+    await waitFor(() => {
+      expect(screen.queryByText("Local server presets")).toBeNull();
+    });
+  });
+
+  it("applies a preset to the name and base URL when clicked", async () => {
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    const chip = await screen.findByText("LM Studio");
+    fireEvent.click(chip);
+
+    await waitFor(() => {
+      const nameInput = screen.getByPlaceholderText("e.g. Groq, vLLM, Azure") as HTMLInputElement;
+      const urlInput = screen.getByPlaceholderText("https://api.example.com/v1") as HTMLInputElement;
+      expect(nameInput.value).toBe("LM Studio");
+      expect(urlInput.value).toBe("http://host.docker.internal:1234/v1");
+    });
+  });
+
+  it("fetches models via probe and populates the model rows", async () => {
+    mockProbeCustomProvider.mockResolvedValue({
+      models: [{ model_name: "llama-3.1-8b" }, { model_name: "qwen2.5-7b" }],
+    });
+
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    // Wait for the presets to render so the fetch button is available
+    await screen.findByText("Local server presets");
+
+    fireEvent.input(screen.getByPlaceholderText("https://api.example.com/v1"), {
+      target: { value: "http://host.docker.internal:8000/v1" },
+    });
+
+    fireEvent.click(screen.getByText("Fetch models"));
+
+    await waitFor(() => {
+      expect(mockProbeCustomProvider).toHaveBeenCalledWith(
+        "test-agent",
+        "http://host.docker.internal:8000/v1",
+        undefined,
+      );
+      const inputs = screen.getAllByPlaceholderText("Model name") as HTMLInputElement[];
+      expect(inputs).toHaveLength(2);
+      expect(inputs[0].value).toBe("llama-3.1-8b");
+      expect(inputs[1].value).toBe("qwen2.5-7b");
+    });
+  });
+
+  it("shows an inline error when the probe fails", async () => {
+    mockProbeCustomProvider.mockRejectedValue(new Error("Connection refused"));
+
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    await screen.findByText("Local server presets");
+
+    fireEvent.input(screen.getByPlaceholderText("https://api.example.com/v1"), {
+      target: { value: "http://host.docker.internal:9999/v1" },
+    });
+
+    fireEvent.click(screen.getByText("Fetch models"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Connection refused")).toBeDefined();
+    });
+  });
+
+  it("surfaces a 'no models' error when the server returns an empty list", async () => {
+    mockProbeCustomProvider.mockResolvedValue({ models: [] });
+
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    await screen.findByText("Local server presets");
+
+    fireEvent.input(screen.getByPlaceholderText("https://api.example.com/v1"), {
+      target: { value: "http://host.docker.internal:8000/v1" },
+    });
+
+    fireEvent.click(screen.getByText("Fetch models"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Server returned no models")).toBeDefined();
+    });
+  });
+
+  it("disables the Fetch models button when the base URL is empty", async () => {
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    const fetchBtn = await screen.findByText("Fetch models");
+    expect(fetchBtn.hasAttribute("disabled")).toBe(true);
   });
 });
 
@@ -894,5 +1034,280 @@ describe("CustomProviderForm — edit mode", () => {
 
     const modelInput = screen.getByLabelText("Model 1 name") as HTMLInputElement;
     expect(modelInput.value).toBe("llama-3.1-70b");
+  });
+});
+
+describe("CustomProviderForm — probe edge cases and model-row interactions", () => {
+  const onCreated = vi.fn();
+  const onBack = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCheckIsSelfHosted.mockResolvedValue(true);
+  });
+
+  it("shows an error when Fetch models runs with an empty base URL", async () => {
+    // Cover the defensive `if (!url)` early-exit inside handleProbe. We
+    // type a URL so the Fetch button enables, clear the input, then
+    // remove the disabled attribute from the DOM so jsdom dispatches the
+    // click — the guard then reads '' from baseUrl() and short-circuits.
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    await screen.findByText("Local server presets");
+
+    fireEvent.input(screen.getByPlaceholderText("https://api.example.com/v1"), {
+      target: { value: "http://x" },
+    });
+    const btn = screen.getByText("Fetch models") as HTMLButtonElement;
+    await waitFor(() => expect(btn.hasAttribute("disabled")).toBe(false));
+
+    fireEvent.input(screen.getByPlaceholderText("https://api.example.com/v1"), {
+      target: { value: "" },
+    });
+
+    // Force-remove the disabled attribute so jsdom delivers the click to
+    // our handler. (Solid will re-apply it on the next render tick.)
+    btn.removeAttribute("disabled");
+    btn.disabled = false;
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Enter a base URL first")).toBeDefined();
+    });
+    expect(mockProbeCustomProvider).not.toHaveBeenCalled();
+  });
+
+  it("shows a non-Error probe rejection as 'Probe failed'", async () => {
+    // Rejecting with a non-Error value exercises the string-error ternary
+    // branch in handleProbe's catch block.
+    mockProbeCustomProvider.mockRejectedValue("boom");
+
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    await screen.findByText("Local server presets");
+
+    fireEvent.input(screen.getByPlaceholderText("https://api.example.com/v1"), {
+      target: { value: "http://host.docker.internal:8000/v1" },
+    });
+    fireEvent.click(screen.getByText("Fetch models"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Probe failed")).toBeDefined();
+    });
+  });
+
+  it("applying a preset then probing populates the rows with the preset URL", async () => {
+    mockProbeCustomProvider.mockResolvedValue({
+      models: [{ model_name: "llama" }],
+    });
+
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    await screen.findByText("Local server presets");
+
+    fireEvent.click(screen.getByText("Ollama"));
+
+    // The Ollama preset fills the base URL; Fetch should now be enabled.
+    await waitFor(() => {
+      const btn = screen.getByText("Fetch models");
+      expect(btn.hasAttribute("disabled")).toBe(false);
+    });
+
+    fireEvent.click(screen.getByText("Fetch models"));
+
+    await waitFor(() => {
+      expect(mockProbeCustomProvider).toHaveBeenCalledWith(
+        "test-agent",
+        "http://host.docker.internal:11434/v1",
+        undefined,
+      );
+    });
+  });
+
+  it("leaves the rows untouched if removeRow is invoked while only one row exists", async () => {
+    // Solid sets `disabled` on the remove button when only one row exists,
+    // so jsdom won't deliver the click to the handler. We temporarily
+    // strip `disabled` and fire the click to exercise the defensive
+    // `prev.length <= 1 ? prev : prev.filter(...)` short-circuit.
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+    await screen.findByText("Local server presets");
+
+    const removeBtn = screen.getByLabelText("Remove model 1") as HTMLButtonElement;
+    removeBtn.removeAttribute("disabled");
+    removeBtn.disabled = false;
+    fireEvent.click(removeBtn);
+
+    expect(screen.getAllByPlaceholderText("Model name")).toHaveLength(1);
+  });
+
+  it("updates only the targeted row when multiple rows exist", async () => {
+    render(() => (
+      <CustomProviderForm agentName="test-agent" onCreated={onCreated} onBack={onBack} />
+    ));
+
+    await screen.findByText("Local server presets");
+
+    // Row 1
+    fireEvent.input(screen.getByPlaceholderText("Model name"), {
+      target: { value: "first" },
+    });
+
+    fireEvent.click(screen.getByText("+ Add model"));
+
+    await waitFor(() => {
+      expect(screen.getAllByPlaceholderText("Model name")).toHaveLength(2);
+    });
+
+    // Edit row 2 to exercise updateRow when i !== index for the other row.
+    const inputs = screen.getAllByPlaceholderText("Model name") as HTMLInputElement[];
+    fireEvent.input(inputs[1], { target: { value: "second" } });
+
+    await waitFor(() => {
+      const refreshed = screen.getAllByPlaceholderText("Model name") as HTMLInputElement[];
+      expect(refreshed[0].value).toBe("first");
+      expect(refreshed[1].value).toBe("second");
+    });
+  });
+});
+
+describe("CustomProviderForm — edit mode: extra API key + delete UI branches", () => {
+  const onCreated = vi.fn();
+  const onBack = vi.fn();
+  const onDeleted = vi.fn();
+  const initialData = {
+    id: "cp-1",
+    name: "Groq",
+    base_url: "https://api.groq.com/openai/v1",
+    has_api_key: true,
+    models: [
+      {
+        model_name: "llama-3.1-70b",
+        input_price_per_million_tokens: 0.59,
+        output_price_per_million_tokens: 0.79,
+      },
+    ],
+    created_at: "2026-03-04T00:00:00Z",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateCustomProvider.mockResolvedValue({ ...initialData, name: "Updated" });
+    mockDeleteCustomProvider.mockResolvedValue({ ok: true });
+  });
+
+  it("sends apiKey=undefined when Change is clicked and the new key is left blank", async () => {
+    render(() => (
+      <CustomProviderForm
+        agentName="test-agent"
+        onCreated={onCreated}
+        onBack={onBack}
+        initialData={initialData}
+      />
+    ));
+
+    fireEvent.click(screen.getByText("Change"));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("sk-...")).toBeDefined();
+    });
+
+    // Leave the input empty to exercise the `|| undefined` fallback when
+    // the trimmed string is empty.
+    fireEvent.click(screen.getByText("Save changes"));
+
+    await waitFor(() => {
+      expect(mockUpdateCustomProvider).toHaveBeenCalledWith("test-agent", "cp-1", {
+        name: "Groq",
+        base_url: "https://api.groq.com/openai/v1",
+        apiKey: undefined,
+        models: [
+          {
+            model_name: "llama-3.1-70b",
+            input_price_per_million_tokens: 0.59,
+            output_price_per_million_tokens: 0.79,
+          },
+        ],
+      });
+    });
+  });
+
+  it("closes the confirm modal when the overlay itself is clicked", async () => {
+    const { container } = render(() => (
+      <CustomProviderForm
+        agentName="test-agent"
+        onCreated={onCreated}
+        onBack={onBack}
+        onDeleted={onDeleted}
+        initialData={initialData}
+      />
+    ));
+
+    fireEvent.click(screen.getByText("Delete provider"));
+    await waitFor(() => {
+      expect(screen.getByText("Cancel")).toBeDefined();
+    });
+
+    // Click directly on the overlay — since e.target === e.currentTarget
+    // the handler closes the dialog.
+    const overlay = container.querySelector(".modal-overlay") as HTMLElement;
+    fireEvent.click(overlay);
+
+    await waitFor(() => {
+      expect(container.querySelector('[role="dialog"]')).toBeNull();
+    });
+  });
+
+  it("clicks inside the confirm modal content without closing the modal", async () => {
+    const { container } = render(() => (
+      <CustomProviderForm
+        agentName="test-agent"
+        onCreated={onCreated}
+        onBack={onBack}
+        onDeleted={onDeleted}
+        initialData={initialData}
+      />
+    ));
+
+    fireEvent.click(screen.getByText("Delete provider"));
+    await waitFor(() => {
+      expect(screen.getByText("Cancel")).toBeDefined();
+    });
+
+    // Click on the modal card itself — because e.target !== e.currentTarget
+    // the overlay handler should NOT close the dialog.
+    const card = container.querySelector(".modal-card") as HTMLElement;
+    fireEvent.click(card);
+
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+  });
+
+  it("closes the confirm modal when the close (X) button is clicked", async () => {
+    const { container } = render(() => (
+      <CustomProviderForm
+        agentName="test-agent"
+        onCreated={onCreated}
+        onBack={onBack}
+        onDeleted={onDeleted}
+        initialData={initialData}
+      />
+    ));
+
+    fireEvent.click(screen.getByText("Delete provider"));
+    await waitFor(() => {
+      expect(screen.getByText("Cancel")).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByLabelText("Close"));
+
+    await waitFor(() => {
+      expect(container.querySelector('[role="dialog"]')).toBeNull();
+    });
   });
 });

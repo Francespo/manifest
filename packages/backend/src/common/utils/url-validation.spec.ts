@@ -1,4 +1,4 @@
-import { isPrivateIp, isCloudMetadataIp, validatePublicUrl } from './url-validation';
+import { isPrivateIp, isCloudMetadataIp, isIpLiteral, validatePublicUrl } from './url-validation';
 
 jest.mock('dns/promises', () => ({
   lookup: jest.fn(),
@@ -124,6 +124,29 @@ describe('isCloudMetadataIp', () => {
   });
 });
 
+describe('isIpLiteral', () => {
+  it('recognises dotted-quad IPv4', () => {
+    expect(isIpLiteral('127.0.0.1')).toBe(true);
+    expect(isIpLiteral('8.8.8.8')).toBe(true);
+  });
+
+  it('recognises bracket-stripped IPv6', () => {
+    expect(isIpLiteral('::1')).toBe(true);
+    expect(isIpLiteral('fe80::1')).toBe(true);
+  });
+
+  it('rejects hostnames with : but non-hex characters', () => {
+    // Defensive branch: URL parsing rejects these before they reach
+    // validatePublicUrl, but the helper must still return false.
+    expect(isIpLiteral('host:with-letters')).toBe(false);
+    expect(isIpLiteral('zzz::1')).toBe(false);
+  });
+
+  it('rejects plain hostnames with no : or dotted-quad', () => {
+    expect(isIpLiteral('example.com')).toBe(false);
+  });
+});
+
 describe('validatePublicUrl', () => {
   const origNodeEnv = process.env['NODE_ENV'];
 
@@ -163,15 +186,21 @@ describe('validatePublicUrl', () => {
     await expect(validatePublicUrl('not-a-url')).rejects.toThrow('Invalid URL format');
   });
 
-  it('rejects non-https schemes', async () => {
+  it('rejects non-http(s) schemes', async () => {
     await expect(validatePublicUrl('ftp://example.com')).rejects.toThrow(
-      'Only https URLs are allowed',
+      'Only http and https URLs are allowed',
     );
   });
 
   it('rejects file scheme', async () => {
     await expect(validatePublicUrl('file:///etc/passwd')).rejects.toThrow(
-      'Only https URLs are allowed',
+      'Only http and https URLs are allowed',
+    );
+  });
+
+  it('rejects ftp scheme even when allowPrivate=true', async () => {
+    await expect(validatePublicUrl('ftp://example.com', { allowPrivate: true })).rejects.toThrow(
+      'Only http and https URLs are allowed',
     );
   });
 
@@ -236,5 +265,68 @@ describe('validatePublicUrl', () => {
   it('handles non-array lookup result (single object)', async () => {
     mockLookup.mockResolvedValue({ address: '93.184.216.34', family: 4 } as never);
     await expect(validatePublicUrl('https://single.example.com')).resolves.toBeUndefined();
+  });
+
+  describe('with allowPrivate=true (self-hosted)', () => {
+    it('accepts https loopback literal', async () => {
+      await expect(
+        validatePublicUrl('https://127.0.0.1:11434', { allowPrivate: true }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('accepts http loopback literal', async () => {
+      await expect(
+        validatePublicUrl('http://127.0.0.1:11434', { allowPrivate: true }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('accepts http 192.168.x.x literal', async () => {
+      await expect(
+        validatePublicUrl('http://192.168.1.50:8080/v1', { allowPrivate: true }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('accepts hostname that resolves to a private IP', async () => {
+      mockLookup.mockResolvedValue([{ address: '172.17.0.1', family: 4 }] as never);
+      await expect(
+        validatePublicUrl('http://host.docker.internal:11434', { allowPrivate: true }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('still blocks cloud metadata IP literal', async () => {
+      await expect(
+        validatePublicUrl('https://169.254.169.254', { allowPrivate: true }),
+      ).rejects.toThrow('cloud metadata endpoints');
+    });
+
+    it('still blocks hostname that resolves to a cloud metadata IP', async () => {
+      mockLookup.mockResolvedValue([{ address: '169.254.169.254', family: 4 }] as never);
+      await expect(
+        validatePublicUrl('https://evil.example.com', { allowPrivate: true }),
+      ).rejects.toThrow('cloud metadata endpoints');
+    });
+
+    it('rejects http:// to a public IP (plaintext exfil protection)', async () => {
+      await expect(validatePublicUrl('http://8.8.8.8', { allowPrivate: true })).rejects.toThrow(
+        'http:// is only allowed for private hosts',
+      );
+    });
+
+    it('rejects http:// when hostname resolves to mixed public+private A records', async () => {
+      mockLookup.mockResolvedValue([
+        { address: '10.0.0.1', family: 4 },
+        { address: '93.184.216.34', family: 4 },
+      ] as never);
+      await expect(
+        validatePublicUrl('http://mixed.example.com', { allowPrivate: true }),
+      ).rejects.toThrow('http:// is only allowed for private hosts');
+    });
+
+    it('accepts https:// to a public IP', async () => {
+      mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as never);
+      await expect(
+        validatePublicUrl('https://example.com/api', { allowPrivate: true }),
+      ).resolves.toBeUndefined();
+    });
   });
 });
