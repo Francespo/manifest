@@ -126,6 +126,13 @@ export async function validatePublicUrl(
       const result = await lookup(hostname, { all: true });
       addresses = Array.isArray(result) ? result : [result];
     } catch {
+      // Self-hosted deployments sometimes use hostnames that only resolve
+      // inside the host's resolver (mDNS, /etc/hosts aliases, LAN-only
+      // names). In allowPrivate mode we trust the operator and let the
+      // subsequent fetch attempt decide — cloud metadata is still caught
+      // on the resolved path when DNS succeeds, and a hostile public host
+      // isn't reachable if DNS can't resolve it from inside the container.
+      if (allowPrivate) return;
       throw new Error(`Failed to resolve hostname: ${hostname}`);
     }
   }

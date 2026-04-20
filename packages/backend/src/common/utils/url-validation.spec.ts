@@ -328,5 +328,12 @@ describe('validatePublicUrl', () => {
         validatePublicUrl('https://example.com/api', { allowPrivate: true }),
       ).resolves.toBeUndefined();
     });
+
+    it('treats unresolvable hostnames as non-fatal (LAN-only names, mDNS)', async () => {
+      mockLookup.mockRejectedValue(new Error('ENOTFOUND'));
+      await expect(
+        validatePublicUrl('http://my-lan-box.local/v1', { allowPrivate: true }),
+      ).resolves.toBeUndefined();
+    });
   });
 });

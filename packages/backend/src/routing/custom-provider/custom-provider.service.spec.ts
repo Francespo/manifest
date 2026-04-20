@@ -327,8 +327,12 @@ describe('CustomProviderService', () => {
       expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
         'http://host.docker.internal:8000/v1/models',
       );
-      const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
-      expect(headers.Authorization).toBe('Bearer sk-x');
+      const init = (global.fetch as jest.Mock).mock.calls[0][1];
+      expect(init.headers.Authorization).toBe('Bearer sk-x');
+      // Defense in depth: redirects must be rejected outright — otherwise
+      // a hostile endpoint could 3xx the probe to a cloud-metadata URL
+      // that would bypass the pre-fetch validator.
+      expect(init.redirect).toBe('error');
     });
 
     it('strips trailing slashes from the base URL before appending /models', async () => {

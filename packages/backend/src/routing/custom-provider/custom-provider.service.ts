@@ -215,9 +215,15 @@ export class CustomProviderService {
       // User-controlled URL is intentional here — this endpoint exists to
       // connect to operator-chosen LLM servers. validatePublicUrl() above is
       // our SSRF mitigation: cloud metadata is always blocked, private IPs
-      // only accepted in the self-hosted version.
+      // only accepted in the self-hosted version. `redirect: 'error'`
+      // ensures a hostile server can't redirect the probe to a destination
+      // that would bypass validation.
       // codeql[js/request-forgery]
-      const res = await fetch(url, { headers, signal: controller.signal });
+      const res = await fetch(url, {
+        headers,
+        signal: controller.signal,
+        redirect: 'error',
+      });
       if (!res.ok) {
         throw new BadRequestException(`Probe failed: ${res.status}`);
       }
