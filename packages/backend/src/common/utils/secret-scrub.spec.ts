@@ -61,6 +61,16 @@ describe('scrubSecrets', () => {
     expect(out).toContain('Bearer [REDACTED]');
   });
 
+  it('redacts Bearer tokens regardless of scheme casing', () => {
+    // HTTP is nominally case-insensitive; some servers/clients emit "bearer"
+    // or "BEARER". All should scrub.
+    for (const scheme of ['bearer', 'BEARER', 'BeArEr']) {
+      const out = scrubSecrets(`${scheme} eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9`);
+      expect(out).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+      expect(out).toContain('[REDACTED]');
+    }
+  });
+
   it('redacts ?key= query parameters (Google-style)', () => {
     const out = scrubSecrets('GET /v1/models?key=AIzaSyAbcdefg&alt=json');
     expect(out).not.toContain('AIzaSyAbcdefg');

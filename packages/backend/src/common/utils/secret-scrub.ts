@@ -24,7 +24,7 @@ const PATTERNS: Pattern[] = [
     re: /(["']?)(x-api-key|authorization|api-key)\1(\s*[:=]\s*)(["']?)[^"',}\r\n]+\4/gi,
     replacement: '$1$2$1$3$4[REDACTED]$4',
   },
-  { re: /Bearer\s+[A-Za-z0-9_\-.=+/]{8,}/g, replacement: 'Bearer [REDACTED]' },
+  { re: /Bearer\s+[A-Za-z0-9_\-.=+/]{8,}/gi, replacement: 'Bearer [REDACTED]' },
   { re: /([?&])key=[^&\s"']+/g, replacement: '$1key=[REDACTED]' },
   { re: /\bsk-ant-[A-Za-z0-9_\-]{10,}/g, replacement: '[REDACTED]' },
   { re: /\bsk-proj-[A-Za-z0-9_\-]{10,}/g, replacement: '[REDACTED]' },
