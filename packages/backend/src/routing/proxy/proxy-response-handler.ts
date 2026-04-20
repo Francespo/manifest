@@ -52,6 +52,7 @@ export async function handleProviderError(
   recorder: ProxyMessageRecorder,
   traceId?: string,
   callerAttribution?: CallerAttribution | null,
+  requestHeaders?: Record<string, string> | null,
 ): Promise<void> {
   if (failedFallbacks && failedFallbacks.length > 0 && !meta.fallbackFromModel) {
     await handleFallbackExhausted(
@@ -65,6 +66,7 @@ export async function handleProviderError(
       recorder,
       traceId,
       callerAttribution,
+      requestHeaders,
     );
     return;
   }
@@ -80,6 +82,7 @@ export async function handleProviderError(
       authType: meta.auth_type,
       specificityCategory: meta.specificity_category,
       callerAttribution,
+      requestHeaders,
     })
     .catch((e) => logger.warn(`Failed to record provider error: ${e}`));
 
@@ -108,6 +111,7 @@ function handleFallbackExhausted(
   recorder: ProxyMessageRecorder,
   traceId?: string,
   callerAttribution?: CallerAttribution | null,
+  requestHeaders?: Record<string, string> | null,
 ): void {
   const baseTime = Date.now();
   recorder
@@ -118,6 +122,7 @@ function handleFallbackExhausted(
       lastAsError: true,
       authType: meta.auth_type,
       callerAttribution,
+      requestHeaders,
     })
     .catch((e) => logger.warn(`Failed to record fallback errors: ${e}`));
 
@@ -126,6 +131,7 @@ function handleFallbackExhausted(
     .recordPrimaryFailure(ctx, meta.tier, meta.model, errorBody, primaryTs, meta.auth_type, {
       provider: meta.provider,
       callerAttribution,
+      requestHeaders,
     })
     .catch((e) => logger.warn(`Failed to record primary failure: ${e}`));
 
@@ -159,6 +165,7 @@ export function recordFallbackFailures(
   failedFallbacks: FailedFallback[] | undefined,
   recorder: ProxyMessageRecorder,
   callerAttribution?: CallerAttribution | null,
+  requestHeaders?: Record<string, string> | null,
 ): string | undefined {
   if (!meta.fallbackFromModel) return undefined;
 
@@ -178,6 +185,7 @@ export function recordFallbackFailures(
         // succeeding fallback's provider in this flow, not the primary's.
         provider: meta.primaryProvider,
         callerAttribution,
+        requestHeaders,
       },
     )
     .catch((e) => logger.warn(`Failed to record primary failure: ${e}`));
@@ -189,6 +197,7 @@ export function recordFallbackFailures(
         markHandled: true,
         authType: meta.auth_type,
         callerAttribution,
+        requestHeaders,
       })
       .catch((e) => logger.warn(`Failed to record fallback errors: ${e}`));
   }
@@ -314,6 +323,7 @@ export function recordSuccess(
   sessionKey?: string,
   startTime?: number,
   callerAttribution?: CallerAttribution | null,
+  requestHeaders?: Record<string, string> | null,
 ): void {
   if (meta.fallbackFromModel && fallbackSuccessTs) {
     recorder
@@ -326,6 +336,7 @@ export function recordSuccess(
         authType: meta.auth_type,
         usage: streamUsage ?? undefined,
         callerAttribution,
+        requestHeaders,
       })
       .catch((e) => logger.warn(`Failed to record fallback success: ${e}`));
   } else {
@@ -340,6 +351,7 @@ export function recordSuccess(
         durationMs,
         specificityCategory: meta.specificity_category,
         callerAttribution,
+        requestHeaders,
       })
       .catch((e) => logger.warn(`Failed to record success message: ${e}`));
   }
