@@ -291,8 +291,22 @@ docker compose down -v    # ⚠  destroys all data
 | `PORT`               | No       | `3001`                  | Internal server port                          |
 | `NODE_ENV`           | No       | `production`            | Set `development` for auto-migrations         |
 | `SEED_DATA`          | No       | `false`                 | Seed demo data on startup                     |
+| `MANIFEST_TELEMETRY_DISABLED` | No | `0`               | Set `1` to disable anonymous usage telemetry  |
 
 Full env var reference: [github.com/mnfst/manifest](https://github.com/mnfst/manifest)
+
+## Anonymous usage telemetry
+
+Manifest sends a small anonymous usage report once per 24h so the maintainers
+can see how the project is being used in the wild. The payload is eight
+fields: a random install UUID (generated once, no PII), the Manifest version,
+and aggregate counters — `messages_total`, `messages_by_provider`,
+`tokens_input_total`, `tokens_output_total`, `agents_total`. No prompts,
+message contents, API keys, emails, URLs, or model names are ever sent.
+
+To disable, set `MANIFEST_TELEMETRY_DISABLED=1` in your `.env` file and
+restart the container. The full payload specification is published at
+[manifest.build/telemetry](https://manifest.build/telemetry).
 
 ## Links
 
