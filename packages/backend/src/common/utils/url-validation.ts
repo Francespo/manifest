@@ -77,8 +77,13 @@ export async function validatePublicUrl(url: string): Promise<void> {
     throw new Error('Invalid URL format');
   }
 
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('Only http and https URLs are allowed');
+  // Require HTTPS for outbound provider traffic. Manifest forwards API keys in
+  // Authorization headers and plaintext prompts/completions to this URL; any
+  // non-TLS hop would expose them to passive wire-sniffing (AC-2 in the Mine
+  // paper, arXiv:2604.08407). validatePublicUrl already rejects private IPs,
+  // so there is no safe loopback/on-prem case that would need plaintext http.
+  if (parsed.protocol !== 'https:') {
+    throw new Error('Only https URLs are allowed');
   }
 
   const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
