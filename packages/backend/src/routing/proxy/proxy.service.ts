@@ -10,6 +10,8 @@ import { SessionMomentumService } from './session-momentum.service';
 import { LimitCheckService } from '../../notifications/services/limit-check.service';
 import { shouldTriggerFallback } from './fallback-status-codes';
 import { Tier, ScorerMessage } from '../../scoring/types';
+import type { SpecificityCategory } from 'manifest-shared';
+import { SPECIFICITY_CATEGORIES } from 'manifest-shared';
 import {
   ProxyFallbackService,
   FailedFallback,
@@ -101,6 +103,7 @@ export class ProxyService {
     const scoringTools = Array.isArray(body.tools) ? body.tools : undefined;
     const isHeartbeat = this.detectHeartbeat(scoringMessages);
     const recentTiers = this.momentum.getRecentTiers(sessionKey);
+    const recentCategories = this.momentum.getRecentCategories(sessionKey);
 
     const resolved = isHeartbeat
       ? await this.resolveService.resolveForTier(agentId, 'simple')
@@ -112,6 +115,7 @@ export class ProxyService {
           body.max_tokens as number | undefined,
           recentTiers,
           specificityOverride,
+          recentCategories,
         );
 
     if (!resolved.model || !resolved.provider) {
@@ -199,6 +203,7 @@ export class ProxyService {
 
         if (success) {
           this.momentum.recordTier(sessionKey, resolved.tier as Tier);
+          this.recordCategoryIfValid(sessionKey, resolved.specificity_category);
           return {
             forward: success.forward,
             meta: {
@@ -232,6 +237,7 @@ export class ProxyService {
           headers: safeHeaders,
         });
         this.momentum.recordTier(sessionKey, resolved.tier as Tier);
+        this.recordCategoryIfValid(sessionKey, resolved.specificity_category);
         return {
           forward: {
             response: rebuilt,
@@ -254,6 +260,7 @@ export class ProxyService {
     }
 
     this.momentum.recordTier(sessionKey, resolved.tier as Tier);
+    this.recordCategoryIfValid(sessionKey, resolved.specificity_category);
 
     return {
       forward,
@@ -267,6 +274,12 @@ export class ProxyService {
         specificity_category: resolved.specificity_category,
       },
     };
+  }
+
+  private recordCategoryIfValid(sessionKey: string, category: string | undefined): void {
+    if (!category) return;
+    if (!(SPECIFICITY_CATEGORIES as readonly string[]).includes(category)) return;
+    this.momentum.recordCategory(sessionKey, category as SpecificityCategory);
   }
 
   private async enforceLimits(tenantId?: string, agentName?: string): Promise<string | null> {
