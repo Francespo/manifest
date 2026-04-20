@@ -34,6 +34,12 @@ export async function bootstrap() {
                 .map((v) => v.trim())
                 .filter((v) => v !== '*')
             : ["'none'"],
+          // Disable helmet's default `upgrade-insecure-requests`: it breaks
+          // HTTP-only LAN deployments (10.x / 192.168.x / 172.16-31.x) where
+          // browsers don't treat the origin as trustworthy and rewrite
+          // `/assets/*.js` to https://, which the server doesn't serve.
+          // HTTPS deployments should enforce upgrades via HSTS at the proxy.
+          upgradeInsecureRequests: null,
         },
       },
     }),

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getFreeModels } from '../../src/services/api/free-models.js';
 import { submitOpenaiOAuthCallback } from '../../src/services/api/oauth.js';
-import { refreshModels } from '../../src/services/api/routing.js';
+import { probeCustomProvider, refreshModels } from '../../src/services/api/routing.js';
 import {
   setSpecificityFallbacks,
   clearSpecificityFallbacks,
@@ -64,6 +64,35 @@ describe('api/routing', () => {
     const [url, init] = mockFetch.mock.calls[0];
     expect(url).toBe('/api/v1/routing/demo-agent/refresh-models');
     expect(init.method).toBe('POST');
+  });
+
+  it('probeCustomProvider POSTs the base URL + optional key and returns the model list', async () => {
+    mockOk({ models: [{ model_name: 'llama-3.1-8b' }, { model_name: 'qwen2.5-7b' }] });
+    const out = await probeCustomProvider(
+      'demo-agent',
+      'http://host.docker.internal:8000/v1',
+      'sk-local',
+    );
+    expect(out).toEqual({
+      models: [{ model_name: 'llama-3.1-8b' }, { model_name: 'qwen2.5-7b' }],
+    });
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('/api/v1/routing/demo-agent/custom-providers/probe');
+    expect(init.method).toBe('POST');
+    expect(init.headers['Content-Type']).toBe('application/json');
+    expect(JSON.parse(init.body)).toEqual({
+      base_url: 'http://host.docker.internal:8000/v1',
+      apiKey: 'sk-local',
+    });
+  });
+
+  it('probeCustomProvider works without an apiKey', async () => {
+    mockOk({ models: [] });
+    await probeCustomProvider('demo-agent', 'http://127.0.0.1:11434/v1');
+    const [, init] = mockFetch.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.base_url).toBe('http://127.0.0.1:11434/v1');
+    expect(body.apiKey).toBeUndefined();
   });
 });
 

@@ -47,7 +47,7 @@ openclaw config set agents.defaults.model.primary manifest/auto
 openclaw gateway restart
 ```
 
-The `AgentKeyAuthGuard` accepts any non-`mnfst_*` token from loopback IPs in local mode, so local-only testing works even without a valid key. After restarting the backend, also restart the OpenClaw gateway — it doesn't reconnect automatically.
+The `AgentKeyAuthGuard` accepts any non-`mnfst_*` token from loopback IPs in the self-hosted version, so loopback-only testing works even without a valid key. After restarting the backend, also restart the OpenClaw gateway — it doesn't reconnect automatically.
 
 ## Active Technologies
 
@@ -360,9 +360,10 @@ See `packages/backend/.env.example` for all variables. Key ones:
 - `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — GitHub OAuth (optional)
 - `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` — Discord OAuth (optional)
 - `SEED_DATA` — Set `true` to seed demo data on startup.
-- `MANIFEST_MODE` — `local` or `cloud` (default: `cloud`). Switches between SQLite/loopback auth and PostgreSQL/Better Auth.
-- `MANIFEST_DB_PATH` — SQLite file path for local mode (default: in-memory).
-- `MANIFEST_UPDATE_CHECK_OPTOUT` — Set `1` to disable local-mode npm version checks.
+- `MANIFEST_MODE` — `selfhosted` or `cloud` (default: `cloud`; auto-`selfhosted` inside Docker via `/.dockerenv`). Self-hosted mode enables loopback auth shortcuts and allows custom-provider URLs with `http://` / private IPs. `local` is accepted as a legacy alias for `selfhosted`.
+- `OLLAMA_HOST` — Ollama endpoint for the built-in tile. Defaults to `http://localhost:11434` outside Docker and `http://host.docker.internal:11434` inside the bundled `docker/docker-compose.yml`.
+- `MANIFEST_DB_PATH` — SQLite file path for legacy local mode (default: in-memory).
+- `MANIFEST_UPDATE_CHECK_OPTOUT` — Set `1` to disable the legacy local-mode npm version check.
 
 ## Domain Terminology
 

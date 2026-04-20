@@ -10,6 +10,7 @@ import { FailedFallback } from './proxy-fallback.service';
 import { StreamUsage } from './stream-writer';
 import { ProxyMessageDedup } from './proxy-message-dedup';
 import { computeTokenCost } from '../../common/utils/cost-calculator';
+import { scrubSecrets } from '../../common/utils/secret-scrub';
 import { CallerAttribution } from './caller-classifier';
 
 export interface ProviderErrorOpts {
@@ -114,7 +115,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       trace_id: traceId ?? null,
       timestamp: new Date().toISOString(),
       status: messageStatus,
-      error_message: errorMessage.slice(0, 2000),
+      error_message: scrubSecrets(errorMessage).slice(0, 2000),
       error_http_status: httpStatus,
       agent_name: ctx.agentName,
       model: model ?? null,
@@ -178,7 +179,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
         trace_id: traceId ?? null,
         timestamp: ts,
         status,
-        error_message: f.errorBody.slice(0, 2000),
+        error_message: scrubSecrets(f.errorBody).slice(0, 2000),
         error_http_status: f.status,
         agent_name: ctx.agentName,
         model: f.model,

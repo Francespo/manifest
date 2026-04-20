@@ -5,7 +5,7 @@ import ErrorState from '../components/ErrorState.jsx';
 import { agentDisplayName } from '../services/agent-display-name.js';
 import { getFreeModels, type FreeProviderDto } from '../services/api.js';
 import { PROVIDERS } from '../services/providers.js';
-import { checkIsLocalMode } from '../services/setup-status.js';
+import { checkIsSelfHosted } from '../services/setup-status.js';
 import { toast } from '../services/toast-store.js';
 
 /** Logos that have a `-dark-mode` variant in /icons/ */
@@ -87,7 +87,7 @@ const FREE_TO_BUILTIN: Record<string, string> = {
 const ConnectButton: Component<{ provider: FreeProviderDto }> = (props) => {
   const params = useParams<{ agentName: string }>();
   const agentName = () => decodeURIComponent(params.agentName);
-  const [isLocal] = createResource(() => checkIsLocalMode());
+  const [isSelfHosted] = createResource(() => checkIsSelfHosted());
 
   const builtinId = () => FREE_TO_BUILTIN[props.provider.name];
   const builtin = () => {
@@ -111,7 +111,7 @@ const ConnectButton: Component<{ provider: FreeProviderDto }> = (props) => {
     return m ? `${base}&models=${encodeURIComponent(m)}` : base;
   };
 
-  // Ollama (local-only) is disabled in cloud mode
+  // Ollama (self-hosted only) is disabled in cloud mode
   const isOllamaLocal = () => {
     const b = builtin();
     return b?.localOnly === true;
@@ -119,9 +119,12 @@ const ConnectButton: Component<{ provider: FreeProviderDto }> = (props) => {
 
   return (
     <Show
-      when={!isOllamaLocal() || isLocal()}
+      when={!isOllamaLocal() || isSelfHosted()}
       fallback={
-        <span class="free-models-disabled-btn" data-tooltip="Available in local mode only">
+        <span
+          class="free-models-disabled-btn"
+          data-tooltip="Available on the self-hosted version only"
+        >
           Connect {props.provider.name}
         </span>
       }
