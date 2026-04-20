@@ -14,7 +14,6 @@ export class SetupController {
     socialProviders: string[];
     isSelfHosted: boolean;
     ollamaAvailable: boolean;
-    localLlmHost: string;
   }> {
     const selfHosted = this.setupService.isSelfHosted();
     return {
@@ -22,7 +21,6 @@ export class SetupController {
       socialProviders: this.setupService.getEnabledSocialProviders(),
       isSelfHosted: selfHosted,
       ollamaAvailable: selfHosted ? await this.setupService.isOllamaAvailable() : false,
-      localLlmHost: this.setupService.getLocalLlmHost(),
     };
   }
 
