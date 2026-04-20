@@ -38,6 +38,11 @@ const PROVIDER_TIMEOUT_MS = 180_000;
 function stripModelPrefix(model: string, endpointKey: string): string {
   // OpenRouter accepts and expects vendor prefixes
   if (endpointKey === 'openrouter') return model;
+  // Custom providers: CustomProviderService.rawModelName already stripped the
+  // internal "custom:<id>/" prefix upstream. Stripping again would eat a
+  // legitimate slash segment from the upstream model id
+  // (e.g. "MiniMaxAI/MiniMax-2.7" or "accounts/fireworks/routers/...").
+  if (endpointKey === 'custom') return model;
   const slashIdx = model.indexOf('/');
   return slashIdx > 0 ? model.substring(slashIdx + 1) : model;
 }
