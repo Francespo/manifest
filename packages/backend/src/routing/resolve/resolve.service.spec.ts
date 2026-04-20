@@ -18,6 +18,7 @@ function makeService(overrides: {
   getEffectiveModel?: jest.Mock;
   getAuthType?: jest.Mock;
   hasActiveProvider?: jest.Mock;
+  isModelAvailable?: jest.Mock;
   activeSpecificity?: unknown[];
   getModelForAgent?: jest.Mock;
   getByModel?: jest.Mock;
@@ -30,6 +31,7 @@ function makeService(overrides: {
     getEffectiveModel: overrides.getEffectiveModel ?? jest.fn().mockResolvedValue(null),
     getAuthType: overrides.getAuthType ?? jest.fn().mockResolvedValue('api_key'),
     hasActiveProvider: overrides.hasActiveProvider ?? jest.fn().mockResolvedValue(false),
+    isModelAvailable: overrides.isModelAvailable ?? jest.fn().mockResolvedValue(true),
   } as unknown as ProviderKeyService;
 
   const specificityService: SpecificityService = {
@@ -129,6 +131,119 @@ describe('ResolveService', () => {
       });
       const out = await svc.resolve('agent-1', [{ role: 'user', content: 'hi' }]);
       expect(out.reason).toBe('scored');
+    });
+
+    it('falls through to tier routing when the specificity override points to an unavailable model (#1603)', async () => {
+      scoring.scoreRequest.mockReturnValue({
+        tier: 'simple',
+        confidence: 1,
+        score: 0,
+        reason: 'scored',
+      });
+      scoring.scanMessages.mockReturnValue({ category: 'coding', confidence: 0.9 });
+      const isModelAvailable = jest.fn().mockResolvedValue(false);
+      const { svc } = makeService({
+        activeSpecificity: [
+          {
+            category: 'coding',
+            override_model: 'custom:deleted-uuid/gemini-2.5-flash-lite',
+            override_provider: 'custom:deleted-uuid',
+            auto_assigned_model: null,
+          },
+        ],
+        tiers: [
+          {
+            tier: 'simple',
+            override_model: null,
+            auto_assigned_model: 'openai/gpt-5-mini',
+            override_provider: null,
+            override_auth_type: null,
+          },
+        ],
+        isModelAvailable,
+        getEffectiveModel: jest.fn().mockResolvedValue('openai/gpt-5-mini'),
+        hasActiveProvider: jest.fn().mockResolvedValue(true),
+      });
+      const out = await svc.resolve('agent-1', [{ role: 'user', content: 'write code' }]);
+      expect(isModelAvailable).toHaveBeenCalledWith(
+        'agent-1',
+        'custom:deleted-uuid/gemini-2.5-flash-lite',
+      );
+      expect(out.reason).toBe('scored');
+      expect(out.model).toBe('openai/gpt-5-mini');
+      expect(out.provider).toBe('openai');
+    });
+
+    it('uses auto_assigned_model when override_model is null on a specificity assignment', async () => {
+      scoring.scanMessages.mockReturnValue({ category: 'coding', confidence: 0.8 });
+      const { svc } = makeService({
+        activeSpecificity: [
+          {
+            category: 'coding',
+            override_model: null,
+            auto_assigned_model: 'openai/gpt-5',
+            override_provider: null,
+          },
+        ],
+        hasActiveProvider: jest.fn().mockResolvedValue(true),
+      });
+      const out = await svc.resolve('agent-1', [{ role: 'user', content: 'code' }]);
+      expect(out.reason).toBe('specificity');
+      expect(out.model).toBe('openai/gpt-5');
+    });
+
+    it('returns a specificity response with provider=null and no auth_type when the model cannot be attributed to any provider', async () => {
+      // Exercises the `provider ? ... : undefined` branch in resolveSpecificity where
+      // resolveProvider returns null — the call still surfaces the specificity category
+      // + model, but auth_type is omitted because there's no provider to look it up for.
+      scoring.scanMessages.mockReturnValue({ category: 'coding', confidence: 0.9 });
+      const getAuthType = jest.fn().mockResolvedValue('api_key');
+      const { svc } = makeService({
+        activeSpecificity: [
+          {
+            category: 'coding',
+            override_model: 'unresolvable-model',
+            auto_assigned_model: null,
+            override_provider: null,
+            override_auth_type: null,
+          },
+        ],
+        // no prefix match, no discovered model, no pricing entry → provider resolves to null
+        hasActiveProvider: jest.fn().mockResolvedValue(false),
+        getModelForAgent: jest.fn().mockResolvedValue(null),
+        getByModel: jest.fn().mockReturnValue(null),
+        getAuthType,
+      });
+      const out = await svc.resolve('agent-1', [{ role: 'user', content: 'code' }]);
+      expect(out.reason).toBe('specificity');
+      expect(out.model).toBe('unresolvable-model');
+      expect(out.provider).toBeNull();
+      expect(out.auth_type).toBeUndefined();
+      expect(getAuthType).not.toHaveBeenCalled();
+    });
+
+    it('uses override_auth_type directly when the specificity assignment pins one (skips getAuthType)', async () => {
+      scoring.scanMessages.mockReturnValue({ category: 'coding', confidence: 0.9 });
+      const hasActiveProvider = jest.fn().mockResolvedValue(true);
+      const getAuthType = jest.fn().mockResolvedValue('api_key');
+      const { svc } = makeService({
+        activeSpecificity: [
+          {
+            category: 'coding',
+            override_model: 'anthropic/claude-opus-4',
+            auto_assigned_model: null,
+            override_provider: null,
+            override_auth_type: 'subscription',
+          },
+        ],
+        hasActiveProvider,
+        getAuthType,
+      });
+      const out = await svc.resolve('agent-1', [{ role: 'user', content: 'write some code' }]);
+      expect(out.reason).toBe('specificity');
+      expect(out.auth_type).toBe('subscription');
+      // getAuthType must not be called when override_auth_type is set
+      expect(getAuthType).not.toHaveBeenCalled();
     });
 
     it('returns the specificity response with provider + auth type when a match hits', async () => {

@@ -137,7 +137,7 @@ export class ResolveService {
     const assignment = active.find((a) => a.category === detected.category);
     if (!assignment) return null;
 
-    const model = assignment.override_model ?? assignment.auto_assigned_model;
+    const model = await this.resolveSpecificityModel(agentId, assignment);
     if (!model) return null;
 
     const provider = await this.resolveProvider(
@@ -164,6 +164,29 @@ export class ResolveService {
       specificity_category: detected.category,
       fallback_models: assignment.fallback_models ?? null,
     };
+  }
+
+  /**
+   * Validates the specificity override points to an available model before
+   * using it. An orphaned override (e.g. a deleted custom provider) returns
+   * null so resolve() falls through to tier-based routing instead of pinning
+   * every matching request to a dead provider (#1603).
+   */
+  private async resolveSpecificityModel(
+    agentId: string,
+    assignment: { override_model: string | null; auto_assigned_model: string | null },
+  ): Promise<string | null> {
+    if (assignment.override_model !== null) {
+      if (await this.providerKeyService.isModelAvailable(agentId, assignment.override_model)) {
+        return assignment.override_model;
+      }
+      this.logger.warn(
+        `Specificity override ${assignment.override_model} is unavailable ` +
+          `for agent=${agentId}; falling through to tier routing`,
+      );
+      return null;
+    }
+    return assignment.auto_assigned_model;
   }
 
   /**
