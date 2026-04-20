@@ -64,13 +64,24 @@ describe('sanitizeRequestHeaders', () => {
     ).toEqual({ 'x-dirty': 'helloworld' });
   });
 
-  it('truncates values longer than 1024 chars with an ellipsis', () => {
+  it('truncates values longer than 1024 bytes with an ellipsis', () => {
     const big = 'a'.repeat(2000);
     const result = sanitizeRequestHeaders({ 'x-big': big });
     const value = result!['x-big'];
-    expect(value.length).toBe(1024);
+    expect(Buffer.byteLength(value, 'utf8')).toBeLessThanOrEqual(1024);
     expect(value.endsWith('…')).toBe(true);
-    expect(value.slice(0, 1023)).toBe('a'.repeat(1023));
+    // Budget is 1024 bytes − 3 (ellipsis) = 1021 'a's.
+    expect(value.slice(0, -1)).toBe('a'.repeat(1021));
+  });
+
+  it('truncates multi-byte values by byte length without leaving replacement chars', () => {
+    // Each 🦞 is 4 bytes in UTF-8, so 400 of them = 1600 bytes > 1024.
+    const big = '🦞'.repeat(400);
+    const result = sanitizeRequestHeaders({ 'x-big': big });
+    const value = result!['x-big'];
+    expect(Buffer.byteLength(value, 'utf8')).toBeLessThanOrEqual(1024);
+    expect(value.endsWith('…')).toBe(true);
+    expect(value).not.toContain('\uFFFD');
   });
 
   it('caps the total number of headers at 50', () => {
@@ -78,6 +89,15 @@ describe('sanitizeRequestHeaders', () => {
     for (let i = 0; i < 100; i++) headers[`x-h-${i}`] = 'v';
     const result = sanitizeRequestHeaders(headers);
     expect(Object.keys(result!).length).toBe(50);
+  });
+
+  it('accounts for JSON-escaped bytes in the total budget', () => {
+    // Values full of " chars — each byte doubles after JSON escaping.
+    const headers: Record<string, string> = {};
+    for (let i = 0; i < 30; i++) headers[`x-h-${i}`] = '"'.repeat(500);
+    const result = sanitizeRequestHeaders(headers);
+    const serialized = Buffer.byteLength(JSON.stringify(result), 'utf8');
+    expect(serialized).toBeLessThanOrEqual(8192);
   });
 
   it('respects the 8 KB total byte budget', () => {
