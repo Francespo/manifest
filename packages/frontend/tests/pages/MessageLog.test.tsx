@@ -48,9 +48,9 @@ vi.mock("../../src/services/formatters.js", () => ({
   customProviderColor: vi.fn(() => '#6366f1'),
 }));
 
-const mockCheckIsLocalMode = vi.fn(() => Promise.resolve(false));
+const mockCheckIsSelfHosted = vi.fn(() => Promise.resolve(false));
 vi.mock("../../src/services/setup-status.js", () => ({
-  checkIsLocalMode: () => mockCheckIsLocalMode(),
+  checkIsSelfHosted: () => mockCheckIsSelfHosted(),
 }));
 
 vi.mock("../../src/components/SetupModal.jsx", () => ({
@@ -949,8 +949,8 @@ describe("MessageLog", () => {
       expect(modal?.getAttribute("data-open")).toBe("false");
     });
 
-    it("hides feedback column and modal in local mode", async () => {
-      mockCheckIsLocalMode.mockResolvedValue(true);
+    it("hides feedback column and modal in the self-hosted version", async () => {
+      mockCheckIsSelfHosted.mockResolvedValue(true);
       mockGetMessages.mockResolvedValue(messagesData);
       const { container } = render(() => <MessageLog />);
       await vi.waitFor(() => {
@@ -958,7 +958,7 @@ describe("MessageLog", () => {
       });
       expect(container.querySelector(".feedback-btn")).toBeNull();
       expect(container.querySelector('[data-testid="feedback-modal"]')).toBeNull();
-      mockCheckIsLocalMode.mockResolvedValue(false);
+      mockCheckIsSelfHosted.mockResolvedValue(false);
     });
 
     it("reverts optimistic like on API error", async () => {

@@ -1,11 +1,11 @@
-import { isLocalMode } from './detect-local-mode';
+import { isSelfHosted } from './detect-self-hosted';
 import * as fs from 'fs';
 
 jest.mock('fs');
 
 const mockedExistsSync = jest.mocked(fs.existsSync);
 
-describe('isLocalMode', () => {
+describe('isSelfHosted', () => {
   const originalEnv = process.env['MANIFEST_MODE'];
 
   afterEach(() => {
@@ -14,33 +14,38 @@ describe('isLocalMode', () => {
     mockedExistsSync.mockReset();
   });
 
-  it('returns true when MANIFEST_MODE is "local"', () => {
+  it('returns true when MANIFEST_MODE is "selfhosted"', () => {
+    process.env['MANIFEST_MODE'] = 'selfhosted';
+    expect(isSelfHosted()).toBe(true);
+  });
+
+  it('returns true when MANIFEST_MODE is legacy "local"', () => {
     process.env['MANIFEST_MODE'] = 'local';
-    expect(isLocalMode()).toBe(true);
+    expect(isSelfHosted()).toBe(true);
   });
 
   it('returns false when MANIFEST_MODE is "cloud"', () => {
     process.env['MANIFEST_MODE'] = 'cloud';
-    expect(isLocalMode()).toBe(false);
+    expect(isSelfHosted()).toBe(false);
   });
 
   it('returns false when MANIFEST_MODE is "cloud" even inside Docker', () => {
     process.env['MANIFEST_MODE'] = 'cloud';
     mockedExistsSync.mockReturnValue(true);
-    expect(isLocalMode()).toBe(false);
+    expect(isSelfHosted()).toBe(false);
   });
 
   it('auto-detects Docker via /.dockerenv when MANIFEST_MODE is not set', () => {
     delete process.env['MANIFEST_MODE'];
     mockedExistsSync.mockReturnValue(true);
-    expect(isLocalMode()).toBe(true);
+    expect(isSelfHosted()).toBe(true);
     expect(mockedExistsSync).toHaveBeenCalledWith('/.dockerenv');
   });
 
   it('returns false when not in Docker and MANIFEST_MODE is not set', () => {
     delete process.env['MANIFEST_MODE'];
     mockedExistsSync.mockReturnValue(false);
-    expect(isLocalMode()).toBe(false);
+    expect(isSelfHosted()).toBe(false);
   });
 
   it('returns false when existsSync throws', () => {
@@ -48,6 +53,6 @@ describe('isLocalMode', () => {
     mockedExistsSync.mockImplementation(() => {
       throw new Error('permission denied');
     });
-    expect(isLocalMode()).toBe(false);
+    expect(isSelfHosted()).toBe(false);
   });
 });

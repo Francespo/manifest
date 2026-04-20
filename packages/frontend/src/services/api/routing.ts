@@ -283,6 +283,17 @@ export function updateCustomProvider(
   );
 }
 
+export function probeCustomProvider(agentName: string, base_url: string, apiKey?: string) {
+  return fetchMutate<{ models: { model_name: string }[] }>(
+    `${BASE_URL}/routing/${encodeURIComponent(agentName)}/custom-providers/probe`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base_url, apiKey }),
+    },
+  );
+}
+
 export function deleteCustomProvider(agentName: string, id: string) {
   return fetchMutate<{ ok: boolean }>(
     `${BASE_URL}/routing/${encodeURIComponent(agentName)}/custom-providers/${encodeURIComponent(id)}`,

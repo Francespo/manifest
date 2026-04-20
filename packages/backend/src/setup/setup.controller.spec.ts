@@ -11,14 +11,14 @@ describe('SetupController', () => {
   let mockNeedsSetup: jest.Mock;
   let mockCreateFirstAdmin: jest.Mock;
   let mockGetEnabledSocialProviders: jest.Mock;
-  let mockIsLocalMode: jest.Mock;
+  let mockIsSelfHosted: jest.Mock;
   let mockIsOllamaAvailable: jest.Mock;
 
   beforeEach(async () => {
     mockNeedsSetup = jest.fn();
     mockCreateFirstAdmin = jest.fn();
     mockGetEnabledSocialProviders = jest.fn().mockReturnValue([]);
-    mockIsLocalMode = jest.fn().mockReturnValue(false);
+    mockIsSelfHosted = jest.fn().mockReturnValue(false);
     mockIsOllamaAvailable = jest.fn().mockResolvedValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -30,7 +30,7 @@ describe('SetupController', () => {
             needsSetup: mockNeedsSetup,
             createFirstAdmin: mockCreateFirstAdmin,
             getEnabledSocialProviders: mockGetEnabledSocialProviders,
-            isLocalMode: mockIsLocalMode,
+            isSelfHosted: mockIsSelfHosted,
             isOllamaAvailable: mockIsOllamaAvailable,
           },
         },
@@ -47,7 +47,7 @@ describe('SetupController', () => {
       expect(result).toEqual({
         needsSetup: true,
         socialProviders: [],
-        isLocalMode: false,
+        isSelfHosted: false,
         ollamaAvailable: false,
       });
     });
@@ -58,7 +58,7 @@ describe('SetupController', () => {
       expect(result).toEqual({
         needsSetup: false,
         socialProviders: [],
-        isLocalMode: false,
+        isSelfHosted: false,
         ollamaAvailable: false,
       });
     });
@@ -70,40 +70,40 @@ describe('SetupController', () => {
       expect(result).toEqual({
         needsSetup: false,
         socialProviders: ['google', 'github'],
-        isLocalMode: false,
+        isSelfHosted: false,
         ollamaAvailable: false,
       });
     });
 
-    it('returns isLocalMode=true when in local mode', async () => {
+    it('returns isSelfHosted=true in the self-hosted version', async () => {
       mockNeedsSetup.mockResolvedValue(false);
-      mockIsLocalMode.mockReturnValue(true);
+      mockIsSelfHosted.mockReturnValue(true);
       mockIsOllamaAvailable.mockResolvedValue(false);
       const result = await controller.getStatus();
       expect(result).toEqual({
         needsSetup: false,
         socialProviders: [],
-        isLocalMode: true,
+        isSelfHosted: true,
         ollamaAvailable: false,
       });
     });
 
-    it('returns ollamaAvailable=true when in local mode and Ollama is reachable', async () => {
+    it('returns ollamaAvailable=true in the self-hosted version when Ollama is reachable', async () => {
       mockNeedsSetup.mockResolvedValue(false);
-      mockIsLocalMode.mockReturnValue(true);
+      mockIsSelfHosted.mockReturnValue(true);
       mockIsOllamaAvailable.mockResolvedValue(true);
       const result = await controller.getStatus();
       expect(result).toEqual({
         needsSetup: false,
         socialProviders: [],
-        isLocalMode: true,
+        isSelfHosted: true,
         ollamaAvailable: true,
       });
     });
 
     it('skips Ollama check in cloud mode (always false)', async () => {
       mockNeedsSetup.mockResolvedValue(false);
-      mockIsLocalMode.mockReturnValue(false);
+      mockIsSelfHosted.mockReturnValue(false);
       const result = await controller.getStatus();
       expect(result.ollamaAvailable).toBe(false);
       expect(mockIsOllamaAvailable).not.toHaveBeenCalled();
