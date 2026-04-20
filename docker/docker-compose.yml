@@ -46,7 +46,6 @@ services:
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
       - SEED_DATA=false
       - NODE_ENV=production
-      - AUTO_MIGRATE=true
       # Email provider (optional). Covers both login/verification emails
       # and threshold alert notifications. Set one provider block — see
       # DOCKER_README.md "Email setup". Supports resend, mailgun, sendgrid.
@@ -65,20 +64,24 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/api/v1/health || exit 1"]
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
       interval: 30s
       timeout: 5s
       start_period: 45s
       retries: 3
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp:size=64m
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     mem_limit: 1g
-    pids_limit: 256
+    pids_limit: 512
     networks:
       - internal
       - frontend
