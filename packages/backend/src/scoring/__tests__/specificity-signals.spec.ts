@@ -44,6 +44,22 @@ describe('computeSignalBoosts', () => {
       expect(boosts.get('coding')).toBeGreaterThanOrEqual(2);
     });
 
+    it('boosts coding when the text contains an absolute path like /src/foo', () => {
+      const { boosts } = computeSignalBoosts('look at /src/foo.ts for the bug');
+      expect(boosts.get('coding')).toBeGreaterThanOrEqual(2);
+    });
+
+    it('boosts coding for a bare relative path ./foo with no extension', () => {
+      const { boosts } = computeSignalBoosts('cd ./foo and run it');
+      expect(boosts.get('coding')).toBe(2);
+    });
+
+    it('does not boost coding for a bare slash between whitespace (e.g. "a / b")', () => {
+      const { boosts } = computeSignalBoosts('divide a / b cleanly');
+      // Neither the file-path nor any other coding signal should fire.
+      expect(boosts.get('coding')).toBeUndefined();
+    });
+
     it('boosts coding when the text contains a stack trace fragment', () => {
       const { boosts } = computeSignalBoosts('TypeError: cannot read property of undefined');
       expect(boosts.get('coding')).toBe(3);

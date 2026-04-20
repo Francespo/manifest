@@ -414,9 +414,12 @@ export const DEFAULT_KEYWORDS: Record<string, string[]> = {
     // the longer forms alongside, they produce stacked matches on a single
     // phrase (noted by Cubic review on #1639).
     'open this',
-    // `click on` subsumes "click on the".
+    // `click on the` is kept alongside `click on` on purpose: both at
+    // weight 2, they stack to 4 on "click on the button" and clear the
+    // web_browsing threshold of 3. `click on` alone (weight 2) would miss it.
     'click the',
     'click on',
+    'click on the',
     'scroll to',
     'scroll down',
     'scroll up',

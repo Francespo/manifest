@@ -53,6 +53,7 @@ export const KEYWORD_WEIGHTS: Record<string, number> = {
   'open the url': 2,
   'click the': 2,
   'click on': 2,
+  'click on the': 2,
   'screenshot of': 2,
   webpage: 2,
 
