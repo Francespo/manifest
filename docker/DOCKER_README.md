@@ -286,7 +286,7 @@ docker compose down -v    # ⚠  destroys all data
 | `BETTER_AUTH_SECRET` | Yes      | --                      | Session signing secret (min 32 chars)         |
 | `BETTER_AUTH_URL`    | No       | `http://localhost:3001` | Public URL. Set this when using a custom port |
 | `PORT`               | No       | `3001`                  | Internal server port                          |
-| `NODE_ENV`           | No       | `production`            | Set `development` for auto-migrations         |
+| `NODE_ENV`           | No       | `production`            | Runtime mode. Leave as `production` for Docker |
 | `SEED_DATA`          | No       | `false`                 | Seed demo data on startup                     |
 
 Full env var reference: [github.com/mnfst/manifest](https://github.com/mnfst/manifest)

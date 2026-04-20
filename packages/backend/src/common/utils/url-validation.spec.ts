@@ -139,14 +139,14 @@ describe('validatePublicUrl', () => {
 
   it('skips validation in test mode', async () => {
     process.env['NODE_ENV'] = 'test';
-    await expect(validatePublicUrl('http://127.0.0.1:8080')).resolves.toBeUndefined();
+    await expect(validatePublicUrl('https://127.0.0.1:8080')).resolves.toBeUndefined();
   });
 
   it('enforces validation in test mode when SKIP_SSRF_VALIDATION=false', async () => {
     process.env['NODE_ENV'] = 'test';
     process.env['SKIP_SSRF_VALIDATION'] = 'false';
     try {
-      await expect(validatePublicUrl('http://127.0.0.1:8080')).rejects.toThrow(
+      await expect(validatePublicUrl('https://127.0.0.1:8080')).rejects.toThrow(
         'private or internal',
       );
     } finally {
@@ -163,28 +163,36 @@ describe('validatePublicUrl', () => {
     await expect(validatePublicUrl('not-a-url')).rejects.toThrow('Invalid URL format');
   });
 
-  it('rejects non-http/https schemes', async () => {
+  it('rejects non-https schemes', async () => {
     await expect(validatePublicUrl('ftp://example.com')).rejects.toThrow(
-      'Only http and https URLs are allowed',
+      'Only https URLs are allowed',
     );
   });
 
   it('rejects file scheme', async () => {
     await expect(validatePublicUrl('file:///etc/passwd')).rejects.toThrow(
-      'Only http and https URLs are allowed',
+      'Only https URLs are allowed',
+    );
+  });
+
+  it('rejects plaintext http scheme (AC-2 passive exfiltration)', async () => {
+    await expect(validatePublicUrl('http://example.com/api')).rejects.toThrow(
+      'Only https URLs are allowed',
     );
   });
 
   it('rejects IP literal pointing to private network', async () => {
-    await expect(validatePublicUrl('http://127.0.0.1:8080')).rejects.toThrow('private or internal');
+    await expect(validatePublicUrl('https://127.0.0.1:8080')).rejects.toThrow(
+      'private or internal',
+    );
   });
 
   it('rejects IP literal 10.x.x.x', async () => {
-    await expect(validatePublicUrl('http://10.0.0.5/api')).rejects.toThrow('private or internal');
+    await expect(validatePublicUrl('https://10.0.0.5/api')).rejects.toThrow('private or internal');
   });
 
   it('rejects IP literal 192.168.x.x', async () => {
-    await expect(validatePublicUrl('http://192.168.1.100:3000')).rejects.toThrow(
+    await expect(validatePublicUrl('https://192.168.1.100:3000')).rejects.toThrow(
       'private or internal',
     );
   });
@@ -220,9 +228,9 @@ describe('validatePublicUrl', () => {
     );
   });
 
-  it('accepts http scheme', async () => {
+  it('accepts https scheme', async () => {
     mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as never);
-    await expect(validatePublicUrl('http://example.com/api')).resolves.toBeUndefined();
+    await expect(validatePublicUrl('https://example.com/api')).resolves.toBeUndefined();
   });
 
   it('handles non-array lookup result (single object)', async () => {
