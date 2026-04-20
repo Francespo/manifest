@@ -1,3 +1,7 @@
+// Ensure the Reflect metadata API is initialized before we read decorator
+// metadata below. NestJS normally does this transitively, but this spec
+// exercises the decorator in isolation.
+import 'reflect-metadata';
 import { ExecutionContext } from '@nestjs/common';
 import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { CurrentUser } from './current-user.decorator';
