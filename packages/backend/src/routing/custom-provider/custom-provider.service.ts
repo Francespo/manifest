@@ -202,13 +202,21 @@ export class CustomProviderService {
       throw new BadRequestException((err as Error).message);
     }
 
-    const normalized = baseUrl.replace(/\/+$/, '');
-    const url = `${normalized}/models`;
+    // Trim trailing slashes without a regex to avoid polynomial backtracking
+    // on adversarial input (CodeQL js/polynomial-redos).
+    let end = baseUrl.length;
+    while (end > 0 && baseUrl.charCodeAt(end - 1) === 47 /* '/' */) end--;
+    const url = `${baseUrl.slice(0, end)}/models`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+      // User-controlled URL is intentional here — this endpoint exists to
+      // connect to operator-chosen LLM servers. validatePublicUrl() above is
+      // our SSRF mitigation: cloud metadata is always blocked, private IPs
+      // only accepted in the self-hosted version.
+      // codeql[js/request-forgery]
       const res = await fetch(url, { headers, signal: controller.signal });
       if (!res.ok) {
         throw new BadRequestException(`Probe failed: ${res.status}`);
