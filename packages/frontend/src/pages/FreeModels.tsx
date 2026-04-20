@@ -187,18 +187,29 @@ const FreeModels: Component = () => {
               <div class="panel" style="margin-bottom: 24px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px;">
                   <h2 style="margin: 0; font-size: var(--font-size-lg); display: flex; align-items: center; gap: 8px;">
-                    {provider.logo && (() => {
-                      const dark = provider.logo.replace(/\.([^.]+)$/, '-dark-mode.$1');
-                      const hasDark = DARK_MODE_LOGOS.has(provider.logo);
-                      return hasDark ? (
-                        <>
-                          <img src={provider.logo} alt="" class="free-models-logo-light" style="height: 20px;" />
-                          <img src={dark} alt="" class="free-models-logo-dark" style="height: 20px;" />
-                        </>
-                      ) : (
-                        <img src={provider.logo} alt="" style="height: 20px;" />
-                      );
-                    })()}
+                    {provider.logo &&
+                      (() => {
+                        const dark = provider.logo.replace(/\.([^.]+)$/, '-dark-mode.$1');
+                        const hasDark = DARK_MODE_LOGOS.has(provider.logo);
+                        return hasDark ? (
+                          <>
+                            <img
+                              src={provider.logo}
+                              alt=""
+                              class="free-models-logo-light"
+                              style="height: 20px;"
+                            />
+                            <img
+                              src={dark}
+                              alt=""
+                              class="free-models-logo-dark"
+                              style="height: 20px;"
+                            />
+                          </>
+                        ) : (
+                          <img src={provider.logo} alt="" style="height: 20px;" />
+                        );
+                      })()}
                     {provider.name}
                   </h2>
                   <div style="display: flex; gap: 8px; flex-shrink: 0;">
@@ -272,9 +283,7 @@ const FreeModels: Component = () => {
                           style="display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-size-sm); color: hsl(var(--foreground)); padding: 0; background: none; border: none; cursor: pointer; white-space: nowrap; font-weight: 500;"
                           onClick={() => setShowModels((v) => !v)}
                         >
-                          {showModels()
-                            ? 'Hide models'
-                            : `Show models (${displayModels().length})`}
+                          {showModels() ? 'Hide models' : `Show models (${displayModels().length})`}
                           <img
                             src="/icons/caret-down.svg"
                             alt=""

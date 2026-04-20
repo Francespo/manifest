@@ -5,6 +5,9 @@ import { AgentMessage } from '../../entities/agent-message.entity';
 import { rangeToInterval } from '../../common/utils/range.util';
 import { addTenantFilter, formatTimestamp, selectMessageRowColumns } from './query-helpers';
 import { TenantCacheService } from '../../common/services/tenant-cache.service';
+import type { MessageStatusFilter } from '../dto/messages-query.dto';
+
+const ERROR_STATUSES = ['error', 'fallback_error', 'rate_limited'] as const;
 import {
   DbDialect,
   detectDialect,
@@ -50,6 +53,7 @@ export class MessagesQueryService {
     limit: number;
     cursor?: string;
     agent_name?: string;
+    status?: MessageStatusFilter;
   }) {
     const tenantId = (await this.tenantCache.resolve(params.userId)) ?? undefined;
     const cutoff = params.range ? computeCutoff(rangeToInterval(params.range)) : undefined;
@@ -69,6 +73,12 @@ export class MessagesQueryService {
       baseQb.andWhere('at.cost_usd <= :costMax', { costMax: params.cost_max });
     if (params.agent_name)
       baseQb.andWhere('at.agent_name = :filterAgent', { filterAgent: params.agent_name });
+
+    if (params.status === 'errors') {
+      baseQb.andWhere('at.status IN (:...errorStatuses)', { errorStatuses: ERROR_STATUSES });
+    } else if (params.status) {
+      baseQb.andWhere('at.status = :statusFilter', { statusFilter: params.status });
+    }
 
     // Provider filter: prefer the stored provider column (populated by the
     // proxy from routing resolution), and fall back to inference for legacy
@@ -243,6 +253,7 @@ export class MessagesQueryService {
     agent_name?: string;
     cost_min?: number;
     cost_max?: number;
+    status?: MessageStatusFilter;
   }): string {
     return [
       params.userId,
@@ -252,6 +263,7 @@ export class MessagesQueryService {
       params.agent_name ?? '',
       params.cost_min ?? '',
       params.cost_max ?? '',
+      params.status ?? '',
     ].join(':');
   }
 }

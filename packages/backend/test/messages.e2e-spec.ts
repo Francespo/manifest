@@ -121,6 +121,49 @@ describe('GET /api/v1/messages', () => {
     expect(item).toHaveProperty('feedback_rating');
     expect(item.feedback_rating).toBeNull();
   });
+
+  it('filters to successful messages with status=ok', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/messages?range=24h&status=ok')
+      .set('x-api-key', TEST_API_KEY)
+      .expect(200);
+
+    expect(res.body.items.length).toBeGreaterThan(0);
+    expect(res.body.items.every((item: Record<string, string>) => item['status'] === 'ok')).toBe(
+      true,
+    );
+  });
+
+  it('filters to error messages with status=error', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/messages?range=24h&status=error')
+      .set('x-api-key', TEST_API_KEY)
+      .expect(200);
+
+    expect(res.body.items.length).toBeGreaterThan(0);
+    expect(res.body.items.every((item: Record<string, string>) => item['status'] === 'error')).toBe(
+      true,
+    );
+  });
+
+  it('filters to all error variants with status=errors', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/messages?range=24h&status=errors')
+      .set('x-api-key', TEST_API_KEY)
+      .expect(200);
+
+    expect(res.body.items.length).toBeGreaterThan(0);
+    for (const item of res.body.items) {
+      expect(['error', 'fallback_error', 'rate_limited']).toContain(item['status']);
+    }
+  });
+
+  it('rejects an invalid status value with 400', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/messages?range=24h&status=bogus')
+      .set('x-api-key', TEST_API_KEY)
+      .expect(400);
+  });
 });
 
 describe('PATCH /api/v1/messages/:id/feedback', () => {

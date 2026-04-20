@@ -147,7 +147,6 @@ docker run -d \
   -e DATABASE_URL=postgresql://user:pass@host:5432/manifest \
   -e BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
   -e BETTER_AUTH_URL=http://localhost:3001 \
-  -e AUTO_MIGRATE=true \
   manifestdotbuild/manifest
 ```
 
@@ -164,7 +163,6 @@ docker run -d `
   -e DATABASE_URL=postgresql://user:pass@host:5432/manifest `
   -e BETTER_AUTH_SECRET=$secret `
   -e BETTER_AUTH_URL=http://localhost:3001 `
-  -e AUTO_MIGRATE=true `
   manifestdotbuild/manifest
 ```
 
@@ -181,13 +179,12 @@ docker run -d ^
   -e DATABASE_URL=postgresql://user:pass@host:5432/manifest ^
   -e BETTER_AUTH_SECRET=<your-64-char-secret> ^
   -e BETTER_AUTH_URL=http://localhost:3001 ^
-  -e AUTO_MIGRATE=true ^
   manifestdotbuild/manifest
 ```
 
 </details>
 
-`AUTO_MIGRATE=true` runs database migrations on first boot. Then open [http://localhost:3001](http://localhost:3001) and sign up. The first account you create becomes the admin.
+TypeORM migrations run automatically on every boot — fresh installs come up with the schema in place. Then visit [http://localhost:3001](http://localhost:3001) and complete the setup wizard to create your admin account.
 
 ### Verifying the image signature
 
@@ -289,7 +286,7 @@ docker compose down -v    # ⚠  destroys all data
 | `BETTER_AUTH_SECRET` | Yes      | --                      | Session signing secret (min 32 chars)         |
 | `BETTER_AUTH_URL`    | No       | `http://localhost:3001` | Public URL. Set this when using a custom port |
 | `PORT`               | No       | `3001`                  | Internal server port                          |
-| `NODE_ENV`           | No       | `production`            | Set `development` for auto-migrations         |
+| `NODE_ENV`           | No       | `production`            | Runtime mode. Leave as `production` for Docker |
 | `SEED_DATA`          | No       | `false`                 | Seed demo data on startup                     |
 
 Full env var reference: [github.com/mnfst/manifest](https://github.com/mnfst/manifest)

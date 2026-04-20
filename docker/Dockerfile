@@ -30,7 +30,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --ignore-scripts && \
     find . -path "*/node_modules/vite-node" -type d -exec rm -rf {} + 2>/dev/null; \
     find . -path "*/node_modules/rollup" -type d -exec rm -rf {} + 2>/dev/null; \
     find . -path "*/node_modules/@vitest" -type d -exec rm -rf {} + 2>/dev/null; \
-    find . -path "*/node_modules/*" \( -name "*.map" -o -name "*.md" \
+    find . -path "*/node_modules/*" \( -name "*.map" -o -name "README*" \
       -o -name "LICENSE*" -o -name "CHANGELOG*" -o -name "*.txt" \
       -o -name "Makefile" -o -name "*.gyp" -o -name "*.gypi" \
       -o \( -name "*.ts" ! -name "*.d.ts" \) \) -delete 2>/dev/null; \
@@ -68,7 +68,7 @@ COPY packages/backend/package.json packages/backend/
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3001/api/v1/health || exit 1
+  CMD node -e "fetch('http://127.0.0.1:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 USER node
 

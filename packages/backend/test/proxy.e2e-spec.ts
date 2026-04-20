@@ -69,30 +69,55 @@ const bearer = (r: request.Test) =>
   r.set('Authorization', `Bearer ${TEST_OTLP_KEY}`);
 
 describe('Proxy E2E — /v1/chat/completions', () => {
-  it('rejects requests without auth', async () => {
+  // Supertest doesn't set Accept by default, and these requests omit
+  // `stream: true`, so the exception filter classifies them as non-chat
+  // clients (curl/CI/monitor) and returns real HTTP statuses with a
+  // structured error envelope.
+
+  it('rejects unauthenticated requests with HTTP 401', async () => {
     const res = await api()
       .post('/v1/chat/completions')
       .send({ messages: [{ role: 'user', content: 'hello' }] })
+      .expect(401);
+
+    expect(res.body.error.type).toBe('auth_error');
+    expect(res.body.error.message).toContain('Missing the Authorization header');
+  });
+
+  it('returns the friendly envelope when the caller opts into SSE chat semantics', async () => {
+    const res = await api()
+      .post('/v1/chat/completions')
+      .set('Accept', 'text/event-stream')
+      .send({ messages: [{ role: 'user', content: 'hello' }] })
       .expect(200);
 
-    // Auth errors are returned as friendly chat completion messages
     expect(res.body.choices[0].message.content).toContain('Missing the Authorization header');
   });
 
-  it('returns friendly message when messages are missing', async () => {
+  it('returns HTTP 400 when messages are missing', async () => {
     const res = await bearer(api().post('/v1/chat/completions'))
       .send({})
-      .expect(200);
+      .expect(400);
 
-    expect(res.body.choices[0].message.content).toContain('messages');
+    expect(res.body.error.type).toBe('invalid_request_error');
+    expect(res.body.error.message).toContain('messages');
   });
 
-  it('returns friendly message when messages array is empty', async () => {
+  it('returns HTTP 400 when messages array is empty', async () => {
     const res = await bearer(api().post('/v1/chat/completions'))
       .send({ messages: [] })
+      .expect(400);
+
+    expect(res.body.error.message).toContain('messages');
+  });
+
+  it('returns the friendly envelope for missing messages when stream=true', async () => {
+    const res = await bearer(api().post('/v1/chat/completions'))
+      .send({ stream: true })
       .expect(200);
 
-    expect(res.body.choices[0].message.content).toContain('messages');
+    // SSE payload — assert via raw text since supertest stores it on `text`.
+    expect(res.text).toContain('messages');
   });
 
   it('resolves and attempts to forward to provider', async () => {
