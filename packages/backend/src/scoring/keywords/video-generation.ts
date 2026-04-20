@@ -8,6 +8,7 @@ export const VIDEO_GENERATION_KEYWORDS = [
   'footage',
   'motion graphics',
   'timelapse',
+  'time lapse',
   'transition',
   'subtitle',
   'storyboard',
