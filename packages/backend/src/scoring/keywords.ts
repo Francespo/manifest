@@ -410,14 +410,13 @@ export const DEFAULT_KEYWORDS: Record<string, string[]> = {
     'visit',
     'open url',
     'open the url',
+    // `open this` subsumes "open this url/link/page/webpage" — do not list
+    // the longer forms alongside, they produce stacked matches on a single
+    // phrase (noted by Cubic review on #1639).
     'open this',
-    'open this url',
-    'open this link',
-    'open this page',
-    'open this webpage',
+    // `click on` subsumes "click on the".
     'click the',
     'click on',
-    'click on the',
     'scroll to',
     'scroll down',
     'scroll up',

@@ -29,11 +29,14 @@ const BARE_HOST_BOOST = 1;
 // ── Code-context negative signals ──
 // Fenced code block — anywhere.
 const CODE_FENCE_REGEX = /```/;
-// Looks like a file path: extensions or / with non-URL context.
-// The extension alternative requires a trailing word boundary so "weather.com"
-// does not spuriously match ".c" from the C-extension alternative.
+// Looks like a file path: extensions or a `./relative` prefix. Bare `/` is
+// intentionally NOT matched — "divide a / b" would otherwise falsely boost
+// coding. Absolute paths like `/src/foo` still match via the `src/` etc.
+// alternatives. The extension alternative requires a trailing word boundary
+// so "weather.com" does not spuriously match ".c" from the C-extension
+// alternative.
 const FILE_PATH_REGEX =
-  /(?:^|\s)(?:\.?\/|src\/|packages\/|app\/|lib\/|components\/|pages\/|[\w-]+\.(?:ts|tsx|js|jsx|py|go|rs|rb|java|kt|swift|php|cs|cpp|c|h|hpp|sh|sql|yaml|yml|json|toml|md|html|css|scss)\b)/i;
+  /(?:^|\s)(?:\.\/|src\/|packages\/|app\/|lib\/|components\/|pages\/|[\w-]+\.(?:ts|tsx|js|jsx|py|go|rs|rb|java|kt|swift|php|cs|cpp|c|h|hpp|sh|sql|yaml|yml|json|toml|md|html|css|scss)\b)/i;
 // Stack trace fragments.
 const STACK_TRACE_REGEX = /\b(?:TypeError|ReferenceError|SyntaxError|Traceback|at \w+\.\w+\s*\()/;
 // Common coding tool names that imply a coding session.

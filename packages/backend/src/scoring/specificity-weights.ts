@@ -50,14 +50,9 @@ export const KEYWORD_WEIGHTS: Record<string, number> = {
   // web_browsing — medium context phrases
   'this page': 3,
   'this domain': 2,
-  'open this url': 2,
-  'open this link': 2,
-  'open this page': 2,
-  'open this webpage': 2,
   'open the url': 2,
   'click the': 2,
   'click on': 2,
-  'click on the': 2,
   'screenshot of': 2,
   webpage: 2,
 
