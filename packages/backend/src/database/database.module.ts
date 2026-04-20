@@ -69,6 +69,7 @@ import { AddSpecificityCategory1775300000000 } from './migrations/1775300000000-
 import { AddCallerAttribution1775400000000 } from './migrations/1775400000000-AddCallerAttribution';
 import { AddMessageProvider1775500000000 } from './migrations/1775500000000-AddMessageProvider';
 import { AddMessageFeedback1775600000000 } from './migrations/1775600000000-AddMessageFeedback';
+import { CleanupOrphanedCustomProviderRefs1776679833383 } from './migrations/1776679833383-CleanupOrphanedCustomProviderRefs';
 
 const entities = [
   AgentMessage,
@@ -139,6 +140,7 @@ const migrations = [
   AddCallerAttribution1775400000000,
   AddMessageProvider1775500000000,
   AddMessageFeedback1775600000000,
+  CleanupOrphanedCustomProviderRefs1776679833383,
 ];
 
 @Module({

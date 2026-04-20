@@ -26,6 +26,7 @@ describe('ResolveService', () => {
       getEffectiveModel: jest.fn(),
       getAuthType: jest.fn().mockResolvedValue('api_key'),
       hasActiveProvider: jest.fn().mockResolvedValue(true),
+      isModelAvailable: jest.fn().mockResolvedValue(true),
     };
     mockSpecificityService = {
       getActiveAssignments: jest.fn().mockResolvedValue([]),
