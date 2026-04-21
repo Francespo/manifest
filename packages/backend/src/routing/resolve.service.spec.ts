@@ -2,6 +2,7 @@ import { ResolveService } from './resolve/resolve.service';
 import { TierService } from './routing-core/tier.service';
 import { ProviderKeyService } from './routing-core/provider-key.service';
 import { SpecificityService } from './routing-core/specificity.service';
+import { SpecificityPenaltyService } from './routing-core/specificity-penalty.service';
 import { ModelPricingCacheService } from '../model-prices/model-pricing-cache.service';
 import { ModelDiscoveryService } from '../model-discovery/model-discovery.service';
 
@@ -12,6 +13,7 @@ describe('ResolveService', () => {
   let mockSpecificityService: Record<string, jest.Mock>;
   let mockPricingCache: Record<string, jest.Mock>;
   let mockDiscoveryService: Record<string, jest.Mock>;
+  let mockPenaltyService: Record<string, jest.Mock>;
 
   beforeEach(() => {
     mockTierService = {
@@ -26,6 +28,7 @@ describe('ResolveService', () => {
       getEffectiveModel: jest.fn(),
       getAuthType: jest.fn().mockResolvedValue('api_key'),
       hasActiveProvider: jest.fn().mockResolvedValue(true),
+      isModelAvailable: jest.fn().mockResolvedValue(true),
     };
     mockSpecificityService = {
       getActiveAssignments: jest.fn().mockResolvedValue([]),
@@ -36,6 +39,9 @@ describe('ResolveService', () => {
     mockDiscoveryService = {
       getModelForAgent: jest.fn().mockResolvedValue(undefined),
     };
+    mockPenaltyService = {
+      getPenaltiesForAgent: jest.fn().mockResolvedValue(new Map()),
+    };
 
     service = new ResolveService(
       mockTierService as unknown as TierService,
@@ -43,6 +49,7 @@ describe('ResolveService', () => {
       mockSpecificityService as unknown as SpecificityService,
       mockPricingCache as unknown as ModelPricingCacheService,
       mockDiscoveryService as unknown as ModelDiscoveryService,
+      mockPenaltyService as unknown as SpecificityPenaltyService,
     );
   });
 

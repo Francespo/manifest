@@ -629,7 +629,9 @@ describe('ProxyController', () => {
   it('should handle 500 errors from proxyService as friendly chat message', async () => {
     proxyService.proxyRequest.mockRejectedValue(new Error('Internal failure'));
 
-    const req = mockRequest({ messages: [{ role: 'user', content: 'test' }] });
+    const req = mockRequest({ messages: [{ role: 'user', content: 'test' }] }, 'user-1', {
+      accept: 'text/event-stream',
+    });
     const { res } = mockResponse();
 
     await controller.chatCompletions(req as never, res as never);
@@ -649,12 +651,31 @@ describe('ProxyController', () => {
     );
   });
 
+  it('should return HTTP 500 with structured envelope for non-chat clients', async () => {
+    proxyService.proxyRequest.mockRejectedValue(new Error('Internal failure'));
+
+    const req = mockRequest({ messages: [{ role: 'user', content: 'test' }] });
+    const { res } = mockResponse();
+
+    await controller.chatCompletions(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          type: 'server_error',
+          message: expect.stringContaining('internal error'),
+        }),
+      }),
+    );
+  });
+
   it('should forward HttpException as friendly chat message', async () => {
     proxyService.proxyRequest.mockRejectedValue(
       new HttpException('Bad request: messages required', 400),
     );
 
-    const req = mockRequest({});
+    const req = mockRequest({}, 'user-1', { accept: 'text/event-stream' });
     const { res } = mockResponse();
 
     await controller.chatCompletions(req as never, res as never);
@@ -670,6 +691,27 @@ describe('ProxyController', () => {
             }),
           }),
         ]),
+      }),
+    );
+  });
+
+  it('should return HTTP 400 with structured envelope when caller is non-chat', async () => {
+    proxyService.proxyRequest.mockRejectedValue(
+      new HttpException('Bad request: messages required', 400),
+    );
+
+    const req = mockRequest({});
+    const { res } = mockResponse();
+
+    await controller.chatCompletions(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          type: 'invalid_request_error',
+          message: 'Bad request: messages required',
+        }),
       }),
     );
   });
@@ -1383,7 +1425,9 @@ describe('ProxyController', () => {
     it('should mask error message for 500+ status codes as friendly chat message', async () => {
       proxyService.proxyRequest.mockRejectedValue(new Error('Sensitive internal error details'));
 
-      const req = mockRequest({ messages: [{ role: 'user', content: 'hi' }] });
+      const req = mockRequest({ messages: [{ role: 'user', content: 'hi' }] }, 'user-1', {
+        accept: 'text/event-stream',
+      });
       const { res } = mockResponse();
 
       await controller.chatCompletions(req as never, res as never);
@@ -1408,7 +1452,9 @@ describe('ProxyController', () => {
         new HttpException('messages array is required', 400),
       );
 
-      const req = mockRequest({ messages: [{ role: 'user', content: 'hi' }] });
+      const req = mockRequest({ messages: [{ role: 'user', content: 'hi' }] }, 'user-1', {
+        accept: 'text/event-stream',
+      });
       const { res } = mockResponse();
 
       await controller.chatCompletions(req as never, res as never);
@@ -1430,7 +1476,9 @@ describe('ProxyController', () => {
     it('should handle non-Error throw as friendly chat message', async () => {
       proxyService.proxyRequest.mockRejectedValue('string error');
 
-      const req = mockRequest({ messages: [{ role: 'user', content: 'hi' }] });
+      const req = mockRequest({ messages: [{ role: 'user', content: 'hi' }] }, 'user-1', {
+        accept: 'text/event-stream',
+      });
       const { res } = mockResponse();
 
       await controller.chatCompletions(req as never, res as never);

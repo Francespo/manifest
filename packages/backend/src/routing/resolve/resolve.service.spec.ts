@@ -8,6 +8,7 @@ import { ResolveService } from './resolve.service';
 import { TierService } from '../routing-core/tier.service';
 import { ProviderKeyService } from '../routing-core/provider-key.service';
 import { SpecificityService } from '../routing-core/specificity.service';
+import { SpecificityPenaltyService } from '../routing-core/specificity-penalty.service';
 import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
 import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -18,6 +19,7 @@ function makeService(overrides: {
   getEffectiveModel?: jest.Mock;
   getAuthType?: jest.Mock;
   hasActiveProvider?: jest.Mock;
+  isModelAvailable?: jest.Mock;
   activeSpecificity?: unknown[];
   getModelForAgent?: jest.Mock;
   getByModel?: jest.Mock;
@@ -30,6 +32,7 @@ function makeService(overrides: {
     getEffectiveModel: overrides.getEffectiveModel ?? jest.fn().mockResolvedValue(null),
     getAuthType: overrides.getAuthType ?? jest.fn().mockResolvedValue('api_key'),
     hasActiveProvider: overrides.hasActiveProvider ?? jest.fn().mockResolvedValue(false),
+    isModelAvailable: overrides.isModelAvailable ?? jest.fn().mockResolvedValue(true),
   } as unknown as ProviderKeyService;
 
   const specificityService: SpecificityService = {
@@ -44,12 +47,17 @@ function makeService(overrides: {
     getByModel: overrides.getByModel ?? jest.fn().mockReturnValue(null),
   } as unknown as ModelPricingCacheService;
 
+  const penaltyService: SpecificityPenaltyService = {
+    getPenaltiesForAgent: jest.fn().mockResolvedValue(new Map()),
+  } as unknown as SpecificityPenaltyService;
+
   const svc = new ResolveService(
     tierService,
     providerKeyService,
     specificityService,
     pricingCache,
     discoveryService,
+    penaltyService,
   );
   return {
     svc,
@@ -58,6 +66,7 @@ function makeService(overrides: {
     specificityService,
     discoveryService,
     pricingCache,
+    penaltyService,
   };
 }
 
@@ -129,6 +138,212 @@ describe('ResolveService', () => {
       });
       const out = await svc.resolve('agent-1', [{ role: 'user', content: 'hi' }]);
       expect(out.reason).toBe('scored');
+    });
+
+    it('falls through to tier routing when the specificity override points to an unavailable model (#1603)', async () => {
+      scoring.scoreRequest.mockReturnValue({
+        tier: 'simple',
+        confidence: 1,
+        score: 0,
+        reason: 'scored',
+      });
+      scoring.scanMessages.mockReturnValue({ category: 'coding', confidence: 0.9 });
+      const isModelAvailable = jest.fn().mockResolvedValue(false);
+      const { svc } = makeService({
+        activeSpecificity: [
+          {
+            category: 'coding',
+            override_model: 'custom:deleted-uuid/gemini-2.5-flash-lite',
+            override_provider: 'custom:deleted-uuid',
+            auto_assigned_model: null,
+          },
+        ],
+        tiers: [
+          {
+            tier: 'simple',
+            override_model: null,
+            auto_assigned_model: 'openai/gpt-5-mini',
+            override_provider: null,
+            override_auth_type: null,
+          },
+        ],
+        isModelAvailable,
+        getEffectiveModel: jest.fn().mockResolvedValue('openai/gpt-5-mini'),
+        hasActiveProvider: jest.fn().mockResolvedValue(true),
+      });
+      const out = await svc.resolve('agent-1', [{ role: 'user', content: 'write code' }]);
+      expect(isModelAvailable).toHaveBeenCalledWith(
+        'agent-1',
+        'custom:deleted-uuid/gemini-2.5-flash-lite',
+      );
+      expect(out.reason).toBe('scored');
+      expect(out.model).toBe('openai/gpt-5-mini');
+      expect(out.provider).toBe('openai');
+    });
+
+    it('uses auto_assigned_model when override_model is null on a specificity assignment', async () => {
+      scoring.scanMessages.mockReturnValue({ category: 'coding', confidence: 0.8 });
+      const { svc } = makeService({
+        activeSpecificity: [
+          {
+            category: 'coding',
+            override_model: null,
+            auto_assigned_model: 'openai/gpt-5',
+            override_provider: null,
+          },
+        ],
+        hasActiveProvider: jest.fn().mockResolvedValue(true),
+      });
+      const out = await svc.resolve('agent-1', [{ role: 'user', content: 'code' }]);
+      expect(out.reason).toBe('specificity');
+      expect(out.model).toBe('openai/gpt-5');
+    });
+
+    it('returns a specificity response with provider=null and no auth_type when the model cannot be attributed to any provider', async () => {
+      // Exercises the `provider ? ... : undefined` branch in resolveSpecificity where
+      // resolveProvider returns null — the call still surfaces the specificity category
+      // + model, but auth_type is omitted because there's no provider to look it up for.
+      scoring.scanMessages.mockReturnValue({ category: 'coding', confidence: 0.9 });
+      const getAuthType = jest.fn().mockResolvedValue('api_key');
+      const { svc } = makeService({
+        activeSpecificity: [
+          {
+            category: 'coding',
+            override_model: 'unresolvable-model',
+            auto_assigned_model: null,
+            override_provider: null,
+            override_auth_type: null,
+          },
+        ],
+        // no prefix match, no discovered model, no pricing entry → provider resolves to null
+        hasActiveProvider: jest.fn().mockResolvedValue(false),
+        getModelForAgent: jest.fn().mockResolvedValue(null),
+        getByModel: jest.fn().mockReturnValue(null),
+        getAuthType,
+      });
+      const out = await svc.resolve('agent-1', [{ role: 'user', content: 'code' }]);
+      expect(out.reason).toBe('specificity');
+      expect(out.model).toBe('unresolvable-model');
+      expect(out.provider).toBeNull();
+      expect(out.auth_type).toBeUndefined();
+      expect(getAuthType).not.toHaveBeenCalled();
+    });
+
+    it('uses override_auth_type directly when the specificity assignment pins one (skips getAuthType)', async () => {
+      scoring.scanMessages.mockReturnValue({ category: 'coding', confidence: 0.9 });
+      const hasActiveProvider = jest.fn().mockResolvedValue(true);
+      const getAuthType = jest.fn().mockResolvedValue('api_key');
+      const { svc } = makeService({
+        activeSpecificity: [
+          {
+            category: 'coding',
+            override_model: 'anthropic/claude-opus-4',
+            auto_assigned_model: null,
+            override_provider: null,
+            override_auth_type: 'subscription',
+          },
+        ],
+        hasActiveProvider,
+        getAuthType,
+      });
+      const out = await svc.resolve('agent-1', [{ role: 'user', content: 'write some code' }]);
+      expect(out.reason).toBe('specificity');
+      expect(out.auth_type).toBe('subscription');
+      // getAuthType must not be called when override_auth_type is set
+      expect(getAuthType).not.toHaveBeenCalled();
+    });
+
+    it('falls through to complexity routing when the detected confidence is below the gate', async () => {
+      // A confidence of 0.33 is the typical single-keyword result and used to
+      // misroute coding sessions in discussion #1613. The gate at 0.4 forces
+      // this weak detection back to complexity scoring.
+      scoring.scanMessages.mockReturnValue({ category: 'coding', confidence: 0.33 });
+      scoring.scoreRequest.mockReturnValue({
+        tier: 'simple',
+        confidence: 1,
+        score: 0,
+        reason: 'scored',
+      });
+      const { svc } = makeService({
+        activeSpecificity: [{ category: 'coding', override_model: 'x', auto_assigned_model: 'x' }],
+      });
+      const out = await svc.resolve('agent-1', [{ role: 'user', content: 'hi' }]);
+      expect(out.reason).toBe('scored');
+      expect(scoring.scoreRequest).toHaveBeenCalled();
+    });
+
+    it('bypasses the confidence gate when a header override is supplied', async () => {
+      // Headers are explicit user intent — low confidence still routes.
+      scoring.scanMessages.mockReturnValue({ category: 'coding', confidence: 0.1 });
+      const { svc } = makeService({
+        activeSpecificity: [
+          {
+            category: 'coding',
+            override_model: 'anthropic/claude-opus-4',
+            auto_assigned_model: null,
+            override_provider: null,
+          },
+        ],
+        hasActiveProvider: jest.fn().mockResolvedValue(true),
+        getAuthType: jest.fn().mockResolvedValue('api_key'),
+      });
+      const out = await svc.resolve(
+        'agent-1',
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'coding',
+      );
+      expect(out.reason).toBe('specificity');
+      expect(out.model).toBe('anthropic/claude-opus-4');
+    });
+
+    it('passes penalties from the penalty service through to scanMessages', async () => {
+      scoring.scanMessages.mockReturnValue(null);
+      scoring.scoreRequest.mockReturnValue({
+        tier: 'simple',
+        confidence: 1,
+        score: 0,
+        reason: 'scored',
+      });
+      const penalties = new Map([['web_browsing' as const, 2.25]]);
+      const { svc, penaltyService } = makeService({
+        activeSpecificity: [{ category: 'coding', override_model: 'x', auto_assigned_model: 'x' }],
+      });
+      (penaltyService.getPenaltiesForAgent as jest.Mock).mockResolvedValue(penalties);
+      await svc.resolve('agent-1', [{ role: 'user', content: 'hi' }]);
+      // scanMessages receives penalties because the map is non-empty.
+      expect(scoring.scanMessages).toHaveBeenCalledWith(
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        undefined,
+        undefined,
+        penalties,
+      );
+    });
+
+    it('omits the penalty argument to scanMessages when the map is empty', async () => {
+      scoring.scanMessages.mockReturnValue(null);
+      scoring.scoreRequest.mockReturnValue({
+        tier: 'simple',
+        confidence: 1,
+        score: 0,
+        reason: 'scored',
+      });
+      const { svc, penaltyService } = makeService({
+        activeSpecificity: [{ category: 'coding', override_model: 'x', auto_assigned_model: 'x' }],
+      });
+      (penaltyService.getPenaltiesForAgent as jest.Mock).mockResolvedValue(new Map());
+      await svc.resolve('agent-1', [{ role: 'user', content: 'hi' }]);
+      expect(scoring.scanMessages).toHaveBeenCalledWith(
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      );
     });
 
     it('returns the specificity response with provider + auth type when a match hits', async () => {

@@ -1,13 +1,28 @@
-import { createSignal, Index, For, Show, type Component } from 'solid-js';
+import { createResource, createSignal, Index, For, Show, type Component } from 'solid-js';
 import {
   createCustomProvider,
-  updateCustomProvider,
   deleteCustomProvider,
+  probeCustomProvider,
+  updateCustomProvider,
   type CustomProviderModel,
   type CustomProviderData,
 } from '../services/api.js';
 import { toast } from '../services/toast-store.js';
+import { checkIsSelfHosted } from '../services/setup-status.js';
 import type { CustomProviderPrefill } from '../services/routing-params.js';
+
+interface Preset {
+  label: string;
+  name: string;
+  baseUrl: string;
+}
+
+const LOCAL_SERVER_PRESETS: Preset[] = [
+  { label: 'Ollama', name: 'Ollama (host)', baseUrl: 'http://host.docker.internal:11434/v1' },
+  { label: 'vLLM', name: 'vLLM', baseUrl: 'http://host.docker.internal:8000/v1' },
+  { label: 'LM Studio', name: 'LM Studio', baseUrl: 'http://host.docker.internal:1234/v1' },
+  { label: 'llama.cpp', name: 'llama.cpp', baseUrl: 'http://host.docker.internal:8080/v1' },
+];
 
 interface Props {
   agentName: string;
@@ -59,6 +74,44 @@ const CustomProviderForm: Component<Props> = (props) => {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
+  const [probeBusy, setProbeBusy] = createSignal(false);
+  const [probeError, setProbeError] = createSignal<string | null>(null);
+  const [isSelfHosted] = createResource(() => checkIsSelfHosted());
+
+  const applyPreset = (preset: Preset) => {
+    setName(preset.name);
+    setBaseUrl(preset.baseUrl);
+    setApiKey('');
+    setEditingKey(true);
+    setError(null);
+    setProbeError(null);
+  };
+
+  const handleProbe = async () => {
+    const url = baseUrl().trim();
+    if (!url) {
+      setProbeError('Enter a base URL first');
+      return;
+    }
+    setProbeBusy(true);
+    setProbeError(null);
+    try {
+      const { models } = await probeCustomProvider(
+        props.agentName,
+        url,
+        apiKey().trim() || undefined,
+      );
+      if (models.length === 0) {
+        setProbeError('Server returned no models');
+        return;
+      }
+      setRows(models.map((m) => ({ model_name: m.model_name, input_price: '', output_price: '' })));
+    } catch (e) {
+      setProbeError(e instanceof Error ? e.message : 'Probe failed');
+    } finally {
+      setProbeBusy(false);
+    }
+  };
 
   const updateRow = (index: number, field: keyof ModelRow, value: string) => {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
@@ -175,6 +228,25 @@ const CustomProviderForm: Component<Props> = (props) => {
         </div>
       </div>
 
+      <Show when={!isEdit() && isSelfHosted()}>
+        <div class="provider-detail__field">
+          <div class="provider-detail__label">Local server presets</div>
+          <div class="custom-provider-presets" style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <For each={LOCAL_SERVER_PRESETS}>
+              {(preset) => (
+                <button
+                  type="button"
+                  class="btn btn--outline btn--sm"
+                  onClick={() => applyPreset(preset)}
+                >
+                  {preset.label}
+                </button>
+              )}
+            </For>
+          </div>
+        </div>
+      </Show>
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -202,17 +274,44 @@ const CustomProviderForm: Component<Props> = (props) => {
           <label class="provider-detail__label" for="cp-base-url">
             Base URL
           </label>
-          <input
-            id="cp-base-url"
-            class="provider-detail__input"
-            type="url"
-            placeholder="https://api.example.com/v1"
-            value={baseUrl()}
-            onInput={(e) => {
-              setBaseUrl(e.currentTarget.value);
-              setError(null);
-            }}
-          />
+          <div class="provider-detail__key-row">
+            <input
+              id="cp-base-url"
+              class="provider-detail__input"
+              type="url"
+              placeholder="https://api.example.com/v1"
+              value={baseUrl()}
+              onInput={(e) => {
+                setBaseUrl(e.currentTarget.value);
+                setError(null);
+                setProbeError(null);
+              }}
+            />
+            <button
+              type="button"
+              class="btn btn--outline btn--sm"
+              onClick={handleProbe}
+              disabled={probeBusy() || !baseUrl().trim()}
+              aria-label="Fetch models from the server's /v1/models endpoint"
+            >
+              {probeBusy() ? <span class="spinner" /> : 'Fetch models'}
+            </button>
+          </div>
+          <Show when={isSelfHosted()}>
+            <div
+              class="provider-detail__hint"
+              style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground)); margin-top: 4px;"
+            >
+              For local servers use <code>http://host.docker.internal:&lt;port&gt;</code> (Docker)
+              or <code>http://localhost:&lt;port&gt;</code> (native). HTTPS required for public
+              URLs.
+            </div>
+          </Show>
+          <Show when={probeError()}>
+            <div class="provider-detail__error" role="alert" style="margin-top: 4px;">
+              {probeError()}
+            </div>
+          </Show>
         </div>
 
         <div class="provider-detail__field">

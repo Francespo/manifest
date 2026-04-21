@@ -39,6 +39,7 @@ Manifest is a smart model router for **personal AI agents** like OpenClaw, Herme
 - [Image tags](#image-tags)
 - [Upgrading](#upgrading)
 - [Backup & persistence](#backup--persistence)
+- [Connecting local LLM servers](#connecting-local-llm-servers)
 - [Environment variables](#environment-variables)
 - [Links](#links)
 
@@ -147,7 +148,6 @@ docker run -d \
   -e DATABASE_URL=postgresql://user:pass@host:5432/manifest \
   -e BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
   -e BETTER_AUTH_URL=http://localhost:3001 \
-  -e AUTO_MIGRATE=true \
   manifestdotbuild/manifest
 ```
 
@@ -164,7 +164,6 @@ docker run -d `
   -e DATABASE_URL=postgresql://user:pass@host:5432/manifest `
   -e BETTER_AUTH_SECRET=$secret `
   -e BETTER_AUTH_URL=http://localhost:3001 `
-  -e AUTO_MIGRATE=true `
   manifestdotbuild/manifest
 ```
 
@@ -181,13 +180,12 @@ docker run -d ^
   -e DATABASE_URL=postgresql://user:pass@host:5432/manifest ^
   -e BETTER_AUTH_SECRET=<your-64-char-secret> ^
   -e BETTER_AUTH_URL=http://localhost:3001 ^
-  -e AUTO_MIGRATE=true ^
   manifestdotbuild/manifest
 ```
 
 </details>
 
-`AUTO_MIGRATE=true` runs database migrations on first boot. Then open [http://localhost:3001](http://localhost:3001) and sign up. The first account you create becomes the admin.
+TypeORM migrations run automatically on every boot — fresh installs come up with the schema in place. Then visit [http://localhost:3001](http://localhost:3001) and complete the setup wizard to create your admin account.
 
 ### Verifying the image signature
 
@@ -232,6 +230,8 @@ By default the compose file binds port `3001` to `127.0.0.1` only. The dashboard
 3. `docker compose up -d` to apply.
 
 If you see "Invalid origin" on the login page, `BETTER_AUTH_URL` doesn't match the URL you're accessing the dashboard on. The host matters as much as the port.
+
+If the dashboard loads as a **blank page on a LAN IP on an older image**, pull the latest image (`docker compose pull && docker compose up -d`). Older builds emitted an `upgrade-insecure-requests` CSP directive that made browsers rewrite `/assets/*.js` to HTTPS on private-IP hosts (10.x / 172.16-31.x / 192.168.x), which the server doesn't serve — the JS bundle failed to load and the page never mounted. This directive has been removed.
 
 ## Image tags
 
@@ -281,6 +281,36 @@ docker volume ls | grep pgdata
 docker compose down -v    # ⚠  destroys all data
 ```
 
+## Connecting local LLM servers
+
+The self-hosted Manifest container can reach any OpenAI-compatible server running on your host via `host.docker.internal:<port>`. This works on Docker Desktop (macOS/Windows) out of the box, and on Linux with Docker Engine 20.10 or later.
+
+Because the container detects self-hosted mode automatically (via `/.dockerenv`), it lets you add custom providers with `http://` and private/loopback URLs — cloud-metadata endpoints (169.254.169.254, etc.) stay blocked.
+
+### Ollama (built-in tile)
+
+1. Install Ollama from [ollama.com](https://ollama.com) and pull a model:
+
+```bash
+ollama pull llama3.1:8b
+```
+
+2. In the dashboard, go to Providers → API Keys → click the **Ollama** tile.
+3. Manifest reaches Ollama at `http://host.docker.internal:11434` and syncs the available models.
+
+### vLLM, LM Studio, llama.cpp, text-generation-webui — anything OpenAI-compatible
+
+1. Start your server on the host. **Bind to `0.0.0.0`**, not `127.0.0.1`, so the Manifest container can reach it:
+   - vLLM: `vllm serve <model> --host 0.0.0.0 --port 8000`
+   - LM Studio: enable the local server on port 1234
+   - llama.cpp: `./server -m model.gguf --host 0.0.0.0 --port 8080`
+2. Providers → API Keys → **Add custom provider** → pick a preset chip, or type the URL (e.g. `http://host.docker.internal:8000/v1`).
+3. Click **Fetch models** to auto-populate the model list from the server's `/v1/models` endpoint.
+
+### Running Ollama on another machine
+
+If Ollama runs on a different host on your LAN, set `OLLAMA_HOST` in `.env` to the full URL (e.g. `http://192.168.1.20:11434`) and restart the stack. Private IPs are allowed in the self-hosted version.
+
 ## Environment variables
 
 | Variable             | Required | Default                 | Description                                   |
@@ -289,8 +319,10 @@ docker compose down -v    # ⚠  destroys all data
 | `BETTER_AUTH_SECRET` | Yes      | --                      | Session signing secret (min 32 chars)         |
 | `BETTER_AUTH_URL`    | No       | `http://localhost:3001` | Public URL. Set this when using a custom port |
 | `PORT`               | No       | `3001`                  | Internal server port                          |
-| `NODE_ENV`           | No       | `production`            | Set `development` for auto-migrations         |
+| `NODE_ENV`           | No       | `production`            | Runtime mode. Leave as `production` for Docker |
 | `SEED_DATA`          | No       | `false`                 | Seed demo data on startup                     |
+| `OLLAMA_HOST`        | No       | `http://host.docker.internal:11434` | Ollama endpoint for the built-in tile. Override to point at a LAN-hosted Ollama. |
+| `MANIFEST_MODE`      | No       | auto (Docker → selfhosted) | `selfhosted` or `cloud`. `local` is a legacy alias. Self-hosted mode allows private/http URLs for custom providers. |
 | `MANIFEST_TELEMETRY_DISABLED` | No | `0`               | Set `1` to disable anonymous usage telemetry  |
 
 Full env var reference: [github.com/mnfst/manifest](https://github.com/mnfst/manifest)

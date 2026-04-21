@@ -28,7 +28,7 @@ import {
   handleNonStreamResponse,
   recordSuccess,
 } from './proxy-response-handler';
-import { ProxyExceptionFilter } from './proxy-exception.filter';
+import { ProxyExceptionFilter, isChatRenderingClient } from './proxy-exception.filter';
 import { sendFriendlyResponse } from './proxy-friendly-response';
 
 const MAX_SEEN_USERS = 10_000;
@@ -156,46 +156,73 @@ export class ProxyController {
         callerAttribution,
       );
     } catch (err: unknown) {
-      if (clientAbort.signal.aborted) {
-        if (!res.writableEnded) res.end();
-        return;
-      }
+      this.handleProxyError(err, req, res, clientAbort, headersSent, traceId, callerAttribution);
+    } finally {
+      if (slotAcquired) this.rateLimiter.releaseSlot(userId);
+    }
+  }
 
-      const message = err instanceof Error ? err.message : String(err);
-      const status = err instanceof HttpException ? err.getStatus() : 500;
-      this.logger.error(`Proxy error: ${message}`);
+  private handleProxyError(
+    err: unknown,
+    req: Request & { ingestionContext: IngestionContext },
+    res: ExpressResponse,
+    clientAbort: AbortController,
+    headersSent: boolean,
+    traceId: string | undefined,
+    callerAttribution: ReturnType<typeof classifyCaller>,
+  ): void {
+    if (clientAbort.signal.aborted) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
 
-      this.recorder
-        .recordProviderError(req.ingestionContext, status, message, { traceId, callerAttribution })
-        .catch((e) => this.logger.warn(`Failed to record provider error: ${e}`));
+    const message = err instanceof Error ? err.message : String(err);
+    const status = err instanceof HttpException ? err.getStatus() : 500;
+    this.logger.error(`Proxy error: ${message}`);
 
-      if (headersSent) {
-        if (!res.writableEnded) res.end();
-        return;
-      }
+    this.recorder
+      .recordProviderError(req.ingestionContext, status, message, { traceId, callerAttribution })
+      .catch((e) => this.logger.warn(`Failed to record provider error: ${e}`));
 
-      // Rate limit errors stay as HTTP 429 so clients can backoff
-      if (status === 429) {
-        const response = err instanceof HttpException ? err.getResponse() : message;
-        res
-          .status(429)
-          .json(
-            typeof response === 'string'
-              ? { error: { message: response, type: 'proxy_error' } }
-              : response,
-          );
-        return;
-      }
+    if (headersSent) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
 
-      const isStream = (req.body as Record<string, unknown>)?.stream === true;
+    // Rate limit errors stay as HTTP 429 so clients can backoff
+    if (status === 429) {
+      const response = err instanceof HttpException ? err.getResponse() : message;
+      res
+        .status(429)
+        .json(
+          typeof response === 'string'
+            ? { error: { message: response, type: 'proxy_error' } }
+            : response,
+        );
+      return;
+    }
+
+    const isStream = (req.body as Record<string, unknown>)?.stream === true;
+    if (isChatRenderingClient(req)) {
       const clientMessage =
         status >= 500
           ? '[🦚 Manifest] Something broke on our end. Try again in a moment.'
           : message;
       sendFriendlyResponse(res, clientMessage, isStream);
-    } finally {
-      if (slotAcquired) this.rateLimiter.releaseSlot(userId);
+      return;
     }
+
+    // Tool/monitor caller — surface the real HTTP status with a structured
+    // envelope so CI pipelines can detect failures instead of treating the
+    // friendly stub as success.
+    const errorMessage =
+      status >= 500 ? 'Manifest encountered an internal error. Try again shortly.' : message;
+    res.status(status).json({
+      error: {
+        message: errorMessage,
+        type: status >= 500 ? 'server_error' : 'invalid_request_error',
+      },
+    });
   }
 
   private extractTraceId(req: Request): string | undefined {

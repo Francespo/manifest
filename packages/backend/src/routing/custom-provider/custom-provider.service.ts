@@ -13,6 +13,9 @@ import { RoutingCacheService } from '../routing-core/routing-cache.service';
 import { TierAutoAssignService } from '../routing-core/tier-auto-assign.service';
 import { CreateCustomProviderDto, UpdateCustomProviderDto } from '../dto/custom-provider.dto';
 import { validatePublicUrl } from '../../common/utils/url-validation';
+import { isSelfHosted } from '../../common/utils/detect-self-hosted';
+
+const PROBE_TIMEOUT_MS = 5000;
 
 @Injectable()
 export class CustomProviderService {
@@ -72,7 +75,7 @@ export class CustomProviderService {
     }
 
     try {
-      await validatePublicUrl(dto.base_url);
+      await validatePublicUrl(dto.base_url, { allowPrivate: isSelfHosted() });
     } catch (err) {
       throw new BadRequestException((err as Error).message);
     }
@@ -125,7 +128,7 @@ export class CustomProviderService {
 
     if (dto.base_url !== undefined) {
       try {
-        await validatePublicUrl(dto.base_url);
+        await validatePublicUrl(dto.base_url, { allowPrivate: isSelfHosted() });
       } catch (err) {
         throw new BadRequestException((err as Error).message);
       }
@@ -183,5 +186,67 @@ export class CustomProviderService {
 
   async getById(id: string): Promise<CustomProvider | null> {
     return this.repo.findOne({ where: { id } });
+  }
+
+  /**
+   * Probes the `{base_url}/models` endpoint of an OpenAI-compatible server
+   * and returns the discovered model IDs. Used by the "Fetch models" button
+   * in the custom-provider form so users connecting a local LLM server
+   * (vLLM, LM Studio, llama.cpp, Ollama-on-host) don't have to type each
+   * model name by hand.
+   */
+  async probeModels(baseUrl: string, apiKey?: string): Promise<{ model_name: string }[]> {
+    try {
+      await validatePublicUrl(baseUrl, { allowPrivate: isSelfHosted() });
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
+
+    // Trim trailing slashes without a regex to avoid polynomial backtracking
+    // on adversarial input (CodeQL js/polynomial-redos).
+    let end = baseUrl.length;
+    while (end > 0 && baseUrl.charCodeAt(end - 1) === 47 /* '/' */) end--;
+    const url = `${baseUrl.slice(0, end)}/models`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+      // User-controlled URL is intentional here — this endpoint exists to
+      // connect to operator-chosen LLM servers. validatePublicUrl() above is
+      // our SSRF mitigation: cloud metadata is always blocked, private IPs
+      // only accepted in the self-hosted version. `redirect: 'error'`
+      // ensures a hostile server can't redirect the probe to a destination
+      // that would bypass validation.
+      // codeql[js/request-forgery]
+      const res = await fetch(url, {
+        headers,
+        signal: controller.signal,
+        redirect: 'error',
+      });
+      if (!res.ok) {
+        throw new BadRequestException(`Probe failed: ${res.status}`);
+      }
+      // Guard against hostile endpoints returning non-JSON (HTML, binary, …).
+      const contentType = res.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        throw new BadRequestException(
+          `${url} did not return JSON (got ${contentType || 'no content-type'})`,
+        );
+      }
+      const body = (await res.json()) as { data?: { id?: string }[] };
+      const items = body?.data ?? [];
+      return items
+        .filter((m): m is { id: string } => typeof m.id === 'string' && m.id.length > 0)
+        .map((m) => ({ model_name: m.id }));
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new BadRequestException(`Timed out probing ${url} after ${PROBE_TIMEOUT_MS}ms`);
+      }
+      throw new BadRequestException(`Could not reach ${url}: ${(err as Error).message}`);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 }

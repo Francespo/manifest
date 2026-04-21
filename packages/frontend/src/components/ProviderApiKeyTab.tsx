@@ -3,7 +3,7 @@ import type { AuthType, CustomProviderData } from '../services/api.js';
 import { customProviderColor } from '../services/formatters.js';
 import type { ProviderDef } from '../services/providers.js';
 import { providerIcon, customProviderLogo } from './ProviderIcon.js';
-import { checkIsLocalMode, checkIsOllamaAvailable } from '../services/setup-status.js';
+import { checkIsSelfHosted, checkIsOllamaAvailable } from '../services/setup-status.js';
 
 type ListItem =
   | { kind: 'standard'; prov: ProviderDef }
@@ -20,12 +20,12 @@ interface Props {
 }
 
 const ProviderApiKeyTab: Component<Props> = (props) => {
-  const [isLocal, setIsLocal] = createSignal(false);
+  const [isSelfHosted, setIsSelfHosted] = createSignal(false);
   const [ollamaReady, setOllamaReady] = createSignal(false);
 
   onMount(async () => {
-    const [local, ollama] = await Promise.all([checkIsLocalMode(), checkIsOllamaAvailable()]);
-    setIsLocal(local);
+    const [selfHosted, ollama] = await Promise.all([checkIsSelfHosted(), checkIsOllamaAvailable()]);
+    setIsSelfHosted(selfHosted);
     setOllamaReady(ollama);
   });
 
@@ -77,17 +77,17 @@ const ProviderApiKeyTab: Component<Props> = (props) => {
             const isOllamaProvider = () => prov.id === 'ollama';
             const disabled = () => {
               if (!prov.localOnly) return false;
-              if (!isLocal()) return true;
-              // In local mode, Ollama is only enabled if reachable
+              if (!isSelfHosted()) return true;
+              // Ollama is only enabled if reachable at the configured host
               if (isOllamaProvider()) return !ollamaReady();
               return false;
             };
 
             const statusMessage = () => {
               if (!prov.localOnly) return null;
-              if (!isLocal()) return 'Only available on Manifest Local';
+              if (!isSelfHosted()) return 'Only available on self-hosted Manifest';
               if (isOllamaProvider() && !ollamaReady())
-                return 'Enable with: docker compose --profile ollama up';
+                return 'Install Ollama on your host from ollama.com, then click to connect';
               return null;
             };
 

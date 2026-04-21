@@ -5,8 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import { AgentMessage } from '../entities/agent-message.entity';
 import { LlmCall } from '../entities/llm-call.entity';
 import { ToolExecution } from '../entities/tool-execution.entity';
-import { TokenUsageSnapshot } from '../entities/token-usage-snapshot.entity';
-import { CostSnapshot } from '../entities/cost-snapshot.entity';
 import { AgentLog } from '../entities/agent-log.entity';
 import { ApiKey } from '../entities/api-key.entity';
 import { Tenant } from '../entities/tenant.entity';
@@ -71,13 +69,13 @@ import { AddCallerAttribution1775400000000 } from './migrations/1775400000000-Ad
 import { AddMessageProvider1775500000000 } from './migrations/1775500000000-AddMessageProvider';
 import { AddMessageFeedback1775600000000 } from './migrations/1775600000000-AddMessageFeedback';
 import { AddInstallMetadata1775700000000 } from './migrations/1775700000000-AddInstallMetadata';
+import { CleanupOrphanedCustomProviderRefs1776679833383 } from './migrations/1776679833383-CleanupOrphanedCustomProviderRefs';
+import { AddSpecificityMiscategorized1777000000000 } from './migrations/1777000000000-AddSpecificityMiscategorized';
 
 const entities = [
   AgentMessage,
   LlmCall,
   ToolExecution,
-  TokenUsageSnapshot,
-  CostSnapshot,
   AgentLog,
   ApiKey,
   Tenant,
@@ -143,6 +141,8 @@ const migrations = [
   AddMessageProvider1775500000000,
   AddMessageFeedback1775600000000,
   AddInstallMetadata1775700000000,
+  CleanupOrphanedCustomProviderRefs1776679833383,
+  AddSpecificityMiscategorized1777000000000,
 ];
 
 @Module({
@@ -155,9 +155,13 @@ const migrations = [
         url: config.get<string>('app.databaseUrl'),
         entities,
         synchronize: false,
-        migrationsRun:
-          process.env['AUTO_MIGRATE'] === 'true' ||
-          ['development', 'test'].includes(config.get<string>('app.nodeEnv') ?? ''),
+        // Run migrations on every boot. `synchronize: false` is permanent, so
+        // committed migrations are the only source of schema changes — there's
+        // no scenario where production should boot with pending migrations
+        // unapplied (the dashboard 500s on missing tables). Previously this
+        // was gated on AUTO_MIGRATE=true / NODE_ENV, which broke fresh
+        // production installs whose env didn't set the var (see #1551 / 5.45.1).
+        migrationsRun: true,
         migrationsTransactionMode: 'all' as const,
         migrations,
         logging: false,
