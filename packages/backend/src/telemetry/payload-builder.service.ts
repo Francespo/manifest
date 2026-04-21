@@ -12,6 +12,11 @@ interface ProviderAggregateRow {
   count: string;
 }
 
+interface BucketRow {
+  bucket: string | null;
+  count: string;
+}
+
 interface TotalsRow {
   total: string;
   input_tokens: string | null;
@@ -20,8 +25,8 @@ interface TotalsRow {
 
 /**
  * Builds the daily telemetry payload by aggregating the last 24h of
- * `agent_messages` plus the total agent count. All SELECTs are parameterised
- * so the window is consistent across queries.
+ * `agent_messages` plus the total agent count + runtime metadata. All
+ * SELECTs are parameterised so the window is consistent across queries.
  */
 @Injectable()
 export class PayloadBuilderService {
@@ -33,11 +38,15 @@ export class PayloadBuilderService {
   ) {}
 
   async build(installId: string, manifestVersion: string): Promise<TelemetryPayloadV1> {
-    const [providerRows, totals, agentsTotal] = await Promise.all([
-      this.messagesByProvider(),
-      this.totals(),
-      this.agents.count(),
-    ]);
+    const [providerRows, tierRows, authRows, totals, agentsTotal, agentPlatformRows] =
+      await Promise.all([
+        this.messagesByProvider(),
+        this.messagesByBucket('routing_tier'),
+        this.messagesByBucket('auth_type'),
+        this.totals(),
+        this.agents.count(),
+        this.agentsByPlatform(),
+      ]);
 
     return {
       schema_version: TELEMETRY_SCHEMA_VERSION,
@@ -45,9 +54,15 @@ export class PayloadBuilderService {
       manifest_version: manifestVersion,
       messages_total: Number(totals.total),
       messages_by_provider: this.collapseProviders(providerRows),
+      messages_by_tier: this.bucketsToRecord(tierRows, 'unknown'),
+      messages_by_auth_type: this.bucketsToRecord(authRows, 'unknown'),
       tokens_input_total: Number(totals.input_tokens ?? 0),
       tokens_output_total: Number(totals.output_tokens ?? 0),
       agents_total: agentsTotal,
+      agents_by_platform: this.bucketsToRecord(agentPlatformRows, 'unknown'),
+      platform: process.platform,
+      arch: process.arch,
+      node_version: process.version.replace(/^v/, ''),
     };
   }
 
@@ -59,6 +74,30 @@ export class PayloadBuilderService {
       .where(`m.timestamp >= NOW() - INTERVAL '24 hours'`)
       .groupBy('m.provider')
       .getRawMany<ProviderAggregateRow>();
+  }
+
+  /**
+   * Groups the 24h-window messages by any column whose values are already a
+   * short stable set (`routing_tier`, `auth_type`). We trust the set because
+   * the producer — our own proxy — writes known enum strings.
+   */
+  private async messagesByBucket(column: 'routing_tier' | 'auth_type'): Promise<BucketRow[]> {
+    return this.messages
+      .createQueryBuilder('m')
+      .select(`m.${column}`, 'bucket')
+      .addSelect('COUNT(*)', 'count')
+      .where(`m.timestamp >= NOW() - INTERVAL '24 hours'`)
+      .groupBy(`m.${column}`)
+      .getRawMany<BucketRow>();
+  }
+
+  private async agentsByPlatform(): Promise<BucketRow[]> {
+    return this.agents
+      .createQueryBuilder('a')
+      .select('a.agent_platform', 'bucket')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('a.agent_platform')
+      .getRawMany<BucketRow>();
   }
 
   private async totals(): Promise<TotalsRow> {
@@ -91,5 +130,14 @@ export class PayloadBuilderService {
     if (!provider) return 'unknown';
     const entry = PROVIDER_BY_ID_OR_ALIAS.get(provider.toLowerCase());
     return entry ? entry.id : 'custom';
+  }
+
+  private bucketsToRecord(rows: BucketRow[], nullLabel: string): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const row of rows) {
+      const key = row.bucket ?? nullLabel;
+      out[key] = (out[key] ?? 0) + Number(row.count);
+    }
+    return out;
   }
 }

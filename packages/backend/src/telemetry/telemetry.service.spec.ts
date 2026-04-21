@@ -41,6 +41,26 @@ const baseInstall = {
   last_sent_at: null as string | null,
 };
 
+function payloadStub(overrides: Partial<TelemetryPayloadV1> = {}): TelemetryPayloadV1 {
+  return {
+    schema_version: 1,
+    install_id: 'inst-1',
+    manifest_version: '9.9.9',
+    messages_total: 0,
+    messages_by_provider: {},
+    messages_by_tier: {},
+    messages_by_auth_type: {},
+    tokens_input_total: 0,
+    tokens_output_total: 0,
+    agents_total: 0,
+    agents_by_platform: {},
+    platform: 'linux',
+    arch: 'x64',
+    node_version: '22.17.1',
+    ...overrides,
+  };
+}
+
 describe('TelemetryService', () => {
   let fetchSpy: jest.SpyInstance;
 
@@ -111,16 +131,7 @@ describe('TelemetryService', () => {
     it('sends when no previous send exists and jitter has elapsed', async () => {
       const { service, install, payloadBuilder } = makeService();
       install.getOrCreate.mockResolvedValue(baseInstall);
-      payloadBuilder.build.mockResolvedValue({
-        schema_version: 1,
-        install_id: 'inst-1',
-        manifest_version: '9.9.9',
-        messages_total: 0,
-        messages_by_provider: {},
-        tokens_input_total: 0,
-        tokens_output_total: 0,
-        agents_total: 0,
-      });
+      payloadBuilder.build.mockResolvedValue(payloadStub());
       fetchSpy.mockResolvedValue(new Response('{}', { status: 200 }));
 
       await service.tick(new Date('2026-04-20T00:00:00'));
@@ -141,16 +152,18 @@ describe('TelemetryService', () => {
         first_send_at: '2026-04-01T00:00:00',
         last_sent_at: old,
       });
-      payloadBuilder.build.mockResolvedValue({
-        schema_version: 1,
-        install_id: 'inst-1',
-        manifest_version: '9.9.9',
-        messages_total: 1,
-        messages_by_provider: { anthropic: 1 },
-        tokens_input_total: 10,
-        tokens_output_total: 5,
-        agents_total: 1,
-      });
+      payloadBuilder.build.mockResolvedValue(
+        payloadStub({
+          messages_total: 1,
+          messages_by_provider: { anthropic: 1 },
+          messages_by_tier: { simple: 1 },
+          messages_by_auth_type: { api_key: 1 },
+          tokens_input_total: 10,
+          tokens_output_total: 5,
+          agents_total: 1,
+          agents_by_platform: { openclaw: 1 },
+        }),
+      );
       fetchSpy.mockResolvedValue(new Response('{}', { status: 200 }));
 
       await service.tick(now);
@@ -161,16 +174,7 @@ describe('TelemetryService', () => {
     it('does not mark sent when the endpoint returns non-2xx', async () => {
       const { service, install, payloadBuilder } = makeService();
       install.getOrCreate.mockResolvedValue(baseInstall);
-      payloadBuilder.build.mockResolvedValue({
-        schema_version: 1,
-        install_id: 'inst-1',
-        manifest_version: '9.9.9',
-        messages_total: 0,
-        messages_by_provider: {},
-        tokens_input_total: 0,
-        tokens_output_total: 0,
-        agents_total: 0,
-      });
+      payloadBuilder.build.mockResolvedValue(payloadStub());
       fetchSpy.mockResolvedValue(new Response('down', { status: 503 }));
 
       await service.tick(new Date('2026-04-20T00:00:00'));
@@ -181,16 +185,7 @@ describe('TelemetryService', () => {
     it('swallows fetch errors so the cron never crashes the process', async () => {
       const { service, install, payloadBuilder } = makeService();
       install.getOrCreate.mockResolvedValue(baseInstall);
-      payloadBuilder.build.mockResolvedValue({
-        schema_version: 1,
-        install_id: 'inst-1',
-        manifest_version: '9.9.9',
-        messages_total: 0,
-        messages_by_provider: {},
-        tokens_input_total: 0,
-        tokens_output_total: 0,
-        agents_total: 0,
-      });
+      payloadBuilder.build.mockResolvedValue(payloadStub());
       fetchSpy.mockRejectedValue(new Error('offline'));
 
       await expect(service.tick(new Date('2026-04-20T00:00:00'))).resolves.toBeUndefined();
