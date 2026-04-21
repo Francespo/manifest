@@ -401,7 +401,7 @@ To add a new font or icon library:
 
 Self-hosted installs (Docker / `node dist/main.js` with `NODE_ENV=production`)
 send one aggregate usage report per 24h to `TELEMETRY_ENDPOINT` (default
-`https://telemetry.manifest.build/v1/report`). The module lives at
+`https://telemetry.manifest.build/telemetry/v1/report`). The module lives at
 `packages/backend/src/telemetry/`.
 
 **Payload fields (v1) — keep this list minimal**:

@@ -6,7 +6,7 @@ import { resolve } from 'path';
  * report here. Can be overridden via `TELEMETRY_ENDPOINT` (useful in tests or
  * for routing through a proxy).
  */
-export const DEFAULT_TELEMETRY_ENDPOINT = 'https://telemetry.manifest.build/v1/report';
+export const DEFAULT_TELEMETRY_ENDPOINT = 'https://telemetry.manifest.build/telemetry/v1/report';
 
 export const TELEMETRY_SCHEMA_VERSION = 1;
 
