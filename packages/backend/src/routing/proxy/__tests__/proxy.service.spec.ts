@@ -90,8 +90,8 @@ describe('ProxyService', () => {
 
     configService = {
       get: jest.fn((key: string, fallback?: unknown) => {
-        if (key === 'app.betterAuthUrl') return 'http://localhost:3001';
-        if (key === 'app.port') return 3001;
+        if (key === 'app.betterAuthUrl') return 'http://localhost:2099';
+        if (key === 'app.port') return 2099;
         return fallback;
       }),
     } as unknown as jest.Mocked<ConfigService>;
@@ -334,7 +334,7 @@ describe('ProxyService', () => {
 
     const json = (await result.forward.response.json()) as Record<string, unknown>;
     const choices = json.choices as { message: { content: string } }[];
-    expect(choices[0].message.content).toContain('http://localhost:3001/agents/my-agent/routing');
+    expect(choices[0].message.content).toContain('http://localhost:2099/agents/my-agent/routing');
   });
 
   it('uses bare base URL in no-provider response when agentName is missing', async () => {
@@ -356,7 +356,7 @@ describe('ProxyService', () => {
 
     const json = (await result.forward.response.json()) as Record<string, unknown>;
     const choices = json.choices as { message: { content: string } }[];
-    expect(choices[0].message.content).toContain('http://localhost:3001');
+    expect(choices[0].message.content).toContain('http://localhost:2099');
     expect(choices[0].message.content).not.toContain('/routing');
     expect(choices[0].message.content).not.toContain('/agents/');
   });
@@ -1142,7 +1142,7 @@ describe('ProxyService', () => {
       };
       expect(json.choices[0].message.content).toContain('You hit your tokens limit');
       expect(json.choices[0].message.content).toContain(
-        'http://localhost:3001/agents/my-agent/limits',
+        'http://localhost:2099/agents/my-agent/limits',
       );
       expect(result.meta.reason).toBe('limit_exceeded');
     });

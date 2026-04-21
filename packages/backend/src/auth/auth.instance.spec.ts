@@ -135,12 +135,12 @@ describe('auth.instance', () => {
       delete process.env['BETTER_AUTH_URL'];
       delete process.env['CORS_ORIGIN'];
       delete process.env['FRONTEND_PORT'];
-      process.env['PORT'] = '3001';
+      process.env['PORT'] = '2099';
       loadModule();
 
       const config = mockBetterAuth.mock.calls[0][0];
       expect(config.trustedOrigins).toContain('http://localhost:3000');
-      expect(config.trustedOrigins).toContain('http://localhost:3001');
+      expect(config.trustedOrigins).toContain('http://localhost:2099');
     });
 
     it('includes BETTER_AUTH_URL when set', () => {
@@ -173,12 +173,12 @@ describe('auth.instance', () => {
       delete process.env['BETTER_AUTH_URL'];
       delete process.env['CORS_ORIGIN'];
       delete process.env['FRONTEND_PORT'];
-      process.env['PORT'] = '3001';
+      process.env['PORT'] = '2099';
       loadModule();
 
       const config = mockBetterAuth.mock.calls[0][0];
       expect(config.trustedOrigins).not.toContain('http://localhost:3000');
-      expect(config.trustedOrigins).not.toContain('http://localhost:3001');
+      expect(config.trustedOrigins).not.toContain('http://localhost:2099');
     });
   });
 
@@ -402,13 +402,13 @@ describe('auth.instance', () => {
       expect(config.baseURL).toBe('http://localhost:4000');
     });
 
-    it('falls back to localhost:3001 when neither BETTER_AUTH_URL nor PORT is set', () => {
+    it('falls back to localhost:2099 when neither BETTER_AUTH_URL nor PORT is set', () => {
       delete process.env['BETTER_AUTH_URL'];
       delete process.env['PORT'];
       loadModule();
 
       const config = mockBetterAuth.mock.calls[0][0];
-      expect(config.baseURL).toBe('http://localhost:3001');
+      expect(config.baseURL).toBe('http://localhost:2099');
     });
   });
 

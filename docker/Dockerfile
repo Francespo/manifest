@@ -34,8 +34,7 @@ RUN --mount=type=cache,target=/root/.npm \
            --prefer-offline --no-audit --no-fund --loglevel=error && \
     rm -rf node_modules/typescript node_modules/@types \
            node_modules/ts-node node_modules/acorn \
-           node_modules/create-require node_modules/v8-compile-cache-lib \
-           node_modules/sql.js && \
+           node_modules/create-require node_modules/v8-compile-cache-lib && \
     find . -path "*/node_modules/vitest" -type d -exec rm -rf {} + 2>/dev/null; \
     find . -path "*/node_modules/vite-node" -type d -exec rm -rf {} + 2>/dev/null; \
     find . -path "*/node_modules/rollup" -type d -exec rm -rf {} + 2>/dev/null; \
@@ -77,12 +76,12 @@ COPY --from=build --chown=nonroot:nonroot /app/packages/frontend/dist packages/f
 COPY --chown=nonroot:nonroot packages/shared/package.json packages/shared/
 COPY --chown=nonroot:nonroot packages/backend/package.json packages/backend/
 
-EXPOSE 3001
+EXPOSE 2099
 
 # Distroless has no shell; use exec-form and a JS-only check.
 # `node` resolves via the PATH we set above.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  CMD ["node", "-e", "fetch('http://127.0.0.1:2099/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
 # The distroless image's ENTRYPOINT is already ["/nodejs/bin/node"],
 # so CMD only needs the script path.

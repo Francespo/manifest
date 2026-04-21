@@ -15,10 +15,10 @@ describe('appConfig', () => {
     return appConfig();
   }
 
-  it('returns default port 3001', async () => {
+  it('returns default port 2099', async () => {
     delete process.env['PORT'];
     const config = await loadConfig();
-    expect(config.port).toBe(3001);
+    expect(config.port).toBe(2099);
   });
 
   it('reads PORT from env', async () => {

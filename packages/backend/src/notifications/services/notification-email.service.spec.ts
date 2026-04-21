@@ -53,7 +53,7 @@ describe('NotificationEmailService', () => {
       actualValue: 1500,
       period: 'hour',
       timestamp: '2024-01-01T00:00:00Z',
-      agentUrl: 'http://localhost:3001/agents/demo-agent',
+      agentUrl: 'http://localhost:2099/agents/demo-agent',
     });
 
     expect(result).toBe(true);
@@ -77,7 +77,7 @@ describe('NotificationEmailService', () => {
       actualValue: 75,
       period: 'day',
       timestamp: '2024-01-01T12:00:00Z',
-      agentUrl: 'http://localhost:3001/agents/demo-agent',
+      agentUrl: 'http://localhost:2099/agents/demo-agent',
     });
 
     expect(result).toBe(false);
@@ -96,7 +96,7 @@ describe('NotificationEmailService', () => {
         actualValue: 1500,
         period: 'hour',
         timestamp: '2024-01-01T00:00:00Z',
-        agentUrl: 'http://localhost:3001/agents/demo-agent',
+        agentUrl: 'http://localhost:2099/agents/demo-agent',
       },
       {
         provider: 'resend',
@@ -131,7 +131,7 @@ describe('NotificationEmailService', () => {
         actualValue: 75,
         period: 'day',
         timestamp: '2024-01-01T12:00:00Z',
-        agentUrl: 'http://localhost:3001/agents/demo-agent',
+        agentUrl: 'http://localhost:2099/agents/demo-agent',
       },
       {
         provider: 'sendgrid',
@@ -161,7 +161,7 @@ describe('NotificationEmailService', () => {
         actualValue: 1500,
         period: 'hour',
         timestamp: '2024-01-01T00:00:00Z',
-        agentUrl: 'http://localhost:3001/agents/demo-agent',
+        agentUrl: 'http://localhost:2099/agents/demo-agent',
       },
       {
         provider: 'resend',
@@ -183,7 +183,7 @@ describe('NotificationEmailService', () => {
       actualValue: 1500,
       period: 'hour',
       timestamp: '2024-01-01T00:00:00Z',
-      agentUrl: 'http://localhost:3001/agents/demo-agent',
+      agentUrl: 'http://localhost:2099/agents/demo-agent',
       alertType: 'soft',
     });
 
@@ -204,7 +204,7 @@ describe('NotificationEmailService', () => {
       actualValue: 75,
       period: 'day',
       timestamp: '2024-01-01T12:00:00Z',
-      agentUrl: 'http://localhost:3001/agents/demo-agent',
+      agentUrl: 'http://localhost:2099/agents/demo-agent',
       alertType: 'hard',
     });
 
@@ -225,7 +225,7 @@ describe('NotificationEmailService', () => {
       actualValue: 1500,
       period: 'hour',
       timestamp: '2024-01-01T00:00:00Z',
-      agentUrl: 'http://localhost:3001/agents/demo-agent',
+      agentUrl: 'http://localhost:2099/agents/demo-agent',
     });
 
     expect(sendEmail).toHaveBeenCalledWith(

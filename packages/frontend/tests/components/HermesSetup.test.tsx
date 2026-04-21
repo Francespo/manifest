@@ -11,7 +11,7 @@ describe("HermesSetup", () => {
   const defaultProps = {
     apiKey: null as string | null,
     keyPrefix: null as string | null,
-    baseUrl: "http://localhost:3001/v1",
+    baseUrl: "http://localhost:2099/v1",
   };
 
   beforeEach(() => {
@@ -30,7 +30,7 @@ describe("HermesSetup", () => {
 
   it("shows config.yaml code block with model section only", () => {
     const { container } = render(() => <HermesSetup {...defaultProps} />);
-    expect(container.textContent).toContain("http://localhost:3001/v1");
+    expect(container.textContent).toContain("http://localhost:2099/v1");
     expect(container.textContent).toContain("model:");
     expect(container.textContent).toContain("provider: custom");
     expect(container.textContent).toContain("default: auto");

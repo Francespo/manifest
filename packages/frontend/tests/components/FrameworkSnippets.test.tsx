@@ -11,7 +11,7 @@ describe("FrameworkSnippets", () => {
   const defaultProps = {
     apiKey: null as string | null,
     keyPrefix: null as string | null,
-    baseUrl: "http://localhost:3001/v1",
+    baseUrl: "http://localhost:2099/v1",
   };
 
   beforeEach(() => {
@@ -21,7 +21,7 @@ describe("FrameworkSnippets", () => {
 
   it("renders connection details with base URL", () => {
     const { container } = render(() => <FrameworkSnippets {...defaultProps} />);
-    expect(container.textContent).toContain("http://localhost:3001/v1");
+    expect(container.textContent).toContain("http://localhost:2099/v1");
     expect(container.textContent).toContain("Base URL");
   });
 

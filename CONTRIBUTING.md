@@ -53,7 +53,7 @@ cp packages/backend/.env.example packages/backend/.env
 Edit `packages/backend/.env` with at least:
 
 ```env
-PORT=3001
+PORT=2099
 BIND_ADDRESS=127.0.0.1
 NODE_ENV=development
 BETTER_AUTH_SECRET=<run: openssl rand -hex 32>
@@ -99,7 +99,7 @@ cd packages/backend && NODE_OPTIONS='-r dotenv/config' npx nest start --watch
 cd packages/frontend && npx vite
 ```
 
-The frontend runs on `http://localhost:3000` and proxies API requests to the backend on `http://localhost:3001`.
+The frontend runs on `http://localhost:3000` and proxies API requests to the backend on `http://localhost:2099`.
 
 5. With `SEED_DATA=true`, you can log in with `admin@manifest.build` / `manifest`.
 
@@ -230,7 +230,7 @@ Write clear, concise commit messages that explain **why** the change was made. U
 ## Architecture Notes
 
 - **Single-service deployment**: In production, NestJS serves both the API and the frontend static files from the same port via `@nestjs/serve-static`.
-- **Dev mode**: Vite on `:3000` proxies `/api` and `/v1` to the backend on `:3001`. CORS is enabled only in development.
+- **Dev mode**: Vite on `:3000` proxies `/api` and `/v1` to the backend on `:2099`. CORS is enabled only in development.
 - **Database**: PostgreSQL 16 for both local development and production. Schema changes are managed via TypeORM migrations (`migrationsRun: true` on boot). After modifying an entity, generate a migration with `npm run migration:generate -- src/database/migrations/Name`.
 - **Validation**: Global `ValidationPipe` with `whitelist: true` and `forbidNonWhitelisted: true`.
 - **TypeScript**: Strict mode across all packages.

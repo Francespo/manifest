@@ -37,7 +37,7 @@ describe('ProxyExceptionFilter', () => {
   beforeEach(() => {
     config = {
       get: jest.fn((key: string) => {
-        if (key === 'app.betterAuthUrl') return 'http://localhost:3001';
+        if (key === 'app.betterAuthUrl') return 'http://localhost:2099';
         return undefined;
       }),
     } as unknown as jest.Mocked<ConfigService>;
@@ -89,7 +89,7 @@ describe('ProxyExceptionFilter', () => {
       expect(res.status).toHaveBeenCalledWith(200);
       const content = res.json.mock.calls[0][0].choices[0].message.content;
       expect(content).toContain('expired');
-      expect(content).toContain('http://localhost:3001');
+      expect(content).toContain('http://localhost:2099');
       expect(content).not.toContain('/routing');
     });
 
@@ -107,8 +107,8 @@ describe('ProxyExceptionFilter', () => {
       filter.catch(new UnauthorizedException('Invalid API key'), host);
 
       const content = res.json.mock.calls[0][0].choices[0].message.content;
-      expect(content).toContain('Dashboard: http://localhost:3001');
-      expect(content).not.toContain('Dashboard: http://localhost:3001/routing');
+      expect(content).toContain('Dashboard: http://localhost:2099');
+      expect(content).not.toContain('Dashboard: http://localhost:2099/routing');
     });
   });
 

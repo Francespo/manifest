@@ -95,7 +95,7 @@ packages/
 │   │   │   ├── utils/range.util.ts
 │   │   │   ├── utils/hash.util.ts           # API key hashing (scrypt KDF)
 │   │   │   ├── utils/crypto.util.ts         # AES-256-GCM encryption
-│   │   │   ├── utils/sql-dialect.ts         # Postgres SQL helpers (column types, bucket/cast expressions)
+│   │   │   ├── utils/postgres-sql.ts        # Postgres SQL helpers (column types, bucket/cast expressions)
 │   │   │   ├── utils/slugify.ts             # Name slugification
 │   │   │   ├── utils/url-validation.ts      # URL validation
 │   │   │   ├── utils/provider-inference.ts  # Provider detection from model names
@@ -170,7 +170,7 @@ npm start         # node packages/backend/dist/main.js — serves frontend + API
 ```
 
 - API routes (`/api/*`, `/otlp/*`) are excluded from static file serving.
-- Dev mode: Vite on `:3000` proxies `/api` and `/otlp` to backend on `:3001`.
+- Dev mode: Vite on `:3000` proxies `/api` and `/otlp` to backend on `:2099`.
 
 ## Commands
 
@@ -206,7 +206,7 @@ Seeding is idempotent — it checks for existing records before inserting.
 **Minimal `.env` for development:**
 
 ```env
-PORT=3001
+PORT=2099
 BIND_ADDRESS=127.0.0.1
 NODE_ENV=development
 BETTER_AUTH_SECRET=<random-hex-64-chars>
@@ -272,7 +272,7 @@ Three global guards run on every request (order matters):
 - **Instance**: `auth/auth.instance.ts` — `betterAuth()` with `emailAndPassword` + 3 social providers (Google, GitHub, Discord). Each provider only activates when both `CLIENT_ID` and `CLIENT_SECRET` env vars are set.
 - **Mounting**: In `main.ts`, Better Auth is mounted as Express middleware at `/api/auth/*splat` **before** `express.json()` (it needs raw body control). NestJS body parsing is re-added after for all other routes.
 - **Frontend client**: `services/auth-client.ts` — `createAuthClient()` from `better-auth/solid`.
-- **Social login in dev**: OAuth callback URLs point to `:3001` (`BETTER_AUTH_URL`). Social login only works when accessing the app on port **3001** (production build), not on Vite's `:3000` dev server.
+- **Social login in dev**: OAuth callback URLs point to `:2099` (`BETTER_AUTH_URL`). Social login only works when accessing the app on port **2099** (production build), not on Vite's `:3000` dev server.
 
 ### Auth Types
 
@@ -342,7 +342,7 @@ See `packages/backend/.env.example` for all variables. Key ones:
 
 - `BETTER_AUTH_SECRET` — **Required.** Secret for Better Auth session signing (min 32 chars). Generate with `openssl rand -hex 32`.
 - `DATABASE_URL` — **Required in production.** PostgreSQL connection string. Format: `postgresql://user:password@host:port/database`. Defaults to `postgresql://myuser:mypassword@localhost:5432/mydatabase` (matches the local Docker command).
-- `PORT` — Server port. Default: `3001`
+- `PORT` — Server port. Default: `2099`
 - `BIND_ADDRESS` — Bind address. Default: `127.0.0.1` (use `0.0.0.0` for Railway/Docker)
 - `NODE_ENV` — `development` or `production`. CORS only enabled in dev.
 - `CORS_ORIGIN` — Allowed CORS origin. Default: `http://localhost:3000`
@@ -396,7 +396,7 @@ To add a new font or icon library:
 ## Architecture Notes
 
 - **Single-service**: In production, `@nestjs/serve-static` serves `frontend/dist/` with SPA fallback. API routes (`/api/*`, `/otlp/*`) are excluded.
-- **Dev mode**: Vite dev server on `:3000` proxies `/api` and `/otlp` to backend on `:3001`. CORS enabled only in dev.
+- **Dev mode**: Vite dev server on `:3000` proxies `/api` and `/otlp` to backend on `:2099`. CORS enabled only in dev.
 - **Body parsing**: Disabled at NestJS level (`bodyParser: false`). Better Auth mounted first (needs raw body), then `express.json()` and `express.urlencoded()`.
 - **QueryBuilder API**: Analytics and ingestion services use TypeORM `Repository.createQueryBuilder()` instead of raw SQL. The `addTenantFilter()` helper in `query-helpers.ts` applies multi-tenant WHERE clauses. Only the database seeder and notification cron still use `DataSource.query()` with numbered `$1, $2, ...` placeholders.
 - **PostgreSQL time functions**: `NOW() - CAST(:interval AS interval)`, `to_char(date_trunc('hour', timestamp), ...)`, `timestamp::date`.

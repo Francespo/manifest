@@ -38,7 +38,7 @@ describe('LimitCheckService', () => {
       getFullConfig: mockGetFullConfig,
     } as unknown as EmailProviderConfigService;
     mockRuntime = {
-      getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:3001'),
+      getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:2099'),
     };
 
     ingestSubject = new Subject<string>();

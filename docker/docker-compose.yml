@@ -1,5 +1,5 @@
 # First boot: `docker compose up -d` starts the stack. Visit
-# http://localhost:3001 and the app walks you through creating the first
+# http://localhost:2099 and the app walks you through creating the first
 # admin account via the setup wizard at /setup. No hardcoded credentials.
 #
 # Configuration comes from a `.env` file next to this compose file.
@@ -24,14 +24,14 @@
 #     set BETTER_AUTH_URL to a reachable public URL so the verification
 #     links resolve.
 #   - The app port binds to 127.0.0.1 by default. To expose on the LAN,
-#     change `127.0.0.1:3001:3001` below to `3001:3001` AND update
+#     change `127.0.0.1:2099:2099` below to `2099:2099` AND update
 #     BETTER_AUTH_URL in .env to match the host you reach it on.
 
 services:
   manifest:
     image: manifestdotbuild/manifest:latest
     ports:
-      - "127.0.0.1:3001:3001"
+      - "127.0.0.1:2099:2099"
     # Lets the container reach LLM servers running on the host (Ollama,
     # vLLM, LM Studio, llama.cpp, …) at host.docker.internal:<port>.
     # Requires Docker Engine 20.10+ (Docker Desktop works out of the box).
@@ -40,7 +40,7 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql://manifest:manifest@postgres:5432/manifest}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set in .env}
-      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:2099}
       # Defaults to the host-installed Ollama. Override in .env if your
       # Ollama runs elsewhere (e.g. on another host on your LAN).
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
@@ -68,7 +68,7 @@ services:
         - "CMD"
         - "node"
         - "-e"
-        - "fetch('http://127.0.0.1:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        - "fetch('http://127.0.0.1:2099/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
       interval: 30s
       timeout: 5s
       start_period: 45s

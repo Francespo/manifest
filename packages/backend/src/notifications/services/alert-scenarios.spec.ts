@@ -91,7 +91,7 @@ describe('Alert scenarios — email only (notify)', () => {
         {
           provide: ManifestRuntimeService,
           useValue: {
-            getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:3001'),
+            getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:2099'),
           },
         },
       ],
@@ -213,7 +213,7 @@ describe('Alert scenarios — email + block (both)', () => {
       } as unknown as EmailProviderConfigService,
       { all: () => ingestSubject.asObservable() } as unknown as IngestEventBusService,
       {
-        getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:3001'),
+        getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:2099'),
       } as unknown as ManifestRuntimeService,
       {
         hasAlreadySent: mockHasAlreadySent,
@@ -419,7 +419,7 @@ describe('Alert scenarios — no rules defined', () => {
         {
           provide: ManifestRuntimeService,
           useValue: {
-            getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:3001'),
+            getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:2099'),
           },
         },
       ],
@@ -440,7 +440,7 @@ describe('Alert scenarios — no rules defined', () => {
       } as unknown as EmailProviderConfigService,
       { all: () => ingestSubject.asObservable() } as unknown as IngestEventBusService,
       {
-        getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:3001'),
+        getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:2099'),
       } as unknown as ManifestRuntimeService,
       {
         hasAlreadySent: jest.fn().mockResolvedValue(false),
