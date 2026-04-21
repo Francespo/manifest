@@ -75,7 +75,7 @@ jobs:
         run: |
           set -e
           for i in $(seq 1 60); do
-            if curl -sSf http://127.0.0.1:3001/api/v1/health >/dev/null; then
+            if curl -sSf http://127.0.0.1:2099/api/v1/health >/dev/null; then
               echo "healthy after ${i}s"
               exit 0
             fi
@@ -87,19 +87,19 @@ jobs:
 
       - name: Verify health payload shape
         run: |
-          response=$(curl -sS http://127.0.0.1:3001/api/v1/health)
+          response=$(curl -sS http://127.0.0.1:2099/api/v1/health)
           echo "$response"
           echo "$response" | grep -q '"status":"healthy"'
 
       - name: Verify SPA index loads
         run: |
-          curl -sSf http://127.0.0.1:3001/ -o /tmp/index.html
+          curl -sSf http://127.0.0.1:2099/ -o /tmp/index.html
           test -s /tmp/index.html
           grep -q '<title>Manifest</title>' /tmp/index.html
 
       - name: Verify public stats are gated off by default
         run: |
-          status=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/api/v1/public/usage)
+          status=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:2099/api/v1/public/usage)
           if [[ "$status" != "404" ]]; then
             echo "expected 404 for /public/usage when MANIFEST_PUBLIC_STATS is unset, got $status" >&2
             exit 1

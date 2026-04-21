@@ -95,7 +95,7 @@ packages/
 │   │   │   ├── utils/range.util.ts
 │   │   │   ├── utils/hash.util.ts           # API key hashing (scrypt KDF)
 │   │   │   ├── utils/crypto.util.ts         # AES-256-GCM encryption
-│   │   │   ├── utils/sql-dialect.ts         # Postgres SQL helpers (column types, bucket/cast expressions)
+│   │   │   ├── utils/postgres-sql.ts        # Postgres SQL helpers (column types, bucket/cast expressions)
 │   │   │   ├── utils/slugify.ts             # Name slugification
 │   │   │   ├── utils/url-validation.ts      # URL validation
 │   │   │   ├── utils/provider-inference.ts  # Provider detection from model names
