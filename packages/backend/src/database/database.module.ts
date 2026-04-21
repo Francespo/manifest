@@ -5,8 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import { AgentMessage } from '../entities/agent-message.entity';
 import { LlmCall } from '../entities/llm-call.entity';
 import { ToolExecution } from '../entities/tool-execution.entity';
-import { TokenUsageSnapshot } from '../entities/token-usage-snapshot.entity';
-import { CostSnapshot } from '../entities/cost-snapshot.entity';
 import { AgentLog } from '../entities/agent-log.entity';
 import { ApiKey } from '../entities/api-key.entity';
 import { Tenant } from '../entities/tenant.entity';
@@ -77,8 +75,6 @@ const entities = [
   AgentMessage,
   LlmCall,
   ToolExecution,
-  TokenUsageSnapshot,
-  CostSnapshot,
   AgentLog,
   ApiKey,
   Tenant,

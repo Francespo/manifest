@@ -1,4 +1,4 @@
-import { fetchJson, fetchMutate, BASE_URL } from './core.js';
+import { fetchJson, fetchMutate } from './core.js';
 
 export interface MessageDetailLlmCall {
   id: string;
@@ -105,7 +105,7 @@ export function setMessageFeedback(
   id: string,
   body: { rating: 'like' | 'dislike'; tags?: string[]; details?: string },
 ) {
-  return fetchMutate<void>(`${BASE_URL}/messages/${encodeURIComponent(id)}/feedback`, {
+  return fetchMutate<void>(`/messages/${encodeURIComponent(id)}/feedback`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -113,19 +113,19 @@ export function setMessageFeedback(
 }
 
 export function clearMessageFeedback(id: string) {
-  return fetchMutate<void>(`${BASE_URL}/messages/${encodeURIComponent(id)}/feedback`, {
+  return fetchMutate<void>(`/messages/${encodeURIComponent(id)}/feedback`, {
     method: 'DELETE',
   });
 }
 
 export function flagMessageMiscategorized(id: string) {
-  return fetchMutate<void>(`${BASE_URL}/messages/${encodeURIComponent(id)}/miscategorized`, {
+  return fetchMutate<void>(`/messages/${encodeURIComponent(id)}/miscategorized`, {
     method: 'PATCH',
   });
 }
 
 export function clearMessageMiscategorized(id: string) {
-  return fetchMutate<void>(`${BASE_URL}/messages/${encodeURIComponent(id)}/miscategorized`, {
+  return fetchMutate<void>(`/messages/${encodeURIComponent(id)}/miscategorized`, {
     method: 'DELETE',
   });
 }

@@ -1,7 +1,8 @@
 import { Logger } from '@nestjs/common';
 import { Response as ExpressResponse } from 'express';
 import { IngestionContext } from '../../otlp/interfaces/ingestion-context.interface';
-import { RoutingMeta, FailedFallback } from './proxy.service';
+import { RoutingMeta } from './proxy.service';
+import { FailedFallback } from './proxy-fallback.service';
 import { ForwardResult } from './provider-client';
 import { ProxyMessageRecorder } from './proxy-message-recorder';
 import { ProviderClient } from './provider-client';
@@ -14,6 +15,10 @@ import type { ExtractedThinkingBlocks } from './anthropic-adapter';
 import type { CallerAttribution } from './caller-classifier';
 
 const logger = new Logger('ProxyResponseHandler');
+
+function recordSafely(promise: Promise<unknown>, label: string): void {
+  promise.catch((e) => logger.warn(`Failed to record ${label}: ${e}`));
+}
 
 export function buildMetaHeaders(meta: RoutingMeta): Record<string, string> {
   const headers: Record<string, string> = {
@@ -71,8 +76,8 @@ export async function handleProviderError(
     return;
   }
 
-  recorder
-    .recordProviderError(ctx, errorStatus, errorBody, {
+  recordSafely(
+    recorder.recordProviderError(ctx, errorStatus, errorBody, {
       model: meta.model,
       provider: meta.provider,
       tier: meta.tier,
@@ -83,8 +88,9 @@ export async function handleProviderError(
       specificityCategory: meta.specificity_category,
       callerAttribution,
       requestHeaders,
-    })
-    .catch((e) => logger.warn(`Failed to record provider error: ${e}`));
+    }),
+    'provider error',
+  );
 
   logger.warn(
     `Upstream error ${errorStatus}: provider=${meta.provider} model=${meta.model} tier=${meta.tier} body=${errorBody.slice(0, 500)}`,
@@ -114,8 +120,8 @@ function handleFallbackExhausted(
   requestHeaders?: Record<string, string> | null,
 ): void {
   const baseTime = Date.now();
-  recorder
-    .recordFailedFallbacks(ctx, meta.tier, meta.model, failedFallbacks, {
+  recordSafely(
+    recorder.recordFailedFallbacks(ctx, meta.tier, meta.model, failedFallbacks, {
       traceId,
       baseTimeMs: baseTime,
       markHandled: true,
@@ -123,17 +129,27 @@ function handleFallbackExhausted(
       authType: meta.auth_type,
       callerAttribution,
       requestHeaders,
-    })
-    .catch((e) => logger.warn(`Failed to record fallback errors: ${e}`));
+    }),
+    'fallback errors',
+  );
 
   const primaryTs = new Date(baseTime + (failedFallbacks.length + 1) * 100).toISOString();
-  recorder
-    .recordPrimaryFailure(ctx, meta.tier, meta.model, errorBody, primaryTs, meta.auth_type, {
-      provider: meta.provider,
-      callerAttribution,
-      requestHeaders,
-    })
-    .catch((e) => logger.warn(`Failed to record primary failure: ${e}`));
+  recordSafely(
+    recorder.recordPrimaryFailure(
+      ctx,
+      meta.tier,
+      meta.model,
+      errorBody,
+      primaryTs,
+      meta.auth_type,
+      {
+        provider: meta.provider,
+        callerAttribution,
+        requestHeaders,
+      },
+    ),
+    'primary failure',
+  );
 
   logger.warn(`Fallback chain exhausted: ${errorBody.slice(0, 200)}`);
   res.status(errorStatus);
@@ -172,8 +188,8 @@ export function recordFallbackFailures(
   const fallbackBaseTime = Date.now();
   const failures = failedFallbacks ?? [];
 
-  recorder
-    .recordPrimaryFailure(
+  recordSafely(
+    recorder.recordPrimaryFailure(
       ctx,
       meta.tier,
       meta.fallbackFromModel,
@@ -187,19 +203,21 @@ export function recordFallbackFailures(
         callerAttribution,
         requestHeaders,
       },
-    )
-    .catch((e) => logger.warn(`Failed to record primary failure: ${e}`));
+    ),
+    'primary failure',
+  );
 
   if (failures.length > 0) {
-    recorder
-      .recordFailedFallbacks(ctx, meta.tier, meta.fallbackFromModel, failures, {
+    recordSafely(
+      recorder.recordFailedFallbacks(ctx, meta.tier, meta.fallbackFromModel, failures, {
         baseTimeMs: fallbackBaseTime,
         markHandled: true,
         authType: meta.auth_type,
         callerAttribution,
         requestHeaders,
-      })
-      .catch((e) => logger.warn(`Failed to record fallback errors: ${e}`));
+      }),
+      'fallback errors',
+    );
   }
 
   return new Date(fallbackBaseTime + (failures.length + 1) * 100).toISOString();
@@ -326,8 +344,8 @@ export function recordSuccess(
   requestHeaders?: Record<string, string> | null,
 ): void {
   if (meta.fallbackFromModel && fallbackSuccessTs) {
-    recorder
-      .recordFallbackSuccess(ctx, meta.model, meta.tier, {
+    recordSafely(
+      recorder.recordFallbackSuccess(ctx, meta.model, meta.tier, {
         traceId,
         provider: meta.provider,
         fallbackFromModel: meta.fallbackFromModel,
@@ -337,13 +355,14 @@ export function recordSuccess(
         usage: streamUsage ?? undefined,
         callerAttribution,
         requestHeaders,
-      })
-      .catch((e) => logger.warn(`Failed to record fallback success: ${e}`));
+      }),
+      'fallback success',
+    );
   } else {
     const usage = streamUsage ?? { prompt_tokens: 0, completion_tokens: 0 };
     const durationMs = startTime ? Date.now() - startTime : undefined;
-    recorder
-      .recordSuccessMessage(ctx, meta.model, meta.tier, meta.reason, usage, {
+    recordSafely(
+      recorder.recordSuccessMessage(ctx, meta.model, meta.tier, meta.reason, usage, {
         traceId,
         provider: meta.provider,
         authType: meta.auth_type,
@@ -352,7 +371,8 @@ export function recordSuccess(
         specificityCategory: meta.specificity_category,
         callerAttribution,
         requestHeaders,
-      })
-      .catch((e) => logger.warn(`Failed to record success message: ${e}`));
+      }),
+      'success message',
+    );
   }
 }
