@@ -104,6 +104,9 @@ export class AgentMessage {
   @Column('simple-json', { nullable: true })
   caller_attribution!: CallerAttribution | null;
 
+  @Column('simple-json', { nullable: true })
+  request_headers!: Record<string, string> | null;
+
   @Column('varchar', { nullable: true })
   feedback_rating!: string | null;
 

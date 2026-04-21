@@ -20,6 +20,7 @@ import { ProxyMessageRecorder } from './proxy-message-recorder';
 import { ThoughtSignatureCache } from './thought-signature-cache';
 import { ThinkingBlockCache } from './thinking-block-cache';
 import { classifyCaller } from './caller-classifier';
+import { sanitizeRequestHeaders } from './request-headers';
 import {
   buildMetaHeaders,
   handleProviderError,
@@ -62,6 +63,7 @@ export class ProxyController {
     const sessionKey = (req.headers['x-session-key'] as string) || 'default';
     const traceId = this.extractTraceId(req);
     const callerAttribution = classifyCaller(req.headers);
+    const requestHeaders = sanitizeRequestHeaders(req.headers);
     const isStream = body.stream === true;
     let headersSent = false;
     let slotAcquired = false;
@@ -105,6 +107,7 @@ export class ProxyController {
           this.recorder,
           traceId,
           callerAttribution,
+          requestHeaders,
         );
         return;
       }
@@ -115,6 +118,7 @@ export class ProxyController {
         failedFallbacks,
         this.recorder,
         callerAttribution,
+        requestHeaders,
       );
 
       let streamUsage = null;
@@ -154,9 +158,19 @@ export class ProxyController {
         sessionKey,
         startTime,
         callerAttribution,
+        requestHeaders,
       );
     } catch (err: unknown) {
-      this.handleProxyError(err, req, res, clientAbort, headersSent, traceId, callerAttribution);
+      this.handleProxyError(
+        err,
+        req,
+        res,
+        clientAbort,
+        headersSent,
+        traceId,
+        callerAttribution,
+        requestHeaders,
+      );
     } finally {
       if (slotAcquired) this.rateLimiter.releaseSlot(userId);
     }
@@ -170,6 +184,7 @@ export class ProxyController {
     headersSent: boolean,
     traceId: string | undefined,
     callerAttribution: ReturnType<typeof classifyCaller>,
+    requestHeaders: ReturnType<typeof sanitizeRequestHeaders>,
   ): void {
     if (clientAbort.signal.aborted) {
       if (!res.writableEnded) res.end();
@@ -181,7 +196,11 @@ export class ProxyController {
     this.logger.error(`Proxy error: ${message}`);
 
     this.recorder
-      .recordProviderError(req.ingestionContext, status, message, { traceId, callerAttribution })
+      .recordProviderError(req.ingestionContext, status, message, {
+        traceId,
+        callerAttribution,
+        requestHeaders,
+      })
       .catch((e) => this.logger.warn(`Failed to record provider error: ${e}`));
 
     if (headersSent) {

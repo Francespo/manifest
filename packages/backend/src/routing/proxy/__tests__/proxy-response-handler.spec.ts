@@ -1068,6 +1068,155 @@ describe('proxy-response-handler', () => {
     });
   });
 
+  describe('requestHeaders propagation', () => {
+    const headers = { 'x-custom-foo': 'bar' };
+
+    it('handleProviderError forwards requestHeaders to recordProviderError', async () => {
+      const { res } = mockResponse();
+      const recorder = mockRecorder();
+      const meta = makeMeta();
+      await handleProviderError(
+        res as any,
+        testCtx,
+        meta,
+        buildMetaHeaders(meta),
+        500,
+        'boom',
+        undefined,
+        recorder as any,
+        'trace-1',
+        null,
+        headers,
+      );
+      expect(recorder.recordProviderError).toHaveBeenCalledWith(
+        testCtx,
+        500,
+        'boom',
+        expect.objectContaining({ requestHeaders: headers }),
+      );
+    });
+
+    it('fallback-exhausted path forwards requestHeaders to both failure recorders', async () => {
+      const { res } = mockResponse();
+      const recorder = mockRecorder();
+      const meta = makeMeta();
+      const failedFallbacks: FailedFallback[] = [
+        {
+          model: 'claude-3-haiku',
+          provider: 'anthropic',
+          fallbackIndex: 0,
+          status: 429,
+          errorBody: '',
+        },
+      ];
+      await handleProviderError(
+        res as any,
+        testCtx,
+        meta,
+        buildMetaHeaders(meta),
+        502,
+        'fail',
+        failedFallbacks,
+        recorder as any,
+        undefined,
+        null,
+        headers,
+      );
+      expect(recorder.recordFailedFallbacks).toHaveBeenCalledWith(
+        testCtx,
+        'standard',
+        'gpt-4o',
+        failedFallbacks,
+        expect.objectContaining({ requestHeaders: headers }),
+      );
+      expect(recorder.recordPrimaryFailure).toHaveBeenCalledWith(
+        testCtx,
+        'standard',
+        'gpt-4o',
+        'fail',
+        expect.any(String),
+        undefined,
+        expect.objectContaining({ requestHeaders: headers }),
+      );
+    });
+
+    it('recordFallbackFailures forwards requestHeaders to both failure recorders', () => {
+      const recorder = mockRecorder();
+      const meta = makeMeta({
+        fallbackFromModel: 'claude-sonnet-4',
+        primaryProvider: 'anthropic',
+      });
+      const failedFallbacks: FailedFallback[] = [
+        { model: 'x', provider: 'y', fallbackIndex: 0, status: 500, errorBody: '' },
+      ];
+      recordFallbackFailures(testCtx, meta, failedFallbacks, recorder as any, null, headers);
+      expect(recorder.recordPrimaryFailure).toHaveBeenCalledWith(
+        testCtx,
+        'standard',
+        'claude-sonnet-4',
+        expect.any(String),
+        expect.any(String),
+        undefined,
+        expect.objectContaining({ requestHeaders: headers }),
+      );
+      expect(recorder.recordFailedFallbacks).toHaveBeenCalledWith(
+        testCtx,
+        'standard',
+        'claude-sonnet-4',
+        failedFallbacks,
+        expect.objectContaining({ requestHeaders: headers }),
+      );
+    });
+
+    it('recordSuccess forwards requestHeaders on the success-message path', () => {
+      const recorder = mockRecorder();
+      const meta = makeMeta();
+      recordSuccess(
+        testCtx,
+        meta,
+        { prompt_tokens: 1, completion_tokens: 1 },
+        undefined,
+        recorder as any,
+        undefined,
+        undefined,
+        undefined,
+        null,
+        headers,
+      );
+      expect(recorder.recordSuccessMessage).toHaveBeenCalledWith(
+        testCtx,
+        'gpt-4o',
+        'standard',
+        'auto',
+        expect.anything(),
+        expect.objectContaining({ requestHeaders: headers }),
+      );
+    });
+
+    it('recordSuccess forwards requestHeaders on the fallback-success path', () => {
+      const recorder = mockRecorder();
+      const meta = makeMeta({ fallbackFromModel: 'gpt-4o', fallbackIndex: 1 });
+      recordSuccess(
+        testCtx,
+        meta,
+        { prompt_tokens: 1, completion_tokens: 1 },
+        '2025-01-01T00:00:00Z',
+        recorder as any,
+        undefined,
+        undefined,
+        undefined,
+        null,
+        headers,
+      );
+      expect(recorder.recordFallbackSuccess).toHaveBeenCalledWith(
+        testCtx,
+        'gpt-4o',
+        'standard',
+        expect.objectContaining({ requestHeaders: headers }),
+      );
+    });
+  });
+
   describe('handleProviderError with specificity', () => {
     it('should pass specificityCategory to recordProviderError', async () => {
       const { res } = mockResponse();

@@ -396,6 +396,195 @@ describe('MessageDetails', () => {
     });
   });
 
+  it('renders App and SDK metadata when caller_attribution is present', async () => {
+    const withAttribution = {
+      ...detailsResponse,
+      message: {
+        ...detailsResponse.message,
+        caller_attribution: {
+          sdk: 'openai-js',
+          sdkVersion: '6.26.0',
+          appName: 'OpenClaw',
+          appUrl: 'https://openclaw.dev',
+        },
+      },
+    };
+    mockGetMessageDetails.mockResolvedValue(withAttribution);
+    const { container } = render(() => <MessageDetails messageId="msg-1" />);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('App');
+      expect(container.textContent).toContain('OpenClaw');
+      expect(container.textContent).toContain('SDK');
+      expect(container.textContent).toContain('openai-js');
+    });
+  });
+
+  it('hides App and SDK fields when caller_attribution is null', async () => {
+    mockGetMessageDetails.mockResolvedValue(detailsResponse);
+    const { container } = render(() => <MessageDetails messageId="msg-1" />);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Message');
+    });
+    const labels = Array.from(container.querySelectorAll('.msg-detail__meta-label')).map(
+      (n) => n.textContent,
+    );
+    expect(labels).not.toContain('App');
+    expect(labels).not.toContain('SDK');
+  });
+
+  it('renders Request Headers section collapsed by default with a visible count', async () => {
+    const withHeaders = {
+      ...detailsResponse,
+      message: {
+        ...detailsResponse.message,
+        request_headers: {
+          'user-agent': 'curl/8.14.1',
+          'x-custom-foo': 'bar',
+          'content-type': 'application/json',
+        },
+      },
+    };
+    mockGetMessageDetails.mockResolvedValue(withHeaders);
+    const { container } = render(() => <MessageDetails messageId="msg-1" />);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Request Headers');
+    });
+
+    // Title button is visible with aria-expanded="false"
+    const toggle = container.querySelector(
+      '.msg-detail__section-title--toggle',
+    ) as HTMLButtonElement | null;
+    expect(toggle).not.toBeNull();
+    expect(toggle!.tagName).toBe('BUTTON');
+    expect(toggle!.getAttribute('aria-expanded')).toBe('false');
+
+    // Count badge stays visible when collapsed.
+    const counts = container.querySelectorAll('.msg-detail__count');
+    expect(counts.length).toBe(4);
+    expect(counts[0]!.textContent).toBe('3');
+
+    // Table body is not rendered while collapsed.
+    expect(container.textContent).not.toContain('curl/8.14.1');
+    expect(container.textContent).not.toContain('x-custom-foo');
+    // There should be 3 tables visible (LLM Calls, Tool Executions, Agent Logs), not 4.
+    const tables = container.querySelectorAll('table.msg-detail__table');
+    expect(tables.length).toBe(3);
+  });
+
+  it('expands Request Headers when the title is clicked, and collapses on second click', async () => {
+    const withHeaders = {
+      ...detailsResponse,
+      message: {
+        ...detailsResponse.message,
+        request_headers: {
+          'user-agent': 'curl/8.14.1',
+          'x-custom-foo': 'bar',
+        },
+      },
+    };
+    mockGetMessageDetails.mockResolvedValue(withHeaders);
+    const { container } = render(() => <MessageDetails messageId="msg-1" />);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Request Headers');
+    });
+
+    const toggle = container.querySelector(
+      '.msg-detail__section-title--toggle',
+    ) as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    // Expand.
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(container.textContent).toContain('curl/8.14.1');
+    expect(container.textContent).toContain('x-custom-foo');
+    expect(container.textContent).toContain('bar');
+
+    // aria-controls points at the now-rendered table wrapper.
+    const controlsId = toggle.getAttribute('aria-controls');
+    expect(controlsId).toBeTruthy();
+    expect(container.querySelector(`#${controlsId}`)).not.toBeNull();
+
+    // Collapse again.
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(container.textContent).not.toContain('curl/8.14.1');
+  });
+
+  it('renders header rows sorted alphabetically by key when expanded', async () => {
+    const withHeaders = {
+      ...detailsResponse,
+      message: {
+        ...detailsResponse.message,
+        request_headers: { 'z-last': '3', 'a-first': '1', 'm-mid': '2' },
+      },
+    };
+    mockGetMessageDetails.mockResolvedValue(withHeaders);
+    const { container } = render(() => <MessageDetails messageId="msg-1" />);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Request Headers');
+    });
+    const toggle = container.querySelector(
+      '.msg-detail__section-title--toggle',
+    ) as HTMLButtonElement;
+    toggle.click();
+    const tables = container.querySelectorAll('table.msg-detail__table');
+    // First table after expanding is Request Headers.
+    const headersTable = tables[0]!;
+    const keyCells = Array.from(headersTable.querySelectorAll('tbody tr td:first-child')).map(
+      (c) => c.textContent,
+    );
+    expect(keyCells).toEqual(['a-first', 'm-mid', 'z-last']);
+  });
+
+  it('rotates the chevron when the Request Headers section is expanded', async () => {
+    const withHeaders = {
+      ...detailsResponse,
+      message: {
+        ...detailsResponse.message,
+        request_headers: { 'a-first': '1' },
+      },
+    };
+    mockGetMessageDetails.mockResolvedValue(withHeaders);
+    const { container } = render(() => <MessageDetails messageId="msg-1" />);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Request Headers');
+    });
+    const chevron = container.querySelector('.msg-detail__chevron')!;
+    expect(chevron.classList.contains('msg-detail__chevron--open')).toBe(false);
+    const toggle = container.querySelector(
+      '.msg-detail__section-title--toggle',
+    ) as HTMLButtonElement;
+    toggle.click();
+    expect(chevron.classList.contains('msg-detail__chevron--open')).toBe(true);
+  });
+
+  it('hides Request Headers section when headers are null', async () => {
+    const noHeaders = {
+      ...detailsResponse,
+      message: { ...detailsResponse.message, request_headers: null },
+    };
+    mockGetMessageDetails.mockResolvedValue(noHeaders);
+    const { container } = render(() => <MessageDetails messageId="msg-1" />);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Message');
+    });
+    expect(container.textContent).not.toContain('Request Headers');
+  });
+
+  it('hides Request Headers section when headers are an empty object', async () => {
+    const empty = {
+      ...detailsResponse,
+      message: { ...detailsResponse.message, request_headers: {} },
+    };
+    mockGetMessageDetails.mockResolvedValue(empty);
+    const { container } = render(() => <MessageDetails messageId="msg-1" />);
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Message');
+    });
+    expect(container.textContent).not.toContain('Request Headers');
+  });
+
   it('renders em dashes for null call_index, request_model, and response_model in an LLM call', async () => {
     const nullFieldsResponse = {
       ...detailsResponse,

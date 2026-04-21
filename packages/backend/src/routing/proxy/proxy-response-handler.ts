@@ -57,6 +57,7 @@ export async function handleProviderError(
   recorder: ProxyMessageRecorder,
   traceId?: string,
   callerAttribution?: CallerAttribution | null,
+  requestHeaders?: Record<string, string> | null,
 ): Promise<void> {
   if (failedFallbacks && failedFallbacks.length > 0 && !meta.fallbackFromModel) {
     await handleFallbackExhausted(
@@ -70,6 +71,7 @@ export async function handleProviderError(
       recorder,
       traceId,
       callerAttribution,
+      requestHeaders,
     );
     return;
   }
@@ -85,6 +87,7 @@ export async function handleProviderError(
       authType: meta.auth_type,
       specificityCategory: meta.specificity_category,
       callerAttribution,
+      requestHeaders,
     }),
     'provider error',
   );
@@ -114,6 +117,7 @@ function handleFallbackExhausted(
   recorder: ProxyMessageRecorder,
   traceId?: string,
   callerAttribution?: CallerAttribution | null,
+  requestHeaders?: Record<string, string> | null,
 ): void {
   const baseTime = Date.now();
   recordSafely(
@@ -124,6 +128,7 @@ function handleFallbackExhausted(
       lastAsError: true,
       authType: meta.auth_type,
       callerAttribution,
+      requestHeaders,
     }),
     'fallback errors',
   );
@@ -140,6 +145,7 @@ function handleFallbackExhausted(
       {
         provider: meta.provider,
         callerAttribution,
+        requestHeaders,
       },
     ),
     'primary failure',
@@ -175,6 +181,7 @@ export function recordFallbackFailures(
   failedFallbacks: FailedFallback[] | undefined,
   recorder: ProxyMessageRecorder,
   callerAttribution?: CallerAttribution | null,
+  requestHeaders?: Record<string, string> | null,
 ): string | undefined {
   if (!meta.fallbackFromModel) return undefined;
 
@@ -194,6 +201,7 @@ export function recordFallbackFailures(
         // succeeding fallback's provider in this flow, not the primary's.
         provider: meta.primaryProvider,
         callerAttribution,
+        requestHeaders,
       },
     ),
     'primary failure',
@@ -206,6 +214,7 @@ export function recordFallbackFailures(
         markHandled: true,
         authType: meta.auth_type,
         callerAttribution,
+        requestHeaders,
       }),
       'fallback errors',
     );
@@ -332,6 +341,7 @@ export function recordSuccess(
   sessionKey?: string,
   startTime?: number,
   callerAttribution?: CallerAttribution | null,
+  requestHeaders?: Record<string, string> | null,
 ): void {
   if (meta.fallbackFromModel && fallbackSuccessTs) {
     recordSafely(
@@ -344,6 +354,7 @@ export function recordSuccess(
         authType: meta.auth_type,
         usage: streamUsage ?? undefined,
         callerAttribution,
+        requestHeaders,
       }),
       'fallback success',
     );
@@ -359,6 +370,7 @@ export function recordSuccess(
         durationMs,
         specificityCategory: meta.specificity_category,
         callerAttribution,
+        requestHeaders,
       }),
       'success message',
     );

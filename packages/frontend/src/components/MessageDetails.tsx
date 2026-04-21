@@ -87,6 +87,56 @@ function LogRow(props: { log: MessageDetailLog }): JSX.Element {
   );
 }
 
+function RequestHeadersSection(props: { headers: Record<string, string> }): JSX.Element {
+  const [open, setOpen] = createSignal(false);
+  const entries = (): Array<[string, string]> =>
+    Object.entries(props.headers).sort(([a], [b]) => a.localeCompare(b));
+  const tableId = `msg-detail-request-headers-${Math.random().toString(36).slice(2, 10)}`;
+  return (
+    <div class="msg-detail__section">
+      <button
+        type="button"
+        class="msg-detail__section-title msg-detail__section-title--toggle"
+        aria-expanded={open() ? 'true' : 'false'}
+        aria-controls={tableId}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span
+          class="msg-detail__chevron"
+          classList={{ 'msg-detail__chevron--open': open() }}
+          aria-hidden="true"
+        >
+          &#9656;
+        </span>
+        Request Headers
+        <span class="msg-detail__count">{entries().length}</span>
+      </button>
+      <Show when={open()}>
+        <div class="data-table-scroll" id={tableId}>
+          <table class="data-table msg-detail__table">
+            <thead>
+              <tr>
+                <th>Header</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <For each={entries()}>
+                {([k, v]) => (
+                  <tr>
+                    <td class="msg-detail__mono-xs">{k}</td>
+                    <td class="msg-detail__mono-xs msg-detail__log-body">{v}</td>
+                  </tr>
+                )}
+              </For>
+            </tbody>
+          </table>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
 function MetaField(props: { label: string; value: string | null | undefined }): JSX.Element {
   return (
     <Show when={props.value}>
@@ -210,9 +260,15 @@ export default function MessageDetails(props: MessageDetailsProps): JSX.Element 
                   <MetaField label="Service" value={m.service_type} />
                   <MetaField label="Session" value={m.session_key} />
                   <MetaField label="Description" value={m.description} />
+                  <MetaField label="App" value={m.caller_attribution?.appName} />
+                  <MetaField label="SDK" value={m.caller_attribution?.sdk} />
                   <MetaField label="Skill" value={m.skill_name} />
                 </div>
               </div>
+
+              <Show when={m.request_headers && Object.keys(m.request_headers).length > 0}>
+                <RequestHeadersSection headers={m.request_headers!} />
+              </Show>
 
               <Show when={d.llm_calls.length > 0}>
                 <div class="msg-detail__section">

@@ -68,6 +68,7 @@ import { AddCallerAttribution1775400000000 } from './migrations/1775400000000-Ad
 import { AddMessageProvider1775500000000 } from './migrations/1775500000000-AddMessageProvider';
 import { AddMessageFeedback1775600000000 } from './migrations/1775600000000-AddMessageFeedback';
 import { CleanupOrphanedCustomProviderRefs1776679833383 } from './migrations/1776679833383-CleanupOrphanedCustomProviderRefs';
+import { AddMessageRequestHeaders1776700000000 } from './migrations/1776700000000-AddMessageRequestHeaders';
 import { AddSpecificityMiscategorized1777000000000 } from './migrations/1777000000000-AddSpecificityMiscategorized';
 
 const entities = [
@@ -138,6 +139,7 @@ const migrations = [
   AddMessageProvider1775500000000,
   AddMessageFeedback1775600000000,
   CleanupOrphanedCustomProviderRefs1776679833383,
+  AddMessageRequestHeaders1776700000000,
   AddSpecificityMiscategorized1777000000000,
 ];
 

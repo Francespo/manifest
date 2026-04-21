@@ -6,6 +6,7 @@ import { LlmCall } from '../../entities/llm-call.entity';
 import { ToolExecution } from '../../entities/tool-execution.entity';
 import { AgentLog } from '../../entities/agent-log.entity';
 import { TenantCacheService } from '../../common/services/tenant-cache.service';
+import type { CallerAttribution } from '../../routing/proxy/caller-classifier';
 
 export interface MessageDetailResponse {
   message: {
@@ -37,6 +38,8 @@ export interface MessageDetailResponse {
     feedback_rating: string | null;
     feedback_tags: string[] | null;
     feedback_details: string | null;
+    request_headers: Record<string, string> | null;
+    caller_attribution: CallerAttribution | null;
   };
   llm_calls: {
     id: string;
@@ -157,6 +160,8 @@ export class MessageDetailsService {
         feedback_rating: message.feedback_rating,
         feedback_tags: message.feedback_tags ? message.feedback_tags.split(',') : null,
         feedback_details: message.feedback_details,
+        request_headers: message.request_headers,
+        caller_attribution: message.caller_attribution,
       },
       llm_calls: llmCalls.map((lc) => ({
         id: lc.id,

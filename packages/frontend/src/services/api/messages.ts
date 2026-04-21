@@ -63,6 +63,19 @@ export interface MessageDetailResponse {
     feedback_rating: string | null;
     feedback_tags: string[] | null;
     feedback_details: string | null;
+    request_headers: Record<string, string> | null;
+    caller_attribution: {
+      sdk?: string;
+      sdkVersion?: string;
+      runtime?: string;
+      runtimeVersion?: string;
+      os?: string;
+      arch?: string;
+      userAgent?: string;
+      appName?: string;
+      appUrl?: string;
+      categories?: string[];
+    } | null;
   };
   llm_calls: MessageDetailLlmCall[];
   tool_executions: MessageDetailToolExecution[];
