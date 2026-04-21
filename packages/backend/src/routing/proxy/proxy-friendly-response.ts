@@ -30,7 +30,7 @@ export function getDashboardUrl(
 ): string {
   const baseUrl =
     config.get<string>('app.betterAuthUrl') ||
-    `http://localhost:${config.get<number>('app.port', 2099)}`;
+    `http://localhost:${config.get<number>('app.port', 3001)}`;
   if (!agentName) return baseUrl;
   const suffix = section ? `/${section}` : '';
   return `${baseUrl}/agents/${encodeURIComponent(agentName)}${suffix}`;

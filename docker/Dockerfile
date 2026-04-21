@@ -79,9 +79,12 @@ COPY --chown=nonroot:nonroot packages/backend/package.json packages/backend/
 EXPOSE 2099
 
 # Distroless has no shell; use exec-form and a JS-only check.
-# `node` resolves via the PATH we set above.
+# `node` resolves via the PATH we set above. We read PORT at runtime so
+# the healthcheck follows whatever port the backend is actually using —
+# the default is 3001 to match the backend's own fallback, which keeps
+# legacy installs (no PORT env) working without a compose-file update.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:2099/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  CMD ["node", "-e", "const p=process.env.PORT||'3001';fetch(`http://127.0.0.1:${p}/api/v1/health`).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
 # The distroless image's ENTRYPOINT is already ["/nodejs/bin/node"],
 # so CMD only needs the script path.

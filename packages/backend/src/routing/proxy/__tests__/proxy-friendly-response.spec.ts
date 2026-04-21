@@ -58,13 +58,13 @@ describe('proxy-friendly-response', () => {
     it('encodes special characters in agent name', () => {
       const config = {
         get: jest.fn((key: string) => {
-          if (key === 'app.betterAuthUrl') return 'http://localhost:2099';
+          if (key === 'app.betterAuthUrl') return 'http://localhost:3001';
           return undefined;
         }),
       } as unknown as ConfigService;
 
       expect(getDashboardUrl(config, 'my agent', 'limits')).toBe(
-        'http://localhost:2099/agents/my%20agent/limits',
+        'http://localhost:3001/agents/my%20agent/limits',
       );
     });
   });

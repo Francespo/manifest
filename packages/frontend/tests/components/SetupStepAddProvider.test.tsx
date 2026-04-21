@@ -11,7 +11,7 @@ describe("SetupStepAddProvider", () => {
   const defaultProps = {
     apiKey: null as string | null,
     keyPrefix: null as string | null,
-    baseUrl: "http://localhost:2099/v1",
+    baseUrl: "http://localhost:3001/v1",
   };
 
   beforeEach(() => {
@@ -133,7 +133,7 @@ describe("SetupStepAddProvider", () => {
     const fields = container.querySelectorAll(".setup-onboard-fields__row");
     expect(fields).toHaveLength(5);
     expect(fields[0].textContent).toContain("API Base URL");
-    expect(fields[0].textContent).toContain("http://localhost:2099/v1");
+    expect(fields[0].textContent).toContain("http://localhost:3001/v1");
     expect(fields[1].textContent).toContain("API Key");
     expect(fields[2].textContent).toContain("Endpoint compatibility");
     expect(fields[2].textContent).toContain("OpenAI-compatible");

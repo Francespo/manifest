@@ -9,7 +9,7 @@ export class ManifestRuntimeService {
     const configuredBaseUrl = this.config.get<string>('app.betterAuthUrl', '');
     if (configuredBaseUrl) return configuredBaseUrl;
 
-    const port = this.config.get<number>('app.port', 2099);
+    const port = this.config.get<number>('app.port', 3001);
     return `http://localhost:${port}`;
   }
 }

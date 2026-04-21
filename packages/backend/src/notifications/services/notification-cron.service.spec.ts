@@ -36,7 +36,7 @@ describe('NotificationCronService', () => {
     mockResolveUserEmail = jest.fn().mockResolvedValue(null);
     mockGetFullConfig = jest.fn().mockResolvedValue(null);
     mockRuntime = {
-      getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:2099'),
+      getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:3001'),
     };
 
     const module: TestingModule = await Test.createTestingModule({

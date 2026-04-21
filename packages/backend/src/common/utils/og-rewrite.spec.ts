@@ -36,8 +36,8 @@ describe('rewriteOgTags', () => {
   });
 
   it('preserves the og:image path suffix', () => {
-    const result = rewriteOgTags(SAMPLE_HTML, 'http://localhost:2099');
-    expect(result).toContain('content="http://localhost:2099/og-image.png"');
+    const result = rewriteOgTags(SAMPLE_HTML, 'http://localhost:3001');
+    expect(result).toContain('content="http://localhost:3001/og-image.png"');
   });
 
   it('handles a string with no occurrences gracefully', () => {

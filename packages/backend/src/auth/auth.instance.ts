@@ -4,7 +4,7 @@ import { VerifyEmailEmail } from '../notifications/emails/verify-email';
 import { ResetPasswordEmail } from '../notifications/emails/reset-password';
 import { sendEmail } from '../notifications/services/email-providers/send-email';
 
-const port = process.env['PORT'] ?? '2099';
+const port = process.env['PORT'] ?? '3001';
 const isDev = (process.env['NODE_ENV'] ?? '') !== 'production';
 const hasEmailProvider = !!(
   (process.env['EMAIL_PROVIDER'] && process.env['EMAIL_API_KEY']) ||

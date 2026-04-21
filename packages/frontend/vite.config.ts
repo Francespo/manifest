@@ -14,8 +14,8 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      "/api": `http://localhost:${process.env.VITE_BACKEND_PORT || "2099"}`,
-      "/otlp": `http://localhost:${process.env.VITE_BACKEND_PORT || "2099"}`,
+      "/api": `http://localhost:${process.env.VITE_BACKEND_PORT || "3001"}`,
+      "/otlp": `http://localhost:${process.env.VITE_BACKEND_PORT || "3001"}`,
     },
   },
   build: {

@@ -657,7 +657,7 @@ describe('OpenaiOauthService', () => {
       const url = await service.generateAuthorizationUrl(
         'agent-1',
         'user-1',
-        'http://localhost:2099',
+        'http://localhost:3001',
       );
       const state = new URL(url).searchParams.get('state')!;
 
@@ -675,7 +675,7 @@ describe('OpenaiOauthService', () => {
 
       await new Promise((r) => setTimeout(r, 50));
       expect(res.writeHead).toHaveBeenCalledWith(302, {
-        Location: 'http://localhost:2099/api/v1/oauth/openai/done?ok=1',
+        Location: 'http://localhost:3001/api/v1/oauth/openai/done?ok=1',
       });
     });
 

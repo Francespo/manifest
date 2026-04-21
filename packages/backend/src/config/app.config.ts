@@ -9,7 +9,7 @@ function resolveDatabaseUrl(): string {
 }
 
 export const appConfig = registerAs('app', () => ({
-  port: Number(process.env['PORT'] ?? 2099),
+  port: Number(process.env['PORT'] ?? 3001),
   nodeEnv: process.env['NODE_ENV'] ?? 'development',
   databaseUrl: resolveDatabaseUrl(),
 
