@@ -1,5 +1,5 @@
 ---
-'manifest': minor
+'manifest': major
 ---
 
 **Breaking change**: default port moves from `3001` to `2099`. The number nods to the peacock that is Manifest's logo. Anything hardcoding `http://localhost:3001` (reverse-proxy configs, OAuth callback URLs, bookmarks, OpenClaw provider configs, scripts) needs to be updated. The Docker compose file, `.env.example`, install script, and backend default all move in lockstep, so a fresh `install.sh` run just works.
