@@ -1,7 +1,7 @@
 /**
- * Postgres SQL helpers. Manifest is Postgres-only, so these emit Postgres SQL
- * directly — no dialect switching. The module name is historical; the
- * `DbDialect` abstraction was removed once SQLite was retired.
+ * Postgres SQL helpers: TypeORM column type factories + hand-rolled SQL
+ * expressions (bucketing, casts, interval math) used by analytics and
+ * entity definitions.
  */
 
 /**

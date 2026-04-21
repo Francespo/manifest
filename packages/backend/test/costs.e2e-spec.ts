@@ -27,7 +27,8 @@ beforeAll(async () => {
   await app.get(ModelPricingCacheService).reload();
 
   // Seed agent_messages directly (with pre-calculated cost_usd) using the same
-  // timestamp format as sqlNow() so that date comparisons work in both PG & sql.js.
+  // timestamp format as sqlNow() so that date comparisons line up with the
+  // Postgres `timestamp without time zone` columns the analytics queries read.
   const costUsd1 = 5000 * 0.0000025 + 2000 * 0.00001; // 0.0325
   const costUsd2 = 3000 * 0.0000025 + 1000 * 0.00001; // 0.0175
   await ds.query(
