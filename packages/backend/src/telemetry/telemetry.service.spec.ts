@@ -56,7 +56,6 @@ function payloadStub(overrides: Partial<TelemetryPayloadV1> = {}): TelemetryPayl
     agents_by_platform: {},
     platform: 'linux',
     arch: 'x64',
-    node_version: '22.17.1',
     ...overrides,
   };
 }

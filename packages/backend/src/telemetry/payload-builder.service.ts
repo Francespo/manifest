@@ -62,7 +62,6 @@ export class PayloadBuilderService {
       agents_by_platform: this.bucketsToRecord(agentPlatformRows, 'unknown'),
       platform: process.platform,
       arch: process.arch,
-      node_version: process.version.replace(/^v/, ''),
     };
   }
 

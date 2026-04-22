@@ -94,7 +94,6 @@ describe('PayloadBuilderService', () => {
     expect(payload.manifest_version).toBe('5.47.0');
     expect(payload.platform).toBe(process.platform);
     expect(payload.arch).toBe(process.arch);
-    expect(payload.node_version).toMatch(/^\d+\.\d+\.\d+/);
   });
 
   it('aggregates message counts and token totals across the 24h window', async () => {
@@ -237,13 +236,5 @@ describe('PayloadBuilderService', () => {
     const payload = await service.build('inst', '1.0.0');
 
     expect(payload.agents_by_platform).toEqual({ unknown: 2 });
-  });
-
-  it('strips the leading "v" from node_version', async () => {
-    const service = await makeService({});
-
-    const payload = await service.build('inst', '1.0.0');
-
-    expect(payload.node_version).not.toMatch(/^v/);
   });
 });

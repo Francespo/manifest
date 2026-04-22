@@ -27,5 +27,4 @@ export interface TelemetryPayloadV1 {
   // Runtime
   platform: string;
   arch: string;
-  node_version: string;
 }
