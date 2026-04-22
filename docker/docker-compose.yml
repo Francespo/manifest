@@ -32,6 +32,14 @@
 #   Set `PORT=3001` in `.env`. Everything below reads `${PORT:-2099}`, so
 #   the compose file honours it without further edits.
 
+# Pin the Compose project name so containers, networks, and volumes have
+# stable, predictable names regardless of the install directory's
+# basename. Without this, the project name would be inherited from the
+# directory (commonly `manifest`) and would silently collide with any
+# other Docker project the user happens to have called `manifest` —
+# including older Manifest installs moved to a different path.
+name: mnfst
+
 services:
   manifest:
     image: manifestdotbuild/manifest:latest
@@ -80,8 +88,20 @@ services:
         - "const p=process.env.PORT||'2099';fetch(`http://127.0.0.1:$${p}/api/v1/health`).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
       interval: 30s
       timeout: 5s
-      start_period: 45s
+      # Cold first-pull with migrations + pricing-cache warmup comfortably
+      # runs past 60s. A 90s grace keeps Docker from flipping the container
+      # to `unhealthy` (and tripping `depends_on: service_healthy`) while
+      # the app is still legitimately booting.
+      start_period: 90s
       retries: 3
+    # Cap container logs at ~50 MB (5 × 10 MB) so a long-running install
+    # can't fill the host disk via Docker's default unbounded json-file
+    # driver. Rotated logs are still retrievable via `docker logs`.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     read_only: true
     tmpfs:
       - /tmp:size=64m
@@ -108,6 +128,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     security_opt:
       - no-new-privileges:true
     networks:
@@ -121,4 +146,11 @@ networks:
     driver: bridge
 
 volumes:
+  # Pin the volume name so existing installs (whose project name was
+  # inherited from the `manifest` directory basename) keep seeing their
+  # historical `manifest_pgdata` volume after we set an explicit
+  # `name: mnfst` project name above. Without this pin, renaming the
+  # project would orphan the old volume and the new stack would come up
+  # against a fresh empty DB — i.e. data loss.
   pgdata:
+    name: manifest_pgdata
