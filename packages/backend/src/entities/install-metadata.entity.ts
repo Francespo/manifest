@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryColumn } from 'typeorm';
-import { timestampType, timestampDefault } from '../common/utils/sql-dialect';
+import { timestampType, timestampDefault } from '../common/utils/postgres-sql';
 
 /**
  * Singleton row holding the anonymous install identity used by the telemetry
