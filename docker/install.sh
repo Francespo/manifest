@@ -26,7 +26,12 @@
 
 set -euo pipefail
 
-REPO_RAW="https://raw.githubusercontent.com/mnfst/manifest/main/docker"
+# Override via MANIFEST_INSTALLER_SOURCE when you need the installer to
+# pull files from somewhere other than `main` — a fork, a release branch,
+# or a local HTTP server hosting a pre-release copy (this is how the
+# Docker smoke CI exercises the script end-to-end against the branch
+# under test, not the published files on GitHub).
+REPO_RAW="${MANIFEST_INSTALLER_SOURCE:-https://raw.githubusercontent.com/mnfst/manifest/main/docker}"
 # Default to $HOME/manifest so running the one-liner from inside another
 # project (a git worktree, a dotfiles checkout, etc.) doesn't silently
 # litter that directory with `./manifest/`.
