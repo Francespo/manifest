@@ -62,7 +62,9 @@ LABEL org.opencontainers.image.title="Manifest" \
       org.opencontainers.image.documentation="https://manifest.build/docs" \
       org.opencontainers.image.source="https://github.com/mnfst/manifest" \
       org.opencontainers.image.vendor="MNFST Inc." \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.base.name="gcr.io/distroless/nodejs22-debian13:nonroot" \
+      org.opencontainers.image.base.digest="sha256:559b13edb698d652d7852597747ebd691569d110f0a76132b870067b290e30bd"
 
 ENV NODE_ENV=production
 ENV BIND_ADDRESS=0.0.0.0
