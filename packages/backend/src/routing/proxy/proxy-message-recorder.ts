@@ -23,6 +23,7 @@ export interface ProviderErrorOpts {
   authType?: string;
   specificityCategory?: string;
   callerAttribution?: CallerAttribution | null;
+  requestHeaders?: Record<string, string> | null;
 }
 
 export interface FallbackSuccessOpts {
@@ -34,6 +35,7 @@ export interface FallbackSuccessOpts {
   authType?: string;
   usage?: StreamUsage;
   callerAttribution?: CallerAttribution | null;
+  requestHeaders?: Record<string, string> | null;
 }
 
 export interface SuccessMessageOpts {
@@ -44,6 +46,7 @@ export interface SuccessMessageOpts {
   durationMs?: number;
   specificityCategory?: string;
   callerAttribution?: CallerAttribution | null;
+  requestHeaders?: Record<string, string> | null;
 }
 
 function buildMessageRow(
@@ -105,6 +108,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       authType,
       specificityCategory,
       callerAttribution,
+      requestHeaders,
     } = opts ?? {};
 
     if (httpStatus === 429) {
@@ -138,6 +142,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
         auth_type: authType ?? null,
         specificity_category: specificityCategory ?? null,
         caller_attribution: callerAttribution ?? null,
+        request_headers: requestHeaders ?? null,
       }),
     );
     this.eventBus.emit(ctx.userId);
@@ -155,6 +160,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       lastAsError?: boolean;
       authType?: string;
       callerAttribution?: CallerAttribution | null;
+      requestHeaders?: Record<string, string> | null;
     },
   ): Promise<void> {
     const {
@@ -164,6 +170,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       lastAsError = false,
       authType,
       callerAttribution,
+      requestHeaders,
     } = opts ?? {};
     for (let i = 0; i < failures.length; i++) {
       const f = failures[i];
@@ -191,6 +198,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
           fallback_index: f.fallbackIndex,
           auth_type: authType ?? null,
           caller_attribution: callerAttribution ?? null,
+          request_headers: requestHeaders ?? null,
         }),
       );
     }
@@ -204,7 +212,11 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
     errorBody: string,
     timestamp: string,
     authType?: string,
-    opts?: { provider?: string; callerAttribution?: CallerAttribution | null },
+    opts?: {
+      provider?: string;
+      callerAttribution?: CallerAttribution | null;
+      requestHeaders?: Record<string, string> | null;
+    },
   ): Promise<void> {
     await this.messageRepo.insert(
       buildMessageRow(ctx, {
@@ -218,6 +230,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
         fallback_index: null,
         auth_type: authType ?? null,
         caller_attribution: opts?.callerAttribution ?? null,
+        request_headers: opts?.requestHeaders ?? null,
       }),
     );
     this.eventBus.emit(ctx.userId);
@@ -238,6 +251,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       authType,
       usage,
       callerAttribution,
+      requestHeaders,
     } = opts ?? {};
 
     const inputTokens = usage?.prompt_tokens ?? 0;
@@ -268,6 +282,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
         fallback_from_model: fallbackFromModel ?? null,
         fallback_index: fallbackIndex ?? null,
         caller_attribution: callerAttribution ?? null,
+        request_headers: requestHeaders ?? null,
       }),
     );
     this.eventBus.emit(ctx.userId);
@@ -289,6 +304,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       durationMs,
       specificityCategory,
       callerAttribution,
+      requestHeaders,
     } = opts ?? {};
 
     const costUsd = computeTokenCost({
@@ -335,6 +351,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
               duration_ms: durationMs ?? null,
               specificity_category: specificityCategory ?? null,
               caller_attribution: callerAttribution ?? null,
+              request_headers: requestHeaders ?? null,
             };
             if (normalizedSessionKey) updatePayload.session_key = normalizedSessionKey;
 
@@ -364,6 +381,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
               duration_ms: durationMs ?? null,
               specificity_category: specificityCategory ?? null,
               caller_attribution: callerAttribution ?? null,
+              request_headers: requestHeaders ?? null,
             }),
           );
           wrote = true;

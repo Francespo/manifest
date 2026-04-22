@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryColumn, Index } from 'typeorm';
-import { timestampType } from '../common/utils/sql-dialect';
+import { timestampType } from '../common/utils/postgres-sql';
 import type { CallerAttribution } from '../routing/proxy/caller-classifier';
 
 @Entity('agent_messages')
@@ -103,6 +103,9 @@ export class AgentMessage {
 
   @Column('simple-json', { nullable: true })
   caller_attribution!: CallerAttribution | null;
+
+  @Column('simple-json', { nullable: true })
+  request_headers!: Record<string, string> | null;
 
   @Column('varchar', { nullable: true })
   feedback_rating!: string | null;
