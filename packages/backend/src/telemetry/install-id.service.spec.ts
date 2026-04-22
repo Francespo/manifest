@@ -8,6 +8,7 @@ describe('InstallIdService', () => {
   let findOne: jest.Mock;
   let update: jest.Mock;
   let execute: jest.Mock;
+  let values: jest.Mock;
 
   const rowTemplate: InstallMetadata = {
     id: SINGLETON_ID,
@@ -22,10 +23,11 @@ describe('InstallIdService', () => {
     update = jest.fn().mockResolvedValue({ affected: 1 });
     execute = jest.fn().mockResolvedValue({ raw: [] });
 
+    values = jest.fn().mockReturnThis();
     const qb = {
       insert: jest.fn().mockReturnThis(),
       into: jest.fn().mockReturnThis(),
-      values: jest.fn().mockReturnThis(),
+      values,
       orIgnore: jest.fn().mockReturnThis(),
       execute,
     };
@@ -74,20 +76,37 @@ describe('InstallIdService', () => {
       await expect(service.getOrCreate()).rejects.toThrow(/missing after upsert/);
     });
 
-    it('computes first_send_at within the next 24h (jitter)', async () => {
+    it('inserts first_send_at within the next 24h (jitter)', async () => {
       findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(rowTemplate);
-      const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.5);
       const before = Date.now();
 
       await service.getOrCreate();
 
-      const qbCall = execute.mock.calls[0];
-      expect(qbCall).toBeDefined();
-      // The inserted values are captured via the mock's call chain;
-      // we just verify Math.random was consulted (→ jitter path taken).
-      expect(randomSpy).toHaveBeenCalled();
-      expect(Date.now()).toBeGreaterThanOrEqual(before);
-      randomSpy.mockRestore();
+      const inserted = values.mock.calls[0]?.[0] as { first_send_at: string };
+      expect(inserted.first_send_at).toBeDefined();
+      const fsa = new Date(inserted.first_send_at).getTime();
+      expect(fsa).toBeGreaterThanOrEqual(before);
+      expect(fsa).toBeLessThanOrEqual(Date.now() + 24 * 60 * 60 * 1000);
+    });
+
+    it('picks a different first_send_at on successive calls (jitter is random)', async () => {
+      // Two fresh services that each insert — the first_send_at values
+      // should differ because Math.random is seeded per-call. A regression
+      // that always returned `Date.now()` would make them equal.
+      findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(rowTemplate);
+      await service.getOrCreate();
+      const first = (values.mock.calls[0]?.[0] as { first_send_at: string }).first_send_at;
+
+      values.mockClear();
+      findOne.mockReset();
+      findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(rowTemplate);
+      // Force a different Math.random bucket so the test is deterministic.
+      const spy = jest.spyOn(Math, 'random').mockReturnValue(0.999);
+      await service.getOrCreate();
+      const second = (values.mock.calls[0]?.[0] as { first_send_at: string }).first_send_at;
+      spy.mockRestore();
+
+      expect(second).not.toBe(first);
     });
   });
 

@@ -406,9 +406,14 @@ send one aggregate usage report per 24h to `TELEMETRY_ENDPOINT` (default
   `install_metadata`), `manifest_version`
 - Last 24h aggregates from `agent_messages`: `messages_total`,
   `messages_by_provider` (bucketed via `PROVIDER_BY_ID_OR_ALIAS` — unknown
-  values collapse to `"custom"`, NULL to `"unknown"`), `tokens_input_total`,
+  values collapse to `"custom"`, NULL to `"unknown"`), `messages_by_tier`
+  (`simple` / `standard` / `complex` / `reasoning`, NULL → `"unknown"`),
+  `messages_by_auth_type` (`api_key` / `subscription`), `tokens_input_total`,
   `tokens_output_total`
-- `agents_total`
+- Configuration: `agents_total`, `agents_by_platform`
+- Runtime: `platform` (`process.platform`), `arch` (`process.arch`)
+
+User-facing spec: https://manifest.build/docs/self-hosted#telemetry
 
 **Explicitly never sent**: tenant/user IDs, emails, API keys, prompts,
 message contents, model names, custom provider URLs, OAuth client IDs,

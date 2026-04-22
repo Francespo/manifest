@@ -330,15 +330,15 @@ Full env var reference: [github.com/mnfst/manifest](https://github.com/mnfst/man
 ## Anonymous usage telemetry
 
 Manifest sends a small anonymous usage report once per 24h so the maintainers
-can see how the project is being used in the wild. The payload is eight
-fields: a random install UUID (generated once, no PII), the Manifest version,
-and aggregate counters — `messages_total`, `messages_by_provider`,
-`tokens_input_total`, `tokens_output_total`, `agents_total`. No prompts,
-message contents, API keys, emails, URLs, or model names are ever sent.
+can see how the project is being used. Aggregates only — no prompts, no
+message contents, no API keys, nothing that identifies a user. The report is
+a random install UUID (generated once, no PII), the Manifest version, and
+aggregate counters grouped by provider, routing tier, auth type, agent
+platform, OS, and arch.
 
 To disable, set `MANIFEST_TELEMETRY_DISABLED=1` in your `.env` file and
-restart the container. The full payload specification is published at
-[manifest.build/telemetry](https://manifest.build/telemetry).
+restart the container. The full field list is published at
+[manifest.build/docs/self-hosted#telemetry](https://manifest.build/docs/self-hosted#telemetry).
 
 ## Links
 

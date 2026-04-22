@@ -53,10 +53,6 @@ export class TelemetryService implements OnModuleInit {
     if (ok) await this.installIds.markSent(now);
   }
 
-  /**
-   * Gate: skip if first-send jitter hasn't elapsed yet, and skip if the last
-   * successful send was less than 24h ago.
-   */
   private shouldSend(firstSendAt: string | null, lastSentAt: string | null, now: Date): boolean {
     if (firstSendAt && new Date(firstSendAt).getTime() > now.getTime()) return false;
     if (!lastSentAt) return true;

@@ -1,8 +1,7 @@
 /**
  * Shape of the payload POSTed once per 24h from a self-hosted install to the
- * ingest endpoint. 14 fields, all aggregate, no per-request events, no
- * identifiers beyond the random `install_id` and the Manifest version.
- *
+ * ingest endpoint. All fields are derived aggregates — no per-request events,
+ * no identifiers beyond the random `install_id` and the Manifest version.
  * Additive changes keep `schema_version: 1`; breaking changes bump it.
  */
 export interface TelemetryPayloadV1 {
