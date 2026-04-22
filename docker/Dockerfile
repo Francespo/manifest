@@ -75,6 +75,10 @@ COPY --from=build --chown=nonroot:nonroot /app/packages/backend/dist packages/ba
 COPY --from=build --chown=nonroot:nonroot /app/packages/frontend/dist packages/frontend/dist
 COPY --chown=nonroot:nonroot packages/shared/package.json packages/shared/
 COPY --chown=nonroot:nonroot packages/backend/package.json packages/backend/
+# The telemetry sender reads the canonical Manifest version from this
+# file at boot. Without it, readManifestVersion() falls back to "unknown"
+# and the sender ends up posting invalid semver to the ingest endpoint.
+COPY --chown=nonroot:nonroot packages/manifest/package.json packages/manifest/
 
 EXPOSE 2099
 
