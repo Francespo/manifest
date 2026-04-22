@@ -1,11 +1,13 @@
-# Runtime is gcr.io/distroless/nodejs22-debian12 (no shell, no package
-# manager, just node). Prod deps are staged on node:22-slim so the glibc
-# binaries match the distroless debian12 runtime. Build/dev stages stay
-# on node:22-alpine — smallest base that still has a shell, which the
-# build (turbo, nest) needs. All base images are pinned by digest.
+# Runtime is gcr.io/distroless/nodejs22-debian13 (no shell, no package
+# manager, just node). Prod deps are staged on node:22-slim; the prod
+# install uses --ignore-scripts so no native modules are compiled,
+# which means the runtime's glibc version is invisible to node_modules.
+# Build/dev stages stay on node:22-alpine — smallest base that still has
+# a shell, which the build (turbo, nest) needs. All base images are
+# pinned by digest.
 
 # Stage 1: Install all dependencies (including dev deps) for the build.
-FROM node:22-alpine@sha256:4d64b49e6c891c8fc821007cb1cdc6c0db7773110ac2c34bf2e6960adef62ed3 AS deps
+FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS deps
 WORKDIR /app
 COPY package.json package-lock.json turbo.json ./
 COPY packages/shared/package.json packages/shared/
@@ -21,9 +23,10 @@ COPY packages/frontend packages/frontend
 COPY packages/backend packages/backend
 RUN npx turbo build --filter=manifest-backend --filter=manifest-frontend --filter=manifest-shared
 
-# Stage 3: Production dependencies only, installed on glibc to match the
-# distroless debian12 runtime. All runtime deps are pure JS.
-FROM node:22-slim@sha256:f3a68cf41a855d227d1b0ab832bed9749469ef38cf4f58182fb8c893bc462383 AS prod-deps
+# Stage 3: Production dependencies only. npm ci runs with --ignore-scripts
+# so nothing is compiled — all runtime deps are pure JS, making the glibc
+# of this stage irrelevant to the final image.
+FROM node:22-slim@sha256:d415caac2f1f77b98caaf9415c5f807e14bc8d7bdea62561ea2fef4fbd08a73c AS prod-deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
@@ -50,7 +53,7 @@ RUN --mount=type=cache,target=/root/.npm \
 
 # Stage 4: Distroless runtime. Runs as the built-in `nonroot` user (UID
 # 65532) by default. No shell, no apk/apt, minimal CVE surface.
-FROM gcr.io/distroless/nodejs22-debian12:nonroot@sha256:13593b7570658e8477de39e2f4a1dd25db2f836d68a0ba771251572d23bb4f8e AS runtime
+FROM gcr.io/distroless/nodejs22-debian13:nonroot@sha256:559b13edb698d652d7852597747ebd691569d110f0a76132b870067b290e30bd AS runtime
 WORKDIR /app
 
 LABEL org.opencontainers.image.title="Manifest" \
