@@ -14,6 +14,7 @@ import { TierAutoAssignService } from '../routing-core/tier-auto-assign.service'
 import { CreateCustomProviderDto, UpdateCustomProviderDto } from '../dto/custom-provider.dto';
 import { validatePublicUrl } from '../../common/utils/url-validation';
 import { isSelfHosted } from '../../common/utils/detect-self-hosted';
+import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
 import { classifyProbeError } from './probe-error';
 
 const PROBE_TIMEOUT_MS = 5000;
@@ -41,6 +42,7 @@ export class CustomProviderService {
     private readonly providerService: ProviderService,
     private readonly routingCache: RoutingCacheService,
     private readonly autoAssign: TierAutoAssignService,
+    private readonly pricingCache: ModelPricingCacheService,
   ) {}
 
   /** Provider key used in UserProvider tables. */
@@ -118,6 +120,11 @@ export class CustomProviderService {
     // Create UserProvider + trigger tier recalculation
     await this.providerService.upsertProvider(agentId, userId, provKey, dto.apiKey);
 
+    // Rebuild the shared pricing cache so the proxy can compute cost for
+    // requests routed to this custom provider's models immediately (without
+    // waiting for the daily 5am reload).
+    await this.pricingCache.reload();
+
     return cp;
   }
 
@@ -178,6 +185,12 @@ export class CustomProviderService {
     await this.repo.save(cp);
     this.routingCache.invalidateAgent(agentId);
 
+    // Reload pricing cache when the model list changes so new prices (or
+    // edits to existing ones) are used for subsequent cost computations.
+    if (dto.models !== undefined) {
+      await this.pricingCache.reload();
+    }
+
     return cp;
   }
 
@@ -198,6 +211,9 @@ export class CustomProviderService {
 
     // Delete CustomProvider row
     await this.repo.remove(cp);
+
+    // Drop stale pricing entries for this provider's models from the cache.
+    await this.pricingCache.reload();
   }
 
   async getById(id: string): Promise<CustomProvider | null> {
