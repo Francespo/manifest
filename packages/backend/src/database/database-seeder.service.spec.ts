@@ -301,7 +301,7 @@ describe('DatabaseSeederService', () => {
       expect(auth.api.signUpEmail).toHaveBeenCalledWith({
         body: {
           email: 'admin@manifest.build',
-          password: 'manifest',
+          password: 'manifest-dev',
           name: 'Admin',
         },
       });

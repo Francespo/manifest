@@ -4,14 +4,13 @@ import {
   Get,
   Post,
   Query,
-  Req,
   Res,
   Logger,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../auth/current-user.decorator';
 import { AuthUser } from '../../auth/auth.instance';
@@ -19,6 +18,7 @@ import { OpenaiOauthService, OAuthTokenBlob, oauthDoneHtml } from './openai-oaut
 import { ResolveAgentService } from '../routing-core/resolve-agent.service';
 import { ProviderService } from '../routing-core/provider.service';
 import { ProviderKeyService } from '../routing-core/provider-key.service';
+import { ManifestRuntimeService } from '../../common/services/manifest-runtime.service';
 
 @Controller('api/v1/oauth/openai')
 export class OpenaiOauthController {
@@ -29,6 +29,7 @@ export class OpenaiOauthController {
     private readonly resolveAgent: ResolveAgentService,
     private readonly providerKeyService: ProviderKeyService,
     private readonly providerService: ProviderService,
+    private readonly runtime: ManifestRuntimeService,
   ) {}
 
   /**
@@ -37,16 +38,15 @@ export class OpenaiOauthController {
    * A temporary callback server on port 1455 handles the redirect.
    */
   @Get('authorize')
-  async authorize(
-    @Query('agentName') agentName: string,
-    @CurrentUser() user: AuthUser,
-    @Req() req: Request,
-  ) {
+  async authorize(@Query('agentName') agentName: string, @CurrentUser() user: AuthUser) {
     if (!agentName) {
       throw new HttpException('agentName query parameter is required', HttpStatus.BAD_REQUEST);
     }
     const agent = await this.resolveAgent.resolve(user.id, agentName);
-    const backendUrl = `${req.protocol}://${req.get('host')}`;
+    // Prefer the configured base URL so a forged Host header can't poison
+    // the cached PendingOAuth.backendUrl / logs. Fall back to request-derived
+    // only when running locally with no BETTER_AUTH_URL set.
+    const backendUrl = this.runtime.getAuthBaseUrl();
     try {
       const url = await this.oauthService.generateAuthorizationUrl(agent.id, user.id, backendUrl);
       return { url };

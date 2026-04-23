@@ -100,11 +100,22 @@ export class ProviderClient {
 
     this.logger.debug(`Forwarding to ${endpointKey}: ${url.replace(/key=[^&]+/, 'key=***')}`);
 
-    return this.executeFetch(url, finalHeaders, requestBody, signal, {
-      isGoogle,
-      isAnthropic,
-      isChatGpt,
-    });
+    return this.executeFetch(
+      url,
+      finalHeaders,
+      requestBody,
+      signal,
+      {
+        isGoogle,
+        isAnthropic,
+        isChatGpt,
+      },
+      // Custom providers accept a user-supplied base URL. We validate the URL
+      // at save and re-validate at forward, but a 3xx could still point the
+      // request at a private/metadata host. Refuse to follow redirects so the
+      // validated hostname is the only one we ever POST user credentials to.
+      endpointKey === 'custom',
+    );
   }
 
   private resolveEndpoint(
@@ -214,6 +225,7 @@ export class ProviderClient {
     requestBody: Record<string, unknown>,
     signal: AbortSignal | undefined,
     formatFlags: { isGoogle: boolean; isAnthropic: boolean; isChatGpt: boolean },
+    refuseRedirects = false,
   ): Promise<ForwardResult> {
     const timeoutSignal = AbortSignal.timeout(PROVIDER_TIMEOUT_MS);
     const fetchSignal = signal ? AbortSignal.any([timeoutSignal, signal]) : timeoutSignal;
@@ -225,6 +237,7 @@ export class ProviderClient {
         headers,
         body: JSON.stringify(requestBody),
         signal: fetchSignal,
+        ...(refuseRedirects ? { redirect: 'error' as const } : {}),
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

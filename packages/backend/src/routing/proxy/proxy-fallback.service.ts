@@ -18,6 +18,8 @@ import { CopilotTokenService } from './copilot-token.service';
 import { buildProviderExtraHeaders } from './provider-hooks';
 import { shouldTriggerFallback } from './fallback-status-codes';
 import { inferProviderFromModelName } from '../../common/utils/provider-aliases';
+import { validatePublicUrl } from '../../common/utils/url-validation';
+import { isSelfHosted } from '../../common/utils/detect-self-hosted';
 import { normalizeMinimaxSubscriptionBaseUrl } from '../provider-base-url';
 import { getQwenCompatibleBaseUrl, isQwenResolvedRegion } from '../qwen-region';
 import { normalizeAnthropicShortModelId } from '../../common/utils/anthropic-model-id';
@@ -257,6 +259,20 @@ export class ProxyFallbackService {
       const cpId = CustomProviderService.extractId(provider);
       const cp = await this.customProviderRepo.findOne({ where: { id: cpId } });
       if (cp) {
+        // Re-validate the stored base_url at forward time. validatePublicUrl
+        // only ran when the row was inserted/updated; DNS can be flipped to
+        // a private / metadata IP afterwards (rebinding / short-TTL), which
+        // would otherwise forward the user's decrypted API key to a
+        // private destination.
+        try {
+          await validatePublicUrl(cp.base_url, { allowPrivate: isSelfHosted() });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(
+            `Rejecting custom provider forward: provider=${provider} reason=${message}`,
+          );
+          throw new Error(`Custom provider base URL is no longer reachable: ${message}`);
+        }
         customEndpoint = buildCustomEndpoint(cp.base_url);
         forwardModel = CustomProviderService.rawModelName(opts.model);
       }

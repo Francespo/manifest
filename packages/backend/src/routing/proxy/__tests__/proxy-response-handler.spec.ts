@@ -108,6 +108,34 @@ describe('proxy-response-handler', () => {
 
       expect(headers).not.toHaveProperty('X-Manifest-Specificity');
     });
+
+    it('strips non-ASCII characters from user-influenced header values', () => {
+      const meta = makeMeta({
+        model: 'gpt-4o☃',
+        provider: 'evíl',
+        reason: 'reasoñ',
+      });
+      const headers = buildMetaHeaders(meta);
+
+      expect(headers['X-Manifest-Model']).toBe('gpt-4o?');
+      expect(headers['X-Manifest-Provider']).toBe('ev?l');
+      expect(headers['X-Manifest-Reason']).toBe('reaso?');
+    });
+
+    it('caps header values at 256 characters', () => {
+      const long = 'a'.repeat(500);
+      const meta = makeMeta({ model: long });
+      const headers = buildMetaHeaders(meta);
+
+      expect(headers['X-Manifest-Model'].length).toBe(256);
+    });
+
+    it('neutralises CR/LF in header values', () => {
+      const meta = makeMeta({ reason: 'ok\r\nX-Injected: true' });
+      const headers = buildMetaHeaders(meta);
+
+      expect(headers['X-Manifest-Reason']).not.toMatch(/[\r\n]/);
+    });
   });
 
   /* ── handleProviderError ── */

@@ -78,8 +78,16 @@ export async function validatePublicUrl(
   url: string,
   opts: { allowPrivate?: boolean } = {},
 ): Promise<void> {
-  // Skip SSRF validation in test mode (set SKIP_SSRF_VALIDATION=false to force validation)
-  if (process.env['NODE_ENV'] === 'test' && process.env['SKIP_SSRF_VALIDATION'] !== 'false') return;
+  // Tests can opt *in* to skipping the SSRF validator by setting
+  // MANIFEST_ALLOW_SSRF_FOR_TESTS=true. A misconfigured deployment that
+  // accidentally sets NODE_ENV=test (e.g. from a CI variable leaking into
+  // prod) no longer bypasses the validator. Backwards-compatibility: the
+  // old opt-out env var (SKIP_SSRF_VALIDATION) still works when NODE_ENV
+  // is exactly 'test' — but the positive flag takes precedence.
+  if (process.env['MANIFEST_ALLOW_SSRF_FOR_TESTS'] === 'true') return;
+  if (process.env['NODE_ENV'] === 'test' && process.env['SKIP_SSRF_VALIDATION'] !== 'false') {
+    return;
+  }
 
   let parsed: URL;
   try {

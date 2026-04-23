@@ -8,8 +8,16 @@ function testCacheKey(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-function makeContext(headers: Record<string, string | undefined>, ip = '203.0.113.1') {
-  const request: Record<string, unknown> = { headers, ip };
+function makeContext(
+  headers: Record<string, string | undefined>,
+  ip = '203.0.113.1',
+  socketAddress: string = ip,
+) {
+  const request: Record<string, unknown> = {
+    headers,
+    ip,
+    socket: { remoteAddress: socketAddress },
+  };
   return {
     req: request,
     ctx: {

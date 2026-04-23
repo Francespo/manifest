@@ -15,7 +15,7 @@ import { AgentApiKey } from '../../entities/agent-api-key.entity';
 import { IngestionContext } from '../interfaces/ingestion-context.interface';
 import { verifyKey, keyPrefix as computePrefix } from '../../common/utils/hash.util';
 import { API_KEY_PREFIX } from '../../common/constants/api-key.constants';
-import { isLoopbackIp } from '../../common/utils/local-ip';
+import { isLoopbackRequest } from '../../common/utils/local-ip';
 const MIN_TOKEN_LENGTH = 12;
 
 function cacheKey(token: string): string {
@@ -58,9 +58,8 @@ export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
     const request = context.switchToHttp().getRequest<Request>();
     const authHeader = request.headers['authorization'];
 
-    const ip = request.ip ?? '';
     const isDevLoopback =
-      this.configService.get<string>('app.nodeEnv') === 'development' && isLoopbackIp(ip);
+      this.configService.get<string>('app.nodeEnv') === 'development' && isLoopbackRequest(request);
 
     if (!authHeader) {
       if (await this.handleDevLoopback(request, isDevLoopback)) return true;

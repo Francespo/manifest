@@ -657,6 +657,49 @@ describe('ProviderClient', () => {
       expect(headers['originator']).toBe('codex_cli_rs');
     });
 
+    it('sets redirect:error on custom provider forwards (SSRF hardening)', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      const customEndpoint = {
+        baseUrl: 'https://custom.example.com/v1',
+        buildHeaders: (key: string) => ({
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+        }),
+        buildPath: () => '/chat/completions',
+        format: 'openai' as const,
+      };
+
+      await client.forward({
+        provider: 'custom:uuid',
+        apiKey: 'key',
+        model: 'any-model',
+        body,
+        stream: false,
+        customEndpoint,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ redirect: 'error' }),
+      );
+    });
+
+    it('does NOT set redirect:error on non-custom provider forwards', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'openai',
+        apiKey: 'sk-test',
+        model: 'gpt-4o',
+        body,
+        stream: false,
+      });
+
+      const init = mockFetch.mock.calls[0][1];
+      expect(init.redirect).toBeUndefined();
+    });
+
     it('does not override custom endpoints when a Codex model is used through a custom provider', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 

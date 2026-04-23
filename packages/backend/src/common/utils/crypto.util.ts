@@ -9,15 +9,38 @@ function deriveKey(secret: string, salt: Buffer): Buffer {
   return scryptSync(secret, salt, KEY_LENGTH);
 }
 
+let warnedAboutFallback = false;
+
+function warnFallbackOnce(): void {
+  if (warnedAboutFallback) return;
+  warnedAboutFallback = true;
+
+  console.warn(
+    '[crypto] MANIFEST_ENCRYPTION_KEY is not set; falling back to BETTER_AUTH_SECRET. ' +
+      'These should be separate so the session secret can be rotated without ' +
+      're-encrypting every stored provider API key. Set MANIFEST_ENCRYPTION_KEY ' +
+      'to a 32+ character random string.',
+  );
+}
+
 export function getEncryptionSecret(): string {
-  const key = process.env['MANIFEST_ENCRYPTION_KEY'] || process.env['BETTER_AUTH_SECRET'];
-  if (key && key.length >= 32) {
-    return key;
+  const dedicated = process.env['MANIFEST_ENCRYPTION_KEY'];
+  if (dedicated && dedicated.length >= 32) return dedicated;
+
+  const fallback = process.env['BETTER_AUTH_SECRET'];
+  if (fallback && fallback.length >= 32) {
+    warnFallbackOnce();
+    return fallback;
   }
 
   throw new Error(
     'Encryption secret required. Set MANIFEST_ENCRYPTION_KEY or BETTER_AUTH_SECRET (>=32 chars).',
   );
+}
+
+/** @internal testing only — resets the once-per-process fallback warning. */
+export function __resetFallbackWarningForTests(): void {
+  warnedAboutFallback = false;
 }
 
 export function encrypt(plaintext: string, secret: string): string {

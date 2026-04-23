@@ -121,6 +121,24 @@ describe('ResolveController', () => {
 
       expect(errors.length).toBeGreaterThan(0);
     });
+
+    it('should fail validation when provider is not in the known-provider allowlist', async () => {
+      const plain = { providers: [{ provider: 'attacker-chosen-string' }] };
+      const dto = plainToInstance(RegisterSubscriptionsDto, plain);
+      const errors = await validate(dto);
+
+      expect(errors.length).toBeGreaterThan(0);
+      expect(JSON.stringify(errors)).toMatch(/provider must be one of/);
+    });
+
+    it('should lowercase + trim provider before validation', async () => {
+      const plain = { providers: [{ provider: '  Anthropic  ' }] };
+      const dto = plainToInstance(RegisterSubscriptionsDto, plain);
+      const errors = await validate(dto);
+
+      expect(errors).toHaveLength(0);
+      expect(dto.providers[0].provider).toBe('anthropic');
+    });
   });
 
   describe('registerSubscriptions', () => {
@@ -179,6 +197,38 @@ describe('ResolveController', () => {
         'u1',
         'anthropic',
       );
+    });
+
+    it('silently skips non-subscription providers on the token branch (defence-in-depth)', async () => {
+      const req = {
+        ingestionContext: { userId: 'u1', tenantId: 't1', agentId: 'a1', agentName: 'n1' },
+      } as never;
+
+      // deepseek is a registered provider but does NOT support subscription
+      // auth. upsertProvider would otherwise write the row anyway, so we
+      // short-circuit in the controller.
+      const result = await controller.registerSubscriptions(
+        { providers: [{ provider: 'deepseek', token: 'sk-fake' }] },
+        req,
+      );
+
+      expect(result).toEqual({ registered: 0 });
+      expect(mockProviderService.upsertProvider).not.toHaveBeenCalled();
+    });
+
+    it('still delegates the no-token branch to ProviderService (which already skips unsupported)', async () => {
+      mockProviderService.registerSubscriptionProvider.mockResolvedValueOnce({ isNew: false });
+      const req = {
+        ingestionContext: { userId: 'u1', tenantId: 't1', agentId: 'a1', agentName: 'n1' },
+      } as never;
+
+      const result = await controller.registerSubscriptions(
+        { providers: [{ provider: 'deepseek' }] },
+        req,
+      );
+
+      expect(result).toEqual({ registered: 0 });
+      expect(mockProviderService.registerSubscriptionProvider).toHaveBeenCalledTimes(1);
     });
 
     it('should only count newly created providers', async () => {

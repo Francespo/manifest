@@ -273,6 +273,39 @@ describe('ProxyFallbackService', () => {
       });
     });
 
+    it('re-validates custom provider base URL at forward time and rejects private destinations (#SSRF)', async () => {
+      const originalSkip = process.env['SKIP_SSRF_VALIDATION'];
+      process.env['SKIP_SSRF_VALIDATION'] = 'false';
+      try {
+        customProviderRepo.findOne.mockResolvedValue({
+          id: 'cp-1',
+          base_url: 'http://169.254.169.254/openai/v1',
+        } as never);
+        providerClient.forward.mockResolvedValue({
+          response: new Response('{}', { status: 200 }),
+          isGoogle: false,
+          isAnthropic: false,
+          isChatGpt: false,
+        });
+
+        await expect(
+          service.tryForwardToProvider({
+            provider: 'custom:cp-1',
+            apiKey: 'key',
+            model: 'custom:cp-1/llama',
+            body,
+            stream: false,
+            sessionKey: 'sess-1',
+          }),
+        ).rejects.toThrow(/Custom provider base URL/);
+
+        expect(providerClient.forward).not.toHaveBeenCalled();
+      } finally {
+        if (originalSkip === undefined) delete process.env['SKIP_SSRF_VALIDATION'];
+        else process.env['SKIP_SSRF_VALIDATION'] = originalSkip;
+      }
+    });
+
     it('ignores invalid minimax resource URL', async () => {
       providerClient.forward.mockResolvedValue({
         response: new Response('{}', { status: 200 }),

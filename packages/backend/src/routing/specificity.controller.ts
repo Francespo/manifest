@@ -12,7 +12,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthUser } from '../auth/auth.instance';
 import { SpecificityService } from './routing-core/specificity.service';
 import { ResolveAgentService } from './routing-core/resolve-agent.service';
-import { AgentNameParamDto } from './dto/routing.dto';
+import { AgentNameParamDto, SetFallbacksDto } from './dto/routing.dto';
 import { SetSpecificityOverrideDto, ToggleSpecificityDto } from './dto/specificity.dto';
 import { SPECIFICITY_CATEGORIES } from 'manifest-shared';
 
@@ -77,7 +77,7 @@ export class SpecificityController {
     @CurrentUser() user: AuthUser,
     @Param('agentName') agentName: string,
     @Param('category') category: string,
-    @Body() body: { models: string[] },
+    @Body() body: SetFallbacksDto,
   ) {
     this.validateCategory(category);
     const agent = await this.resolveAgentService.resolve(user.id, agentName);

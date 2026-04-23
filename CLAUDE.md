@@ -194,7 +194,7 @@ cd packages/frontend && npx vite
 
 Set `SEED_DATA=true` in `packages/backend/.env` to seed on startup (dev/test only). This creates:
 
-- **Admin user**: `admin@manifest.build` / `manifest` (email verification email is skipped if Mailgun is not configured — user is created but unverified)
+- **Admin user**: `admin@manifest.build` / `manifest-dev` (email verification email is skipped if Mailgun is not configured — user is created but unverified)
 - **Tenant**: `seed-tenant-001` linked to the admin user
 - **Agent**: `demo-agent` with OTLP key `dev-otlp-key-001`
 - **API key**: `dev-api-key-manifest-001`

@@ -18,6 +18,9 @@ export class CustomProviderModelDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
+  @Matches(/^[A-Za-z0-9._/:@-]+$/, {
+    message: 'model_name can only contain letters, digits, and ._/:@-',
+  })
   model_name!: string;
 
   @IsOptional()
@@ -51,7 +54,10 @@ export class CreateCustomProviderDto {
 
   @IsString()
   @IsNotEmpty()
-  @IsUrl({ require_tld: false, require_protocol: true }, { message: 'Must be a valid URL' })
+  @IsUrl(
+    { require_tld: false, require_protocol: true, protocols: ['http', 'https'] },
+    { message: 'Must be a valid http(s) URL' },
+  )
   base_url!: string;
 
   @IsOptional()
@@ -69,7 +75,10 @@ export class CreateCustomProviderDto {
 export class ProbeCustomProviderDto {
   @IsString()
   @IsNotEmpty()
-  @IsUrl({ require_tld: false, require_protocol: true }, { message: 'Must be a valid URL' })
+  @IsUrl(
+    { require_tld: false, require_protocol: true, protocols: ['http', 'https'] },
+    { message: 'Must be a valid http(s) URL' },
+  )
   base_url!: string;
 
   @IsOptional()
@@ -91,7 +100,10 @@ export class UpdateCustomProviderDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
-  @IsUrl({ require_tld: false, require_protocol: true }, { message: 'Must be a valid URL' })
+  @IsUrl(
+    { require_tld: false, require_protocol: true, protocols: ['http', 'https'] },
+    { message: 'Must be a valid http(s) URL' },
+  )
   base_url?: string;
 
   @IsOptional()

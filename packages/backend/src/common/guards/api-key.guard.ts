@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Request } from 'express';
-import { timingSafeEqual } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 import { ApiKey } from '../../entities/api-key.entity';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { verifyKey, keyPrefix as computePrefix } from '../utils/hash.util';
@@ -73,11 +73,11 @@ export class ApiKeyGuard implements CanActivate {
   }
 
   private safeCompare(a: string, b: string): boolean {
-    const maxLen = Math.max(a.length, b.length);
-    const aBuf = Buffer.alloc(maxLen);
-    const bBuf = Buffer.alloc(maxLen);
-    Buffer.from(a).copy(aBuf);
-    Buffer.from(b).copy(bBuf);
-    return a.length === b.length && timingSafeEqual(aBuf, bBuf);
+    // Hash both sides to fixed length so timingSafeEqual never observes a
+    // length mismatch. This is the canonical pattern — matching what
+    // hash.util.verifyKey() uses for agent keys.
+    const aDigest = createHash('sha256').update(a).digest();
+    const bDigest = createHash('sha256').update(b).digest();
+    return timingSafeEqual(aDigest, bDigest);
   }
 }
