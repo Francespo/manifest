@@ -264,6 +264,10 @@ export class ProxyFallbackService {
         // a private / metadata IP afterwards (rebinding / short-TTL), which
         // would otherwise forward the user's decrypted API key to a
         // private destination.
+        //
+        // On failure we return a synthetic 502 response rather than throwing
+        // so the fallback loop can record the attempt and move on to the
+        // next model instead of aborting the whole chain.
         try {
           await validatePublicUrl(cp.base_url, { allowPrivate: isSelfHosted() });
         } catch (err) {
@@ -271,7 +275,20 @@ export class ProxyFallbackService {
           this.logger.warn(
             `Rejecting custom provider forward: provider=${provider} reason=${message}`,
           );
-          throw new Error(`Custom provider base URL is no longer reachable: ${message}`);
+          return {
+            response: new Response(
+              JSON.stringify({
+                error: {
+                  message: `Custom provider base URL is no longer reachable: ${message}`,
+                  type: 'ssrf_validation_failed',
+                },
+              }),
+              { status: 502, headers: { 'Content-Type': 'application/json' } },
+            ),
+            isGoogle: false,
+            isAnthropic: false,
+            isChatGpt: false,
+          };
         }
         customEndpoint = buildCustomEndpoint(cp.base_url);
         forwardModel = CustomProviderService.rawModelName(opts.model);

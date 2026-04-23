@@ -273,7 +273,7 @@ describe('ProxyFallbackService', () => {
       });
     });
 
-    it('re-validates custom provider base URL at forward time and rejects private destinations (#SSRF)', async () => {
+    it('re-validates custom provider base URL at forward time and returns a 502 for private destinations (#SSRF)', async () => {
       const originalSkip = process.env['SKIP_SSRF_VALIDATION'];
       process.env['SKIP_SSRF_VALIDATION'] = 'false';
       try {
@@ -288,18 +288,65 @@ describe('ProxyFallbackService', () => {
           isChatGpt: false,
         });
 
-        await expect(
-          service.tryForwardToProvider({
-            provider: 'custom:cp-1',
-            apiKey: 'key',
-            model: 'custom:cp-1/llama',
-            body,
-            stream: false,
-            sessionKey: 'sess-1',
-          }),
-        ).rejects.toThrow(/Custom provider base URL/);
+        // Returning an error ForwardResult (not throwing) lets the fallback
+        // loop record this attempt and still try the remaining candidates.
+        const result = await service.tryForwardToProvider({
+          provider: 'custom:cp-1',
+          apiKey: 'key',
+          model: 'custom:cp-1/llama',
+          body,
+          stream: false,
+          sessionKey: 'sess-1',
+        });
 
+        expect(result.response.ok).toBe(false);
+        expect(result.response.status).toBe(502);
+        const errBody = (await result.response.json()) as { error: { message: string } };
+        expect(errBody.error.message).toMatch(/no longer reachable/);
         expect(providerClient.forward).not.toHaveBeenCalled();
+      } finally {
+        if (originalSkip === undefined) delete process.env['SKIP_SSRF_VALIDATION'];
+        else process.env['SKIP_SSRF_VALIDATION'] = originalSkip;
+      }
+    });
+
+    it('does not abort the fallback chain when a custom provider fails SSRF revalidation', async () => {
+      const originalSkip = process.env['SKIP_SSRF_VALIDATION'];
+      process.env['SKIP_SSRF_VALIDATION'] = 'false';
+      try {
+        customProviderRepo.findOne.mockResolvedValue({
+          id: 'cp-1',
+          base_url: 'http://169.254.169.254/openai/v1',
+        } as never);
+        // Second fallback (anthropic) should still succeed after the custom
+        // one fails its SSRF check.
+        providerKeyService.getProviderApiKey.mockResolvedValue('sk-ant');
+        pricingCache.getByModel
+          .mockReturnValueOnce(undefined) // custom — skips pricing
+          .mockReturnValueOnce({ provider: 'Anthropic', inputPrice: 3, outputPrice: 15 } as never);
+        providerClient.forward.mockResolvedValue({
+          response: new Response(JSON.stringify({ ok: true }), { status: 200 }),
+          isGoogle: false,
+          isAnthropic: true,
+          isChatGpt: false,
+        });
+
+        const result = await service.tryFallbacks(
+          'agent-1',
+          'user-1',
+          ['custom:cp-1/llama', 'claude-sonnet-4'],
+          body,
+          false,
+          'sess-1',
+          'gpt-4o',
+        );
+
+        expect(result.success).not.toBeNull();
+        expect(result.success?.model).toBe('claude-sonnet-4');
+        expect(result.success?.fallbackIndex).toBe(1);
+        expect(result.failures).toHaveLength(1);
+        expect(result.failures[0].model).toBe('custom:cp-1/llama');
+        expect(result.failures[0].status).toBe(502);
       } finally {
         if (originalSkip === undefined) delete process.env['SKIP_SSRF_VALIDATION'];
         else process.env['SKIP_SSRF_VALIDATION'] = originalSkip;
