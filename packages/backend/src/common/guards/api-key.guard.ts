@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Request } from 'express';
-import { createHash, timingSafeEqual } from 'crypto';
+import { timingSafeEqual } from 'crypto';
 import { ApiKey } from '../../entities/api-key.entity';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { verifyKey, keyPrefix as computePrefix } from '../utils/hash.util';
@@ -73,11 +73,13 @@ export class ApiKeyGuard implements CanActivate {
   }
 
   private safeCompare(a: string, b: string): boolean {
-    // Hash both sides to fixed length so timingSafeEqual never observes a
-    // length mismatch. This is the canonical pattern — matching what
-    // hash.util.verifyKey() uses for agent keys.
-    const aDigest = createHash('sha256').update(a).digest();
-    const bDigest = createHash('sha256').update(b).digest();
-    return timingSafeEqual(aDigest, bDigest);
+    const aBuf = Buffer.from(a, 'utf8');
+    const bBuf = Buffer.from(b, 'utf8');
+    // timingSafeEqual requires equal-length inputs. A length mismatch is
+    // a definite mismatch, and the length of the configured env-based
+    // API_KEY is not a secret worth hiding. Real agent ingest keys take
+    // the scrypt path via hash.util.verifyKey further up.
+    if (aBuf.length !== bBuf.length) return false;
+    return timingSafeEqual(aBuf, bBuf);
   }
 }
