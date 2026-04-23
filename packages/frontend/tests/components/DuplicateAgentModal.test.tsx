@@ -171,6 +171,58 @@ describe('DuplicateAgentModal', () => {
     });
   });
 
+  it('swallows errors silently (toast already shown by fetchMutate)', async () => {
+    mockDuplicateAgent.mockRejectedValueOnce(new Error('boom'));
+    const onClose = vi.fn();
+    render(() => (
+      <DuplicateAgentModal open={true} sourceName="my-agent" onClose={onClose} />
+    ));
+
+    await waitFor(() => {
+      const input = q('#duplicate-agent-name') as HTMLInputElement | null;
+      expect(input?.value).toBe('my-agent-copy');
+    });
+
+    const btn = Array.from(document.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Duplicate agent',
+    ) as HTMLButtonElement;
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(mockDuplicateAgent).toHaveBeenCalled();
+    });
+
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('closes when the overlay backdrop is clicked', async () => {
+    const onClose = vi.fn();
+    render(() => (
+      <DuplicateAgentModal open={true} sourceName="my-agent" onClose={onClose} />
+    ));
+    await waitFor(() => {
+      expect(q('.modal-overlay')).toBeDefined();
+    });
+    const overlay = q('.modal-overlay') as HTMLDivElement;
+    fireEvent.click(overlay);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('does not close when a click inside the modal card bubbles to the overlay', async () => {
+    const onClose = vi.fn();
+    render(() => (
+      <DuplicateAgentModal open={true} sourceName="my-agent" onClose={onClose} />
+    ));
+    await waitFor(() => {
+      expect(q('.modal-card')).toBeDefined();
+    });
+    const card = q('.modal-card') as HTMLDivElement;
+    fireEvent.click(card);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('skips toast + navigate when user cancels during an in-flight submit', async () => {
     let resolveDuplicate: (value: {
       agent: { id: string; name: string; display_name: string };
