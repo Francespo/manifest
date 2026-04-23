@@ -42,7 +42,9 @@ const DuplicateAgentModal: Component<Props> = (props) => {
       setName('');
       setNameTouched(false);
       setSubmitting(false);
-      cancelledInFlight = false;
+      // Deliberately don't reset `cancelledInFlight` here — it must stay true
+      // until the in-flight fetch returns so handleDuplicate can honor the
+      // cancel. handleDuplicate resets it when starting a new request.
     }
   });
 

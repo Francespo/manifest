@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@solidjs/testing-library';
+import { createSignal } from 'solid-js';
 
 const mockDuplicateAgent = vi.fn();
 const mockGetDuplicatePreview = vi.fn();
@@ -223,7 +224,7 @@ describe('DuplicateAgentModal', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('skips toast + navigate when user cancels during an in-flight submit', async () => {
+  it('skips toast + navigate when the parent closes the modal during an in-flight submit', async () => {
     let resolveDuplicate: (value: {
       agent: { id: string; name: string; display_name: string };
       apiKey: string;
@@ -241,13 +242,15 @@ describe('DuplicateAgentModal', () => {
         }),
     );
 
-    const onClose = vi.fn();
+    // Use a reactive `open` signal so calling onClose actually flips the prop
+    // and runs the modal's createEffect, matching real parent wiring.
+    const [open, setOpen] = createSignal(true);
     const onDuplicated = vi.fn();
     render(() => (
       <DuplicateAgentModal
-        open={true}
+        open={open()}
         sourceName="my-agent"
-        onClose={onClose}
+        onClose={() => setOpen(false)}
         onDuplicated={onDuplicated}
       />
     ));
@@ -270,7 +273,10 @@ describe('DuplicateAgentModal', () => {
       (b) => b.textContent?.trim() === 'Cancel',
     ) as HTMLButtonElement;
     fireEvent.click(cancelBtn);
-    expect(onClose).toHaveBeenCalled();
+    // Modal has closed (props.open flipped to false)
+    await waitFor(() => {
+      expect(q('.modal-overlay')).toBeNull();
+    });
 
     resolveDuplicate({
       agent: { id: 'new-id', name: 'my-agent-copy', display_name: 'my-agent-copy' },

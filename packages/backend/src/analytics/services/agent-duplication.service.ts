@@ -11,6 +11,7 @@ import { TierAssignment } from '../../entities/tier-assignment.entity';
 import { SpecificityAssignment } from '../../entities/specificity-assignment.entity';
 import { hashKey, keyPrefix } from '../../common/utils/hash.util';
 import { encrypt, getEncryptionSecret } from '../../common/utils/crypto.util';
+import { sqlNow } from '../../common/utils/postgres-sql';
 import { API_KEY_PREFIX } from '../../common/constants/api-key.constants';
 import { RoutingCacheService } from '../../routing/routing-core/routing-cache.service';
 
@@ -103,7 +104,7 @@ export class AgentDuplicationService {
     const rawKey = this.generateOtlpKey();
     const secret = getEncryptionSecret();
     const newAgentId = uuidv4();
-    const now = new Date().toISOString();
+    const now = sqlNow();
 
     const copied = await this.dataSource.transaction(async (manager) => {
       await manager.getRepository(Agent).insert({

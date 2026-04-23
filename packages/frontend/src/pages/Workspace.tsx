@@ -1,4 +1,12 @@
-import { createResource, createSignal, Show, For, onCleanup, type Component } from 'solid-js';
+import {
+  createEffect,
+  createResource,
+  createSignal,
+  Show,
+  For,
+  onCleanup,
+  type Component,
+} from 'solid-js';
 import { A, useNavigate } from '@solidjs/router';
 import { Title, Meta } from '@solidjs/meta';
 import ErrorState from '../components/ErrorState.jsx';
@@ -163,19 +171,23 @@ const AgentCardMenu: Component<{
   let rootEl: HTMLDivElement | undefined;
 
   const handleDocumentClick = (e: MouseEvent) => {
-    if (!open()) return;
     if (rootEl && !rootEl.contains(e.target as Node)) setOpen(false);
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && open()) setOpen(false);
+    if (e.key === 'Escape') setOpen(false);
   };
 
-  document.addEventListener('click', handleDocumentClick);
-  document.addEventListener('keydown', handleKeyDown);
-  onCleanup(() => {
-    document.removeEventListener('click', handleDocumentClick);
-    document.removeEventListener('keydown', handleKeyDown);
+  // Only register global listeners while the popover is open, so N cards
+  // don't attach N permanent document listeners to the workspace grid.
+  createEffect(() => {
+    if (!open()) return;
+    document.addEventListener('click', handleDocumentClick);
+    document.addEventListener('keydown', handleKeyDown);
+    onCleanup(() => {
+      document.removeEventListener('click', handleDocumentClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    });
   });
 
   return (
