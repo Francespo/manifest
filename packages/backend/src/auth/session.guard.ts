@@ -4,7 +4,7 @@ import { Request } from 'express';
 import { fromNodeHeaders } from 'better-auth/node';
 import { auth } from './auth.instance';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
-import { isLoopbackRequest } from '../common/utils/local-ip';
+import { isLoopbackIp } from '../common/utils/local-ip';
 import { isSelfHosted } from '../common/utils/detect-self-hosted';
 
 @Injectable()
@@ -44,11 +44,8 @@ export class SessionGuard implements CanActivate {
     }
 
     // In the self-hosted version, fall back to a synthetic user for loopback
-    // requests without a session (e.g. curl, programmatic access).
-    // Use the TCP socket peer rather than req.ip so a reverse-proxy with
-    // `trust proxy` can't be tricked into granting dashboard access via a
-    // forged X-Forwarded-For header.
-    if (isSelfHosted() && isLoopbackRequest(request)) {
+    // requests without a session (e.g. curl, programmatic access)
+    if (isSelfHosted() && request.ip && isLoopbackIp(request.ip)) {
       (request as Request & { user: unknown }).user = {
         id: 'local',
         name: 'Local User',

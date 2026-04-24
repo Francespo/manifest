@@ -44,19 +44,6 @@ export class DatabaseSeederService implements OnModuleInit {
       return;
     }
 
-    // Defence-in-depth: a deployment that forgets NODE_ENV=production but
-    // still binds publicly (BIND_ADDRESS=0.0.0.0) would otherwise provision
-    // the well-known admin@manifest.build / manifest-dev account on the
-    // public internet. Refuse to seed in that shape unless explicitly in
-    // `development`.
-    const bindAddress = this.configService.get<string>('app.bindAddress', '127.0.0.1');
-    if (bindAddress === '0.0.0.0' && nodeEnv !== 'development') {
-      this.logger.warn(
-        `SEED_DATA=true is refused when BIND_ADDRESS=0.0.0.0 and NODE_ENV=${nodeEnv} — this looks like a misconfigured public deployment.`,
-      );
-      return;
-    }
-
     // Dev/test workflow: seed the well-known admin + demo data in one shot
     // so `/serve` and E2E tests get a non-empty dashboard without going
     // through the setup wizard on every run.
@@ -82,7 +69,7 @@ export class DatabaseSeederService implements OnModuleInit {
     await auth.api.signUpEmail({
       body: {
         email: 'admin@manifest.build',
-        password: 'manifest-dev',
+        password: 'manifest',
         name: 'Admin',
       },
     });

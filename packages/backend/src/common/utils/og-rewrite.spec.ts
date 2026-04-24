@@ -48,34 +48,4 @@ describe('rewriteOgTags', () => {
     const result = rewriteOgTags(SAMPLE_HTML, '  https://manifest.example.com  ');
     expect(result).toContain('content="https://manifest.example.com"');
   });
-
-  it('returns input unchanged for an unparseable baseUrl', () => {
-    expect(rewriteOgTags(SAMPLE_HTML, 'not a url')).toBe(SAMPLE_HTML);
-  });
-
-  it('rejects a baseUrl with embedded HTML (injection attempt)', () => {
-    const attacker = 'https://evil.example.com/"><script>alert(1)</script>';
-    expect(rewriteOgTags(SAMPLE_HTML, attacker)).toBe(SAMPLE_HTML);
-  });
-
-  it('rejects non-http(s) schemes', () => {
-    expect(rewriteOgTags(SAMPLE_HTML, 'javascript:alert(1)')).toBe(SAMPLE_HTML);
-    expect(rewriteOgTags(SAMPLE_HTML, 'file:///etc/passwd')).toBe(SAMPLE_HTML);
-  });
-
-  it('rejects baseUrl with userinfo', () => {
-    expect(rewriteOgTags(SAMPLE_HTML, 'https://user:pass@evil.example.com')).toBe(SAMPLE_HTML);
-  });
-
-  it('rejects baseUrl with a path', () => {
-    expect(rewriteOgTags(SAMPLE_HTML, 'https://manifest.example.com/sneaky')).toBe(SAMPLE_HTML);
-  });
-
-  it('rejects baseUrl with a query string', () => {
-    expect(rewriteOgTags(SAMPLE_HTML, 'https://manifest.example.com?x=1')).toBe(SAMPLE_HTML);
-  });
-
-  it('rejects baseUrl with a fragment', () => {
-    expect(rewriteOgTags(SAMPLE_HTML, 'https://manifest.example.com#frag')).toBe(SAMPLE_HTML);
-  });
 });

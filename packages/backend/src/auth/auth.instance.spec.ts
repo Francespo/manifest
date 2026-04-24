@@ -84,12 +84,12 @@ describe('auth.instance', () => {
     expect(config.basePath).toBe('/api/auth');
   });
 
-  it('enables emailAndPassword with min length 12', () => {
+  it('enables emailAndPassword with min length 8', () => {
     loadModule();
 
     const config = mockBetterAuth.mock.calls[0][0];
     expect(config.emailAndPassword.enabled).toBe(true);
-    expect(config.emailAndPassword.minPasswordLength).toBe(12);
+    expect(config.emailAndPassword.minPasswordLength).toBe(8);
   });
 
   it('does not require email verification when NODE_ENV is not production', () => {

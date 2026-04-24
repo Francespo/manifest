@@ -50,7 +50,7 @@ export const auth = betterAuth({
   baseURL: process.env['BETTER_AUTH_URL'] ?? `http://localhost:${port}`,
   basePath: '/api/auth',
   secret: betterAuthSecret,
-  logger: { level: isDev ? 'debug' : 'info' },
+  logger: { level: 'debug' },
   telemetry: { enabled: false },
   account: {
     accountLinking: {
@@ -60,7 +60,7 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    minPasswordLength: 12,
+    minPasswordLength: 8,
     requireEmailVerification: !isDev && hasEmailProvider,
     sendResetPassword: async ({ user, url }) => {
       const element = ResetPasswordEmail({

@@ -20,31 +20,19 @@ function recordSafely(promise: Promise<unknown>, label: string): void {
   promise.catch((e) => logger.warn(`Failed to record ${label}: ${e}`));
 }
 
-// Node's HTTP layer rejects CR/LF in header values (no classic response
-// splitting) but silently drops headers containing Latin-1-incompatible
-// code points, and may throw on other control characters. User-influenced
-// data (custom provider names, override model names) reaches these
-// headers, so we strip anything outside printable ASCII and cap length.
-function sanitizeHeaderValue(value: string | undefined | null): string {
-  if (value === undefined || value === null) return '';
-  return String(value)
-    .replace(/[^\x20-\x7e]/g, '?')
-    .slice(0, 256);
-}
-
 export function buildMetaHeaders(meta: RoutingMeta): Record<string, string> {
   const headers: Record<string, string> = {
-    'X-Manifest-Tier': sanitizeHeaderValue(meta.tier),
-    'X-Manifest-Model': sanitizeHeaderValue(meta.model),
-    'X-Manifest-Provider': sanitizeHeaderValue(meta.provider),
+    'X-Manifest-Tier': meta.tier,
+    'X-Manifest-Model': meta.model,
+    'X-Manifest-Provider': meta.provider,
     'X-Manifest-Confidence': String(meta.confidence),
-    'X-Manifest-Reason': sanitizeHeaderValue(meta.reason),
+    'X-Manifest-Reason': meta.reason,
   };
   if (meta.specificity_category) {
-    headers['X-Manifest-Specificity'] = sanitizeHeaderValue(meta.specificity_category);
+    headers['X-Manifest-Specificity'] = meta.specificity_category;
   }
   if (meta.fallbackFromModel) {
-    headers['X-Manifest-Fallback-From'] = sanitizeHeaderValue(meta.fallbackFromModel);
+    headers['X-Manifest-Fallback-From'] = meta.fallbackFromModel;
     headers['X-Manifest-Fallback-Index'] = String(meta.fallbackIndex ?? 0);
   }
   return headers;

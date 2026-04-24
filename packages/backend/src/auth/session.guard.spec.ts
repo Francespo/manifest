@@ -17,17 +17,12 @@ import { SessionGuard } from './session.guard';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { auth } = require('./auth.instance');
 
-function createMockContext(overrides: {
-  ip?: string;
-  socketAddress?: string;
-  headers?: Record<string, string>;
-}): {
+function createMockContext(overrides: { ip?: string; headers?: Record<string, string> }): {
   context: ExecutionContext;
   request: Record<string, unknown>;
 } {
   const request: Record<string, unknown> = {
     ip: overrides.ip ?? '127.0.0.1',
-    socket: { remoteAddress: overrides.socketAddress ?? overrides.ip ?? '127.0.0.1' },
     headers: overrides.headers ?? {},
   };
 
@@ -238,23 +233,6 @@ describe('SessionGuard', () => {
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
       (auth.api.getSession as jest.Mock).mockResolvedValue(null);
       const { context, request } = createMockContext({ ip: '203.0.113.1' });
-
-      await guard.canActivate(context);
-
-      expect(request['user']).toBeUndefined();
-      expect(request['authMethod']).toBeUndefined();
-    });
-
-    it('ignores a forged req.ip when the TCP socket is not loopback', async () => {
-      // Simulates a reverse-proxy with `trust proxy` forwarding
-      // X-Forwarded-For: 127.0.0.1 from an attacker on the public internet.
-      // req.ip is rewritten to 127.0.0.1 but the real socket peer is remote.
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      (auth.api.getSession as jest.Mock).mockResolvedValue(null);
-      const { context, request } = createMockContext({
-        ip: '127.0.0.1',
-        socketAddress: '203.0.113.1',
-      });
 
       await guard.canActivate(context);
 

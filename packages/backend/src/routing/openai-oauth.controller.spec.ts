@@ -4,8 +4,7 @@ import { OpenaiOauthService } from './oauth/openai-oauth.service';
 import { ResolveAgentService } from './routing-core/resolve-agent.service';
 import { ProviderKeyService } from './routing-core/provider-key.service';
 import { ProviderService } from './routing-core/provider.service';
-import { ManifestRuntimeService } from '../common/services/manifest-runtime.service';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 
 describe('OpenaiOauthController', () => {
   let controller: OpenaiOauthController;
@@ -13,7 +12,6 @@ describe('OpenaiOauthController', () => {
   let resolveAgent: jest.Mocked<ResolveAgentService>;
   let providerKeyService: jest.Mocked<ProviderKeyService>;
   let providerService: jest.Mocked<ProviderService>;
-  let runtime: jest.Mocked<ManifestRuntimeService>;
 
   beforeEach(() => {
     oauthService = {
@@ -33,44 +31,53 @@ describe('OpenaiOauthController', () => {
       removeProvider: jest.fn().mockResolvedValue({ notifications: [] }),
     } as unknown as jest.Mocked<ProviderService>;
 
-    runtime = {
-      getAuthBaseUrl: jest.fn().mockReturnValue('http://localhost:3001'),
-    } as unknown as jest.Mocked<ManifestRuntimeService>;
-
     controller = new OpenaiOauthController(
       oauthService,
       resolveAgent,
       providerKeyService,
       providerService,
-      runtime,
     );
   });
 
   describe('authorize', () => {
-    it('resolves agent and uses runtime.getAuthBaseUrl() as backendUrl', async () => {
+    it('resolves agent and returns authorize URL', async () => {
       resolveAgent.resolve.mockResolvedValue({ id: 'agent-id-1' } as never);
       oauthService.generateAuthorizationUrl.mockResolvedValue('https://auth.openai.com/oauth/...');
-      runtime.getAuthBaseUrl.mockReturnValue('https://manifest.example.com');
 
-      const result = await controller.authorize('my-agent', { id: 'user-1' } as never);
+      const req = {
+        protocol: 'http',
+        get: jest.fn().mockReturnValue('localhost:3001'),
+      } as unknown as Request;
+
+      const result = await controller.authorize('my-agent', { id: 'user-1' } as never, req);
 
       expect(resolveAgent.resolve).toHaveBeenCalledWith('user-1', 'my-agent');
       expect(oauthService.generateAuthorizationUrl).toHaveBeenCalledWith(
         'agent-id-1',
         'user-1',
-        'https://manifest.example.com',
+        'http://localhost:3001',
       );
       expect(result).toEqual({ url: 'https://auth.openai.com/oauth/...' });
     });
 
     it('throws 400 when agentName is missing', async () => {
+      const req = {
+        protocol: 'http',
+        get: jest.fn().mockReturnValue('localhost:3001'),
+      } as unknown as Request;
+
       await expect(
-        controller.authorize(undefined as unknown as string, { id: 'user-1' } as never),
+        controller.authorize(undefined as unknown as string, { id: 'user-1' } as never, req),
       ).rejects.toThrow(HttpException);
     });
 
     it('throws 400 when agentName is empty string', async () => {
-      await expect(controller.authorize('', { id: 'user-1' } as never)).rejects.toThrow(
+      const req = {
+        protocol: 'http',
+        get: jest.fn().mockReturnValue('localhost:3001'),
+      } as unknown as Request;
+
+      await expect(controller.authorize('', { id: 'user-1' } as never, req)).rejects.toThrow(
         HttpException,
       );
     });
@@ -81,18 +88,28 @@ describe('OpenaiOauthController', () => {
         new Error("Port 1455 is already in use. Run 'lsof -i :1455' to find the process."),
       );
 
-      await expect(controller.authorize('my-agent', { id: 'user-1' } as never)).rejects.toThrow(
-        HttpException,
-      );
+      const req = {
+        protocol: 'http',
+        get: jest.fn().mockReturnValue('localhost:3001'),
+      } as unknown as Request;
+
+      await expect(
+        controller.authorize('my-agent', { id: 'user-1' } as never, req),
+      ).rejects.toThrow(HttpException);
     });
 
     it('throws 503 with generic message when non-Error is thrown', async () => {
       resolveAgent.resolve.mockResolvedValue({ id: 'agent-id-1' } as never);
       oauthService.generateAuthorizationUrl.mockRejectedValue('string-error');
 
-      await expect(controller.authorize('my-agent', { id: 'user-1' } as never)).rejects.toThrow(
-        'Failed to start OAuth callback server',
-      );
+      const req = {
+        protocol: 'http',
+        get: jest.fn().mockReturnValue('localhost:3001'),
+      } as unknown as Request;
+
+      await expect(
+        controller.authorize('my-agent', { id: 'user-1' } as never, req),
+      ).rejects.toThrow('Failed to start OAuth callback server');
     });
   });
 

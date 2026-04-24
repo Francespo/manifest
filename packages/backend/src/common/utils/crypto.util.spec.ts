@@ -1,10 +1,4 @@
-import {
-  getEncryptionSecret,
-  encrypt,
-  decrypt,
-  isEncrypted,
-  __resetFallbackWarningForTests,
-} from './crypto.util';
+import { getEncryptionSecret, encrypt, decrypt, isEncrypted } from './crypto.util';
 
 describe('getEncryptionSecret', () => {
   const originalEnv = process.env;
@@ -13,7 +7,6 @@ describe('getEncryptionSecret', () => {
     process.env = { ...originalEnv };
     delete process.env['MANIFEST_ENCRYPTION_KEY'];
     delete process.env['BETTER_AUTH_SECRET'];
-    __resetFallbackWarningForTests();
   });
 
   afterEach(() => {
@@ -49,32 +42,6 @@ describe('getEncryptionSecret', () => {
   it('throws when key exists but is shorter than 32 chars', () => {
     process.env['BETTER_AUTH_SECRET'] = 'only-31-chars-long-xxxxxxxxxx!';
     expect(() => getEncryptionSecret()).toThrow('Encryption secret required.');
-  });
-
-  it('emits a deprecation warning the first time the BETTER_AUTH_SECRET fallback is used', () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    try {
-      process.env['BETTER_AUTH_SECRET'] = 'b'.repeat(32);
-      getEncryptionSecret();
-      getEncryptionSecret();
-      getEncryptionSecret();
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn.mock.calls[0][0]).toMatch(/MANIFEST_ENCRYPTION_KEY is not set/);
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
-  it('does not warn when MANIFEST_ENCRYPTION_KEY is set', () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    try {
-      process.env['MANIFEST_ENCRYPTION_KEY'] = 'a'.repeat(32);
-      process.env['BETTER_AUTH_SECRET'] = 'b'.repeat(32);
-      getEncryptionSecret();
-      expect(warn).not.toHaveBeenCalled();
-    } finally {
-      warn.mockRestore();
-    }
   });
 });
 

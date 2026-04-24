@@ -1,17 +1,12 @@
 ---
-'manifest': minor
+'manifest': patch
 ---
 
-Security hardening sweep (audit 2026-04-23):
+Low-risk cleanups from the 2026-04-23 OWASP audit that cause no behaviour change for operators or users:
 
-- **Fix cross-tenant agent rename.** Rename cascades on `agent_messages` / `notification_rules` / `notification_logs` are now scoped by `tenant_id`, closing an IDOR that silently relabelled other tenants' telemetry when slugs collided.
-- **Revalidate custom-provider base URLs at forward time.** Cloud mode re-runs `validatePublicUrl` on every proxy forward so a flipped-DNS-record can't point an existing provider at a private/metadata IP and receive the user's decrypted key. Custom-provider fetches also pass `redirect: 'error'` to refuse redirect-based SSRF.
-- **Loopback auth derives from the socket peer, not `req.ip`.** Self-hosted deployments behind a reverse proxy with `trust proxy` no longer grant dashboard access when `X-Forwarded-For: 127.0.0.1` is forged.
-- **Whitelist provider names on the agent-facing subscription endpoint** and silently skip non-subscription-capable providers on the token branch.
-- Raise `minPasswordLength` to 12 (Better Auth + setup admin).
-- Validate `BETTER_AUTH_URL` before interpolating into the OG-tag rewrite; strip non-ASCII characters from `X-Manifest-*` response headers and regex-validate custom-provider `model_name`.
-- Enable `forbidNonWhitelisted` on the global ValidationPipe; use `SetFallbacksDto` in `SpecificityController`; gate Better Auth debug logs on `NODE_ENV`; prefer `app.betterAuthUrl` over `req.host` when starting the OpenAI OAuth flow.
-- Decouple `MANIFEST_ENCRYPTION_KEY` from `BETTER_AUTH_SECRET` (fallback warns once).
-- `SessionGuard` + `AgentKeyAuthGuard` share a tightened `isLoopbackIp` + new `isLoopbackRequest` helper.
-- Refuse to seed demo data when `BIND_ADDRESS=0.0.0.0` and `NODE_ENV !== 'development'`.
-- `npm audit fix` for the moderate `@nestjs/core` advisory.
+- Scope agent rename cascades by `tenant_id` on `agent_messages` / `notification_rules` / `notification_logs`. Forward-only fix — no backfill — so any pre-existing row that was mislabelled when slugs collided across tenants stays as-is; new renames no longer touch other tenants' data.
+- Replace `ApiKeyGuard.safeCompare` with `Buffer.from` + length-check + `timingSafeEqual`. Same observable behaviour; cleaner canonical pattern.
+- Add a snapshot test for `ThresholdAlertEmail` against hostile agent names (angle brackets, attribute-context quote payloads) — verifies React's existing escaping, no runtime change.
+- `npm audit fix` for the moderate `@nestjs/core` advisory (11.1.17 → 11.1.19).
+
+All other findings from the audit are deferred — they required breaking changes or operator action and live in a separate tracking issue.
