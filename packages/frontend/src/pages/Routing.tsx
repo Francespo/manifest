@@ -164,6 +164,23 @@ const Routing: Component = () => {
     await refetchAll();
   };
 
+  const handleSpecificityOverride = async (
+    category: string,
+    model: string,
+    provider: string,
+    authType?: 'api_key' | 'subscription',
+  ) => {
+    setChangingSpecificity(category);
+    try {
+      await overrideSpecificity(agentName(), category, model, provider, authType);
+      await refetchSpecificity();
+    } catch {
+      toast.error('Failed to update specificity model');
+    } finally {
+      setChangingSpecificity(null);
+    }
+  };
+
   return (
     <div class="container--lg">
       <Title>{agentDisplayName() ?? agentName()} Routing - Manifest</Title>
@@ -322,17 +339,7 @@ const Routing: Component = () => {
                 resettingAll={() => false}
                 addingFallback={() => null}
                 onDropdownOpen={(category) => setSpecificityDropdown(category)}
-                onOverride={async (category, model, provider, authType) => {
-                  setChangingSpecificity(category);
-                  try {
-                    await overrideSpecificity(agentName(), category, model, provider, authType);
-                    await refetchSpecificity();
-                  } catch {
-                    toast.error('Failed to update model');
-                  } finally {
-                    setChangingSpecificity(null);
-                  }
-                }}
+                onOverride={handleSpecificityOverride}
                 onReset={async (category) => {
                   setResettingSpecificity(category);
                   try {
@@ -360,9 +367,7 @@ const Routing: Component = () => {
                 }}
                 onAddFallback={(category) => setFallbackPickerTier(category)}
                 refetchAll={refetchAll}
-                refetchSpecificity={async () => {
-                  await refetchSpecificity();
-                }}
+                refetchSpecificity={() => refetchSpecificity() as unknown as Promise<void>}
                 embedded
               />
             ),
@@ -395,17 +400,9 @@ const Routing: Component = () => {
         onDropdownClose={() => setDropdownTier(null)}
         specificityDropdown={specificityDropdown}
         onSpecificityDropdownClose={() => setSpecificityDropdown(null)}
-        onSpecificityOverride={async (category, model, provider, authType) => {
+        onSpecificityOverride={(category, model, provider, authType) => {
           setSpecificityDropdown(null);
-          setChangingSpecificity(category);
-          try {
-            await overrideSpecificity(agentName(), category, model, provider, authType);
-            await refetchSpecificity();
-          } catch {
-            toast.error('Failed to update specificity model');
-          } finally {
-            setChangingSpecificity(null);
-          }
+          void handleSpecificityOverride(category, model, provider, authType);
         }}
         fallbackPickerTier={fallbackPickerTier}
         onFallbackPickerClose={() => setFallbackPickerTier(null)}
@@ -428,8 +425,7 @@ const Routing: Component = () => {
           const generalist = actions.getTier(tierId);
           if (generalist) return generalist;
           const sa = specificityAssignments()?.find((a) => a.category === tierId);
-          if (sa) return { ...sa, tier: sa.category };
-          return undefined;
+          return sa ? { ...sa, tier: sa.category } : undefined;
         }}
         onOverride={handleOverride}
         onAddFallback={handleAddFallback}
