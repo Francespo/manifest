@@ -584,6 +584,70 @@ describe("Routing — enabled state (providers active)", () => {
     });
   });
 
+  it("opens the picker from the default tier's Change button and calls overrideTier", async () => {
+    const { getTierAssignments } = await import("../../src/services/api.js");
+    vi.mocked(getTierAssignments).mockResolvedValueOnce([
+      { id: "1", user_id: "u1", tier: "simple", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      { id: "2", user_id: "u1", tier: "standard", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      { id: "3", user_id: "u1", tier: "complex", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      { id: "4", user_id: "u1", tier: "reasoning", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      {
+        id: "5",
+        user_id: "u1",
+        tier: "default",
+        override_model: "claude-opus-4-6",
+        override_provider: "anthropic",
+        auto_assigned_model: "gpt-4o-mini",
+        fallback_models: null,
+        updated_at: "2025-01-01",
+      },
+    ]);
+    render(() => <Routing />);
+    await screen.findByRole("tablist");
+    // Default tab is active; Default tier has an override so it shows Change
+    const changeBtns = await screen.findAllByText("Change");
+    fireEvent.click(changeBtns[0]);
+    await screen.findByText("Select a model");
+    const picks = screen.getAllByText("Claude Sonnet 4");
+    fireEvent.click(picks[picks.length - 1]);
+    await waitFor(() => {
+      expect(overrideTier).toHaveBeenCalled();
+    });
+  });
+
+  it("resets the default tier via its Reset button", async () => {
+    const { getTierAssignments } = await import("../../src/services/api.js");
+    vi.mocked(getTierAssignments).mockResolvedValueOnce([
+      { id: "1", user_id: "u1", tier: "simple", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      { id: "2", user_id: "u1", tier: "standard", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      { id: "3", user_id: "u1", tier: "complex", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      { id: "4", user_id: "u1", tier: "reasoning", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      {
+        id: "5",
+        user_id: "u1",
+        tier: "default",
+        override_model: "claude-opus-4-6",
+        override_provider: "anthropic",
+        auto_assigned_model: "gpt-4o-mini",
+        fallback_models: null,
+        updated_at: "2025-01-01",
+      },
+    ]);
+    vi.mocked(resetTier).mockResolvedValue(undefined as unknown as any);
+    render(() => <Routing />);
+    await screen.findByRole("tablist");
+    await screen.findAllByText("Change");
+    const resetBtn = await screen.findByText("Reset");
+    fireEvent.click(resetBtn);
+    await waitFor(() => expect(screen.getByText("Reset tier?")).toBeDefined());
+    const modalBtns = screen.getAllByText("Reset");
+    const confirmBtn = modalBtns.find((el) => el.classList.contains("btn--danger"));
+    fireEvent.click(confirmBtn!);
+    await waitFor(() => {
+      expect(resetTier).toHaveBeenCalledWith("test-agent", "default");
+    });
+  });
+
   it("opens default-tier picker from the + Add model button", async () => {
     const { getTierAssignments } = await import("../../src/services/api.js");
     vi.mocked(getTierAssignments).mockResolvedValueOnce([
