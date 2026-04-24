@@ -301,7 +301,7 @@ const MessageLog: Component = () => {
                     <th>Output</th>
                     <th>Model</th>
                     <th>Cache</th>
-                    <th>Duration</th>
+                    <th>Latency</th>
                     <th>Status</th>
                   </tr>
                 </thead>

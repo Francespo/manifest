@@ -166,7 +166,7 @@ describe("MessageLog", () => {
       expect(container.textContent).toContain("Total Tokens");
       expect(container.textContent).toContain("Model");
       expect(container.textContent).toContain("Cache");
-      expect(container.textContent).toContain("Duration");
+      expect(container.textContent).toContain("Latency");
       expect(container.textContent).toContain("Status");
     });
   });
