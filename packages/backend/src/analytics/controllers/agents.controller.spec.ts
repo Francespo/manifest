@@ -98,14 +98,24 @@ describe('AgentsController', () => {
     expect(mockGetKeyForAgent).toHaveBeenCalledWith('u1', 'bot-1');
   });
 
-  it('never returns a full apiKey from the fetch endpoint (security audit #6)', async () => {
+  it('returns full apiKey when service returns fullKey', async () => {
+    mockGetKeyForAgent.mockResolvedValueOnce({
+      keyPrefix: 'mnfst_test1234',
+      fullKey: 'mnfst_full_decrypted',
+    });
+    const user = { id: 'u1' };
+    const result = await controller.getAgentKey(user as never, 'bot-1');
+
+    expect(result).toMatchObject({ keyPrefix: 'mnfst_test1234', apiKey: 'mnfst_full_decrypted' });
+  });
+
+  it('does not return apiKey when service returns no fullKey', async () => {
     mockGetKeyForAgent.mockResolvedValue({ keyPrefix: 'mnfst_test1234' });
     const user = { id: 'u1' };
     const result = await controller.getAgentKey(user as never, 'bot-1');
 
-    expect(result).toEqual({ keyPrefix: 'mnfst_test1234' });
+    expect(result).toMatchObject({ keyPrefix: 'mnfst_test1234' });
     expect(result).not.toHaveProperty('apiKey');
-    expect(result).not.toHaveProperty('fullKey');
   });
 
   it('returns empty agents array when no agents exist', async () => {

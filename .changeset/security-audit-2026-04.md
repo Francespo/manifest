@@ -8,7 +8,6 @@ Security hardening sweep (audit 2026-04-23):
 - **Revalidate custom-provider base URLs at forward time.** Cloud mode re-runs `validatePublicUrl` on every proxy forward so a flipped-DNS-record can't point an existing provider at a private/metadata IP and receive the user's decrypted key. Custom-provider fetches also pass `redirect: 'error'` to refuse redirect-based SSRF.
 - **Loopback auth derives from the socket peer, not `req.ip`.** Self-hosted deployments behind a reverse proxy with `trust proxy` no longer grant dashboard access when `X-Forwarded-For: 127.0.0.1` is forged.
 - **Whitelist provider names on the agent-facing subscription endpoint** and silently skip non-subscription-capable providers on the token branch.
-- **Drop reversible-encrypted copy of agent ingest keys.** New keys write `key = NULL`; existing rows are nulled by migration. Lost keys now require a rotate-to-reveal.
 - Raise `minPasswordLength` to 12 (Better Auth + setup admin).
 - Validate `BETTER_AUTH_URL` before interpolating into the OG-tag rewrite; strip non-ASCII characters from `X-Manifest-*` response headers and regex-validate custom-provider `model_name`.
 - Enable `forbidNonWhitelisted` on the global ValidationPipe; use `SetFallbacksDto` in `SpecificityController`; gate Better Auth debug logs on `NODE_ENV`; prefer `app.betterAuthUrl` over `req.host` when starting the OpenAI OAuth flow.

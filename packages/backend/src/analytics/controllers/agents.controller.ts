@@ -87,11 +87,12 @@ export class AgentsController {
 
   @Get('agents/:agentName/key')
   async getAgentKey(@CurrentUser() user: AuthUser, @Param('agentName') agentName: string) {
-    // The plaintext key is only ever returned at onboard / rotate time —
-    // see security audit 2026-04-23 finding #6. Users who lost their key
-    // must rotate to reveal a new one.
     const keyData = await this.apiKeyGenerator.getKeyForAgent(user.id, agentName);
-    return { keyPrefix: keyData.keyPrefix };
+    const apiKey = keyData.fullKey ?? undefined;
+    return {
+      keyPrefix: keyData.keyPrefix,
+      ...(apiKey ? { apiKey } : {}),
+    };
   }
 
   @Post('agents/:agentName/rotate-key')
