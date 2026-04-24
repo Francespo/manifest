@@ -13,8 +13,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * See security audit 2026-04-23 finding #6.
  */
-export class NullifyEncryptedAgentKeys1777100000000 implements MigrationInterface {
-  name = 'NullifyEncryptedAgentKeys1777100000000';
+export class NullifyEncryptedAgentKeys1777200000000 implements MigrationInterface {
+  name = 'NullifyEncryptedAgentKeys1777200000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`UPDATE "agent_api_keys" SET "key" = NULL WHERE "key" IS NOT NULL`);
