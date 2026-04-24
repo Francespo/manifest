@@ -118,7 +118,7 @@ describe('RoutingComplexitySection', () => {
     render(() => <RoutingComplexitySection {...makeProps()} />);
     expect(screen.getByText('Complexity routing')).toBeDefined();
     expect(
-      screen.getByText('Picks a cheap model for easy requests and your best for the rest.'),
+      screen.getByText('Analyzes the complexity of each request on the fly and routes it to the matching tier. Replaces default routing.'),
     ).toBeDefined();
   });
 
