@@ -218,7 +218,7 @@ describe('Routing — default tier + complexity integration', () => {
     mockGetComplexityStatus.mockResolvedValue({ enabled: false });
     render(() => <Routing />);
     await waitFor(() => {
-      expect(screen.getByText('All requests route through this model')).toBeDefined();
+      expect(screen.getByText('All requests are routed to this model, or to the fallback models if it fails.')).toBeDefined();
     });
   });
 
@@ -245,7 +245,7 @@ describe('Routing — default tier + complexity integration', () => {
     });
   });
 
-  it('hides pipeline description when complexity is off and no specificity', async () => {
+  it('shows pipeline help button even when complexity is off and no specificity', async () => {
     mockGetComplexityStatus.mockResolvedValue({ enabled: false });
     const { getSpecificityAssignments } = await import('../../src/services/api.js');
     vi.mocked(getSpecificityAssignments).mockResolvedValue([]);
@@ -253,6 +253,6 @@ describe('Routing — default tier + complexity integration', () => {
     await waitFor(() => {
       expect(screen.getByRole('tablist')).toBeDefined();
     });
-    expect(screen.queryByLabelText('How routing works')).toBeNull();
+    expect(screen.queryByLabelText('How routing works')).not.toBeNull();
   });
 });

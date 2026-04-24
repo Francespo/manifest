@@ -91,7 +91,7 @@ export const EnableRoutingCard: Component<EnableRoutingCardProps> = (props) => (
       your LLM providers to get started.
     </p>
     <button class="btn btn--primary" onClick={() => props.onEnable()}>
-      Enable Routing
+      Enable routing
     </button>
   </div>
 );
@@ -178,7 +178,7 @@ export const RoutingFooter: Component<RoutingFooterProps> = (props) => (
       onClick={() => props.onDisable()}
       disabled={props.disabling()}
     >
-      {props.disabling() ? <span class="spinner" /> : 'Disable Routing'}
+      {props.disabling() ? <span class="spinner" /> : 'Disable routing'}
     </button>
     <Show when={props.hasOverrides()}>
       <button

@@ -110,8 +110,8 @@ const RoutingComplexitySection: Component<RoutingComplexitySectionProps> = (prop
           <div class="complexity-empty">
             <span class="complexity-empty__title">Complexity routing is off</span>
             <span class="complexity-empty__desc">
-              Most requests don't need your top model. Each one gets scored and routed to something
-              cheaper when it fits. Can shave up to 70% off your LLM bill.
+              Most requests don't need your top model. Save up to 70% by using cheaper alternatives
+              when possible.
             </span>
             <button
               class="btn btn--primary btn--sm"
@@ -208,7 +208,8 @@ const RoutingComplexitySection: Component<RoutingComplexitySectionProps> = (prop
         >
           <div>
             <span class="routing-section__subtitle">
-              Picks a cheap model for easy requests and your best for the rest.
+              Analyzes the complexity of each request on the fly and routes it to the matching tier.
+              Replaces default routing.
             </span>
           </div>
           {actionButton()}
@@ -224,7 +225,8 @@ const RoutingComplexitySection: Component<RoutingComplexitySectionProps> = (prop
         <div>
           <span class="routing-section__title">Complexity routing</span>
           <span class="routing-section__subtitle">
-            Picks a cheap model for easy requests and your best for the rest.
+            Analyzes the complexity of each request on the fly and routes it to the matching tier.
+            Replaces default routing.
           </span>
         </div>
         {actionButton()}

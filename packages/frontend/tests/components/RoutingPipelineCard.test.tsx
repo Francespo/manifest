@@ -4,42 +4,45 @@ import { buildPipelineHelp } from '../../src/components/RoutingPipelineCard';
 
 function renderHelp(complexity: boolean, specificity: boolean, custom: boolean) {
   const content = buildPipelineHelp(complexity, specificity, custom);
-  if (!content) return null;
   render(() => <div>{content}</div>);
   return true;
 }
 
 describe('buildPipelineHelp', () => {
-  it('returns null when all layers are disabled', () => {
-    expect(buildPipelineHelp(false, false, false)).toBeNull();
+  it('shows only the Default step when all layers are disabled', () => {
+    renderHelp(false, false, false);
+    expect(screen.getByText('Default routing')).toBeDefined();
+    expect(screen.queryByText('Complexity routing')).toBeNull();
+    expect(screen.queryByText('Task-specific routing')).toBeNull();
+    expect(screen.queryByText('Custom routing')).toBeNull();
   });
 
   it('shows Complexity and Default steps when only complexity is enabled', () => {
     renderHelp(true, false, false);
-    expect(screen.getByText('Complexity')).toBeDefined();
-    expect(screen.getByText('Default')).toBeDefined();
-    expect(screen.getByText(/scored and routed/)).toBeDefined();
+    expect(screen.getByText('Complexity routing')).toBeDefined();
+    expect(screen.getByText('Default routing')).toBeDefined();
+    expect(screen.getByText(/scores its complexity/)).toBeDefined();
   });
 
   it('shows all four steps when everything is enabled', () => {
     renderHelp(true, true, true);
-    expect(screen.getByText('Custom')).toBeDefined();
-    expect(screen.getByText('Task-specific')).toBeDefined();
-    expect(screen.getByText('Complexity')).toBeDefined();
-    expect(screen.getByText('Default')).toBeDefined();
+    expect(screen.getByText('Custom routing')).toBeDefined();
+    expect(screen.getByText('Task-specific routing')).toBeDefined();
+    expect(screen.getByText('Complexity routing')).toBeDefined();
+    expect(screen.getByText('Default routing')).toBeDefined();
   });
 
   it('shows Task-specific and Default when only specificity', () => {
     renderHelp(false, true, false);
-    expect(screen.getByText('Task-specific')).toBeDefined();
-    expect(screen.getByText('Default')).toBeDefined();
-    expect(screen.queryByText('Complexity')).toBeNull();
+    expect(screen.getByText('Task-specific routing')).toBeDefined();
+    expect(screen.getByText('Default routing')).toBeDefined();
+    expect(screen.queryByText('Complexity routing')).toBeNull();
   });
 
   it('shows Custom and Default when only custom', () => {
     renderHelp(false, false, true);
-    expect(screen.getByText('Custom')).toBeDefined();
-    expect(screen.getByText('Default')).toBeDefined();
+    expect(screen.getByText('Custom routing')).toBeDefined();
+    expect(screen.getByText('Default routing')).toBeDefined();
   });
 
   it('numbers steps sequentially', () => {
@@ -52,18 +55,19 @@ describe('buildPipelineHelp', () => {
     expect(nums[3].textContent).toBe('4');
   });
 
-  it('shows safety net description for Default when complexity is on', () => {
+  it('shows the same Default description regardless of complexity state', () => {
     renderHelp(true, false, false);
-    expect(screen.getByText(/couldn\u2019t handle/)).toBeDefined();
+    expect(screen.getByText(/Default model and fallbacks for all queries/)).toBeDefined();
   });
 
-  it('shows generic description for Default when complexity is off', () => {
+  it('shows Default description when complexity is off', () => {
     renderHelp(false, true, false);
-    expect(screen.getByText(/didn\u2019t match an earlier rule/)).toBeDefined();
+    expect(screen.getByText(/Default model and fallbacks for all queries/)).toBeDefined();
   });
 
   it('shows the summary line', () => {
     renderHelp(true, false, false);
-    expect(screen.getByText(/first match/i)).toBeDefined();
+    expect(screen.getByText(/intercept queries on the fly/i)).toBeDefined();
+    expect(screen.getByText(/current configuration looks like/i)).toBeDefined();
   });
 });

@@ -35,7 +35,7 @@ const RoutingDefaultTierSection: Component<RoutingDefaultTierSectionProps> = (pr
   const subtitle = () =>
     props.complexityEnabled()
       ? 'Acts as a safety net and handles requests that complexity routing can\u2019t resolve'
-      : 'All requests route through this model';
+      : 'All requests are routed to this model, or to the fallback models if it fails.';
 
   const card = () => (
     <div

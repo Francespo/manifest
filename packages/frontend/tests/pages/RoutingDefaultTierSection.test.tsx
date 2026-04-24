@@ -107,7 +107,7 @@ describe('RoutingDefaultTierSection', () => {
 
   it('shows the "All requests" subtitle when complexity is off', () => {
     render(() => <RoutingDefaultTierSection {...makeProps({ complexityEnabled: () => false })} />);
-    expect(screen.getByText('All requests route through this model')).toBeDefined();
+    expect(screen.getByText('All requests are routed to this model, or to the fallback models if it fails.')).toBeDefined();
   });
 
   it('shows the "Safety net" subtitle when complexity is on', () => {
@@ -140,7 +140,7 @@ describe('RoutingDefaultTierSection', () => {
 
   it('skips subtitle while tiers are loading', () => {
     render(() => <RoutingDefaultTierSection {...makeProps({ tiersLoading: true })} />);
-    expect(screen.queryByText('All requests route through this model')).toBeNull();
+    expect(screen.queryByText('All requests are routed to this model, or to the fallback models if it fails.')).toBeNull();
     expect(
       screen.queryByText('Acts as a safety net and handles requests that complexity routing can\u2019t resolve'),
     ).toBeNull();
