@@ -74,6 +74,7 @@ import { CleanupOrphanedCustomProviderRefs1776679833383 } from './migrations/177
 import { AddMessageRequestHeaders1776700000000 } from './migrations/1776700000000-AddMessageRequestHeaders';
 import { AddHeaderTiers1776710000000 } from './migrations/1776710000000-AddHeaderTiers';
 import { AddSpecificityMiscategorized1777000000000 } from './migrations/1777000000000-AddSpecificityMiscategorized';
+import { AddComplexityRoutingFlag1777100000000 } from './migrations/1777100000000-AddComplexityRoutingFlag';
 import { AddHeaderTierEnabled1777100000000 } from './migrations/1777100000000-AddHeaderTierEnabled';
 
 const entities = [
@@ -150,6 +151,7 @@ const migrations = [
   AddMessageRequestHeaders1776700000000,
   AddHeaderTiers1776710000000,
   AddSpecificityMiscategorized1777000000000,
+  AddComplexityRoutingFlag1777100000000,
   AddHeaderTierEnabled1777100000000,
 ];
 
