@@ -4,6 +4,7 @@ jest.mock('../../scoring', () => {
   return { scoreRequest, scanMessages };
 });
 
+import { Repository } from 'typeorm';
 import { ResolveService } from './resolve.service';
 import { TierService } from '../routing-core/tier.service';
 import { ProviderKeyService } from '../routing-core/provider-key.service';
@@ -12,6 +13,7 @@ import { SpecificityPenaltyService } from '../routing-core/specificity-penalty.s
 import { HeaderTierService } from '../header-tiers/header-tier.service';
 import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
 import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
+import { Agent } from '../../entities/agent.entity';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const scoring = require('../../scoring');
 
@@ -55,6 +57,9 @@ function buildService(opts: {
     {
       list: jest.fn().mockResolvedValue([]),
     } as unknown as HeaderTierService,
+    {
+      findOne: jest.fn().mockResolvedValue({ complexity_routing_enabled: true }),
+    } as unknown as Repository<Agent>,
   );
 }
 
@@ -144,5 +149,59 @@ describe('ResolveService — default tier catch-all', () => {
     expect(out.reason).toBe('default');
     expect(out.model).toBeNull();
     expect(out.provider).toBeNull();
+  });
+
+  it('skips complexity scoring and uses default tier when complexity_routing_enabled is false', async () => {
+    scoring.scanMessages.mockReturnValue(null);
+    scoring.scoreRequest.mockReturnValue({
+      tier: 'complex',
+      confidence: 1,
+      score: 80,
+      reason: 'scored',
+    });
+
+    const tierService = {
+      getTiers: jest.fn().mockResolvedValue([
+        {
+          tier: 'default',
+          override_model: 'openai/gpt-4o-mini',
+          auto_assigned_model: null,
+          override_provider: null,
+          override_auth_type: null,
+        },
+      ]),
+    } as unknown as TierService;
+
+    const providerKeyService = {
+      getEffectiveModel: jest.fn().mockResolvedValue('openai/gpt-4o-mini'),
+      getAuthType: jest.fn().mockResolvedValue('api_key'),
+      hasActiveProvider: jest.fn().mockResolvedValue(true),
+      isModelAvailable: jest.fn().mockResolvedValue(true),
+    } as unknown as ProviderKeyService;
+
+    const svc = new ResolveService(
+      tierService,
+      providerKeyService,
+      { getActiveAssignments: jest.fn().mockResolvedValue([]) } as unknown as SpecificityService,
+      {
+        getByModel: jest.fn().mockReturnValue({ provider: 'OpenAI' }),
+      } as unknown as ModelPricingCacheService,
+      { getModelForAgent: jest.fn().mockResolvedValue(null) } as unknown as ModelDiscoveryService,
+      {
+        getPenaltiesForAgent: jest.fn().mockResolvedValue(new Map()),
+      } as unknown as SpecificityPenaltyService,
+      { list: jest.fn().mockResolvedValue([]) } as unknown as HeaderTierService,
+      {
+        findOne: jest.fn().mockResolvedValue({ complexity_routing_enabled: false }),
+      } as unknown as Repository<Agent>,
+    );
+
+    const out = await svc.resolve('agent-1', [
+      { role: 'user', content: 'build a complex React app' },
+    ]);
+
+    expect(scoring.scoreRequest).not.toHaveBeenCalled();
+    expect(out.tier).toBe('default');
+    expect(out.reason).toBe('default');
   });
 });
