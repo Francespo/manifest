@@ -547,6 +547,91 @@ describe("Routing — enabled state (providers active)", () => {
     });
     // Should not crash — error is handled silently (fetchMutate shows toast)
   });
+
+  it("clicks Refresh models and calls the API + toast", async () => {
+    const { refreshModels } = await import("../../src/services/api.js");
+    vi.mocked(refreshModels).mockResolvedValue({ ok: true });
+    render(() => <Routing />);
+    const refreshBtn = await screen.findByRole("button", { name: "Refresh models" });
+    fireEvent.click(refreshBtn);
+    await waitFor(() => {
+      expect(refreshModels).toHaveBeenCalledWith("test-agent");
+    });
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith("Models refreshed");
+    });
+  });
+
+  it("shows an error toast when refresh models fails", async () => {
+    const { refreshModels } = await import("../../src/services/api.js");
+    vi.mocked(refreshModels).mockRejectedValue(new Error("boom"));
+    render(() => <Routing />);
+    const refreshBtn = await screen.findByRole("button", { name: "Refresh models" });
+    fireEvent.click(refreshBtn);
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Failed to refresh models");
+    });
+  });
+
+  it("opens the instruction modal via Setup instructions and closes it", async () => {
+    render(() => <Routing />);
+    const setupBtn = await screen.findByText("Setup instructions");
+    fireEvent.click(setupBtn);
+    const closeBtn = await screen.findByLabelText("Close");
+    fireEvent.click(closeBtn);
+    await waitFor(() => {
+      expect(screen.queryByText("Activate routing")).toBeNull();
+    });
+  });
+
+  it("opens default-tier picker from the + Add model button", async () => {
+    const { getTierAssignments } = await import("../../src/services/api.js");
+    vi.mocked(getTierAssignments).mockResolvedValueOnce([
+      { id: "1", user_id: "u1", tier: "simple", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      { id: "2", user_id: "u1", tier: "standard", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      { id: "3", user_id: "u1", tier: "complex", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      { id: "4", user_id: "u1", tier: "reasoning", override_model: null, override_provider: null, auto_assigned_model: "gpt-4o-mini", fallback_models: null, updated_at: "2025-01-01" },
+      { id: "5", user_id: "u1", tier: "default", override_model: null, override_provider: null, auto_assigned_model: null, fallback_models: null, updated_at: "2025-01-01" },
+    ]);
+    render(() => <Routing />);
+    await screen.findByRole("tablist");
+    const addButtons = await screen.findAllByText("+ Add model");
+    fireEvent.click(addButtons[0]);
+    expect(await screen.findByText("Select a model")).toBeDefined();
+  });
+
+  it("picks a specificity model through the picker", async () => {
+    const { getSpecificityAssignments, overrideSpecificity } = await import(
+      "../../src/services/api.js"
+    );
+    vi.mocked(getSpecificityAssignments).mockResolvedValue([
+      {
+        id: "sa1",
+        agent_id: "a1",
+        category: "coding",
+        is_active: true,
+        override_model: null,
+        override_provider: null,
+        override_auth_type: null,
+        auto_assigned_model: "gpt-4o",
+        fallback_models: null,
+        updated_at: "2025-01-01",
+      } as any,
+    ]);
+    vi.mocked(overrideSpecificity).mockResolvedValue({} as any);
+    render(() => <Routing />);
+    await screen.findByRole("tablist");
+    fireEvent.click(screen.getByRole("tab", { name: /Task-specific/ }));
+    const changeBtns = await screen.findAllByText("Change");
+    fireEvent.click(changeBtns[0]);
+    const picker = await screen.findByText("Select a model");
+    expect(picker).toBeDefined();
+    const models = screen.getAllByText("Claude Opus 4.6");
+    fireEvent.click(models[models.length - 1]);
+    await waitFor(() => {
+      expect(overrideSpecificity).toHaveBeenCalled();
+    });
+  });
 });
 
 describe("Routing — pricing cache health banner", () => {
