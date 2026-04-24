@@ -186,7 +186,7 @@ const Routing: Component = () => {
     category: string,
     model: string,
     provider: string,
-    authType?: 'api_key' | 'subscription',
+    authType?: 'api_key' | 'subscription' | 'local',
   ) => {
     setChangingSpecificity(category);
     try {
