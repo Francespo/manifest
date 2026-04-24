@@ -15,23 +15,26 @@ describe('DropComplexityRoutingFlag1780000000000', () => {
   });
 
   describe('up', () => {
-    it('drops the complexity_routing_enabled column', async () => {
+    it('drops the complexity_routing_enabled column idempotently', async () => {
       await migration.up(queryRunner as unknown as QueryRunner);
 
       const sqls = queryRunner.query.mock.calls.map((c) => c[0] as string);
       expect(sqls).toHaveLength(1);
-      expect(sqls[0]).toContain('ALTER TABLE "agents" DROP COLUMN "complexity_routing_enabled"');
+      expect(sqls[0]).toContain(
+        'ALTER TABLE "agents" DROP COLUMN IF EXISTS "complexity_routing_enabled"',
+      );
     });
   });
 
   describe('down', () => {
-    it('restores the column with DEFAULT true (always-on semantic)', async () => {
+    it('restores the column idempotently with DEFAULT true (always-on semantic)', async () => {
       await migration.down(queryRunner as unknown as QueryRunner);
 
       const sqls = queryRunner.query.mock.calls.map((c) => c[0] as string);
       expect(sqls).toHaveLength(1);
       expect(sqls[0]).toContain('ALTER TABLE "agents"');
-      expect(sqls[0]).toContain('"complexity_routing_enabled" boolean NOT NULL DEFAULT true');
+      expect(sqls[0]).toContain('ADD COLUMN IF NOT EXISTS "complexity_routing_enabled"');
+      expect(sqls[0]).toContain('boolean NOT NULL DEFAULT true');
     });
   });
 });
