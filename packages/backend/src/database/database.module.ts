@@ -76,6 +76,7 @@ import { AddHeaderTiers1776710000000 } from './migrations/1776710000000-AddHeade
 import { AddSpecificityMiscategorized1777000000000 } from './migrations/1777000000000-AddSpecificityMiscategorized';
 import { AddComplexityRoutingFlag1777100000000 } from './migrations/1777100000000-AddComplexityRoutingFlag';
 import { AddHeaderTierEnabled1777100000000 } from './migrations/1777100000000-AddHeaderTierEnabled';
+import { AddCustomProviderApiKind1777200000000 } from './migrations/1777200000000-AddCustomProviderApiKind';
 import { CanonicalizeTileProviderMessages1777200000000 } from './migrations/1777200000000-CanonicalizeTileProviderMessages';
 import { BackfillLocalAuthType1777200000000 } from './migrations/1777200000000-BackfillLocalAuthType';
 import { BackfillLocalCustomProviders1777300000000 } from './migrations/1777300000000-BackfillLocalCustomProviders';
@@ -158,6 +159,7 @@ const migrations = [
   AddSpecificityMiscategorized1777000000000,
   AddComplexityRoutingFlag1777100000000,
   AddHeaderTierEnabled1777100000000,
+  AddCustomProviderApiKind1777200000000,
   CanonicalizeTileProviderMessages1777200000000,
   BackfillLocalAuthType1777200000000,
   BackfillLocalCustomProviders1777300000000,
