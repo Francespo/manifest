@@ -29,6 +29,12 @@ describe("providerIcon", () => {
     });
   }
 
+  it("returns an SVG for \"llamacpp\"", () => {
+    const { container } = render(() => <div>{providerIcon("llamacpp")}</div>);
+    const svg = container.querySelector("svg");
+    expect(svg).not.toBeNull();
+  });
+
   it("returns null for unknown provider", () => {
     const { container } = render(() => <div>{providerIcon("unknown-provider")}</div>);
     const svg = container.querySelector("svg");
@@ -125,6 +131,8 @@ describe("customProviderLogo", () => {
   });
 
   it.each([
+    ["llama.cpp", "llamacpp"],
+    ["llama-cpp", "llamacpp"],
     ["LM Studio", "lmstudio"],
     ["lm-studio", "lmstudio"],
     ["Ollama", "ollama"],
