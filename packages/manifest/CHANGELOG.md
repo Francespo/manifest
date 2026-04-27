@@ -1,5 +1,14 @@
 # manifest
 
+## 5.55.1
+
+### Patch Changes
+
+- f5c9af8: Polish auth flow accessibility and a few content fixes from a UX audit. Login, Register, and Reset Password inputs now have proper label/`for` association, `autocomplete` attributes for password-manager autofill, and `aria-describedby` linking errors to inputs. The cooldown intervals on resend buttons clean up on unmount. The Register page now links to real Terms and Privacy URLs (was `href="#"`). Section titles on Settings and Account use `<h2>` instead of `<h3>` to fix a heading hierarchy skip. Dark-variant logos use empty alt text so screen readers don't read "Manifest" twice. The Limits "Create rule" button uses the same plus icon as Workspace's "Connect Agent" button.
+- 4664b2d: Fix agent duplication not copying local/custom providers correctly
+- cc09e4f: Expose the OpenAI-compatible Responses API proxy at `/v1/responses` and show Responses API setup snippets by default for OpenAI SDK users.
+- 0e8035c: Fix agent duplication not copying routing mode, local provider models missing from model picker, and local provider toggle errors
+
 ## 5.55.0
 
 ### Minor Changes
