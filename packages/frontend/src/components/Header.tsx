@@ -108,7 +108,7 @@ const Header: Component = () => {
           />
           <img
             src="/logo-white.svg"
-            alt="Manifest"
+            alt=""
             width="152"
             class="header__logo-img header__logo-img--dark"
           />
