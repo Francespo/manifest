@@ -278,8 +278,8 @@ describe("getOpenClawSnippet", () => {
     const snippet = getOpenClawSnippet("https://app.manifest.build/v1", "mnfst_test");
     expect(snippet).toContain("app.manifest.build/v1");
     expect(snippet).toContain("mnfst_test");
-    expect(snippet).toContain("openai-responses");
-    expect(snippet).not.toContain("openai-completions");
+    expect(snippet).toContain("openai-completions");
+    expect(snippet).not.toContain("openai-responses");
   });
 });
 

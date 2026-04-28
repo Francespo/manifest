@@ -136,7 +136,7 @@ describe("SetupStepAddProvider", () => {
     expect(fields[0].textContent).toContain("http://localhost:3001/v1");
     expect(fields[1].textContent).toContain("API Key");
     expect(fields[2].textContent).toContain("Endpoint compatibility");
-    expect(fields[2].textContent).toContain("OpenAI Responses-compatible");
+    expect(fields[2].textContent).toContain("OpenAI Chat Completions-compatible");
     expect(fields[3].textContent).toContain("Model ID");
     expect(fields[3].textContent).toContain("auto");
     expect(fields[4].textContent).toContain("Endpoint ID");
