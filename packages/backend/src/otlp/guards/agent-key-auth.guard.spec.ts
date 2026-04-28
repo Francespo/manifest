@@ -41,6 +41,8 @@ describe('AgentKeyAuthGuard', () => {
   function buildMockRepo() {
     mockGetMany = jest.fn().mockResolvedValue([]);
     const mockSelectQb = {
+      select: jest.fn().mockReturnThis(),
+      leftJoin: jest.fn().mockReturnThis(),
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
@@ -510,6 +512,64 @@ describe('AgentKeyAuthGuard', () => {
     expect(internalCache.has(testCacheKey(token))).toBe(true);
   });
 
+  it('caches entries for at least 30 minutes', async () => {
+    const token = 'mnfst_ttl-check-key';
+    mockGetMany.mockResolvedValue([
+      {
+        id: 'key-ttl',
+        tenant_id: 'tenant-1',
+        agent_id: 'agent-1',
+        key_hash: hashKey(token),
+        expires_at: null,
+        agent: { name: 'test-agent' },
+        tenant: { name: 'user-1' },
+      },
+    ]);
+
+    const before = Date.now();
+    const { ctx } = makeContext({ authorization: `Bearer ${token}` });
+    await guard.canActivate(ctx);
+
+    const internalCache = (guard as any).cache as Map<string, { expiresAt: number }>;
+    const entry = internalCache.get(testCacheKey(token));
+    expect(entry).toBeDefined();
+    expect(entry!.expiresAt - before).toBeGreaterThanOrEqual(30 * 60 * 1000 - 1000);
+  });
+
+  it('LRU touch on cache hit moves entry to tail of insertion order', async () => {
+    const token = 'mnfst_lru-touch-key';
+    mockGetMany.mockResolvedValue([
+      {
+        id: 'key-lru',
+        tenant_id: 'tenant-1',
+        agent_id: 'agent-1',
+        key_hash: hashKey(token),
+        expires_at: null,
+        agent: { name: 'test-agent' },
+        tenant: { name: 'user-1' },
+      },
+    ]);
+
+    const { ctx } = makeContext({ authorization: `Bearer ${token}` });
+    await guard.canActivate(ctx);
+
+    const internalCache = (guard as any).cache as Map<string, unknown>;
+    internalCache.set(testCacheKey('mnfst_other-1'), {
+      tenantId: 't',
+      agentId: 'a',
+      agentName: 'n',
+      userId: 'u',
+      expiresAt: Date.now() + 999_999,
+    });
+
+    expect(Array.from(internalCache.keys())[0]).toBe(testCacheKey(token));
+
+    const { ctx: ctx2 } = makeContext({ authorization: `Bearer ${token}` });
+    await guard.canActivate(ctx2);
+
+    expect(Array.from(internalCache.keys())[1]).toBe(testCacheKey(token));
+  });
+
   it('invalidateCache removes a specific key from cache', async () => {
     const token = 'mnfst_inv-key-test';
     const storedHash = hashKey(token);
@@ -545,6 +605,8 @@ describe('AgentKeyAuthGuard', () => {
     ]);
 
     const mockSelectQb2 = {
+      select: jest.fn().mockReturnThis(),
+      leftJoin: jest.fn().mockReturnThis(),
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),

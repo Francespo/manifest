@@ -12,9 +12,9 @@ export interface AgentInfo {
 }
 
 export function getAgentInfo(agentName: string): Promise<AgentInfo | null> {
-  return fetchJson<{ agents: AgentInfo[] }>('/agents').then(
-    (data) => data?.agents?.find((a) => a.agent_name === agentName) ?? null,
-  );
+  return fetchJson<{ agent: AgentInfo | null }>(`/agents/${encodeURIComponent(agentName)}`)
+    .then((data) => data?.agent ?? null)
+    .catch(() => null);
 }
 
 export function getAgentKey(agentName: string) {

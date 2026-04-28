@@ -35,7 +35,7 @@ export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
   private readonly logger = new Logger(AgentKeyAuthGuard.name);
   private cache = new Map<string, CachedKey>();
   private devContext: { context: IngestionContext; expiresAt: number } | null = null;
-  private readonly CACHE_TTL_MS = 5 * 60 * 1000;
+  private readonly CACHE_TTL_MS = 30 * 60 * 1000;
   private readonly MAX_CACHE_SIZE = 10_000;
   private readonly cleanupTimer: ReturnType<typeof setInterval>;
 
@@ -107,8 +107,12 @@ export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
   }
 
   private async validateMnfstToken(request: Request, token: string): Promise<boolean> {
-    const cached = this.cache.get(cacheKey(token));
+    const hashed = cacheKey(token);
+    const cached = this.cache.get(hashed);
     if (cached && cached.expiresAt > Date.now()) {
+      // LRU touch — re-insert to move to tail of insertion order
+      this.cache.delete(hashed);
+      this.cache.set(hashed, cached);
       this.setContext(request, {
         tenantId: cached.tenantId,
         agentId: cached.agentId,
@@ -121,8 +125,17 @@ export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
     const prefix = computePrefix(token);
     const candidates = await this.keyRepo
       .createQueryBuilder('k')
-      .leftJoinAndSelect('k.agent', 'a')
-      .leftJoinAndSelect('k.tenant', 't')
+      .select([
+        'k.id',
+        'k.key_hash',
+        'k.tenant_id',
+        'k.agent_id',
+        'k.expires_at',
+        'a.name',
+        't.name',
+      ])
+      .leftJoin('k.agent', 'a')
+      .leftJoin('k.tenant', 't')
       .where('k.key_prefix = :prefix', { prefix })
       .andWhere('k.is_active = true')
       .getMany();
@@ -147,12 +160,13 @@ export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
       .catch((err: Error) => this.logger.warn(`Failed to update last_used_at: ${err.message}`));
 
     this.evictExpired();
-    if (this.cache.size >= this.MAX_CACHE_SIZE) {
+    while (this.cache.size >= this.MAX_CACHE_SIZE) {
       const firstKey = this.cache.keys().next().value;
-      if (firstKey) this.cache.delete(firstKey);
+      if (firstKey === undefined) break;
+      this.cache.delete(firstKey);
     }
 
-    this.cache.set(cacheKey(token), {
+    this.cache.set(hashed, {
       tenantId: keyRecord.tenant_id,
       agentId: keyRecord.agent_id,
       agentName: keyRecord.agent.name,

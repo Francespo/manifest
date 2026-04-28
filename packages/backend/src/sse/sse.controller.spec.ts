@@ -2,14 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
 import { Subject } from 'rxjs';
 import { SseController } from './sse.controller';
-import { IngestEventBusService } from '../common/services/ingest-event-bus.service';
+import { IngestEventBusService, IngestEvent } from '../common/services/ingest-event-bus.service';
 
 describe('SseController', () => {
   let controller: SseController;
-  let mockSubject: Subject<string>;
+  let mockSubject: Subject<IngestEvent>;
 
   beforeEach(async () => {
-    mockSubject = new Subject<string>();
+    mockSubject = new Subject<IngestEvent>();
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SseController],
@@ -32,7 +32,7 @@ describe('SseController', () => {
     expect(() => controller.events({} as never)).toThrow(UnauthorizedException);
   });
 
-  it('returns an observable that maps to ping events', (done) => {
+  it('returns an observable that maps event-bus payloads to typed SSE events', (done) => {
     const user = { id: 'user-1', name: 'Test', email: 'test@test.com' } as never;
     const stream$ = controller.events(user);
     const received: unknown[] = [];
@@ -40,17 +40,19 @@ describe('SseController', () => {
     stream$.subscribe({
       next: (event) => {
         received.push(event);
-        if (received.length === 2) {
+        if (received.length === 3) {
           expect(received).toEqual([
-            { type: 'ping', data: 'ping' },
-            { type: 'ping', data: 'ping' },
+            { type: 'message', data: 'message' },
+            { type: 'agent', data: 'agent' },
+            { type: 'routing', data: 'routing' },
           ]);
           done();
         }
       },
     });
 
-    mockSubject.next('user-1');
-    mockSubject.next('user-1');
+    mockSubject.next({ userId: 'user-1', kind: 'message' });
+    mockSubject.next({ userId: 'user-1', kind: 'agent' });
+    mockSubject.next({ userId: 'user-1', kind: 'routing' });
   });
 });

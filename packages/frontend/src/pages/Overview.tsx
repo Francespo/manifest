@@ -34,7 +34,7 @@ import {
 import { preloadModelDisplayNames } from '../services/model-display.js';
 import { isRecentlyCreated } from '../services/recent-agents.js';
 import { checkIsSelfHosted } from '../services/setup-status.js';
-import { pingCount } from '../services/sse.js';
+import { messagePing } from '../services/sse.js';
 import '../styles/overview.css';
 
 interface OverviewData {
@@ -175,7 +175,7 @@ const Overview: Component = () => {
   };
 
   const [data, { refetch }] = createResource(
-    () => ({ range: range(), agentName: params.agentName, _ping: pingCount() }),
+    () => ({ range: range(), agentName: params.agentName, _ping: messagePing() }),
     (p) => getOverview(p.range, p.agentName) as Promise<OverviewData>,
   );
 

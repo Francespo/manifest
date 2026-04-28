@@ -21,7 +21,12 @@ export class SseController {
     }
 
     return this.eventBus.forUser(user.id).pipe(
-      map(() => ({ type: 'ping', data: 'ping' })),
+      // The event-name carries the kind ('message' | 'agent' | 'routing') so
+      // the browser can dispatch via es.addEventListener(kind). Clients that
+      // only listen for the legacy 'ping' event still get every change because
+      // we mirror the kind into the data field — they just don't get the
+      // narrower kind-based fan-out optimization.
+      map((evt) => ({ type: evt.kind, data: evt.kind })),
     );
   }
 }
