@@ -35,7 +35,10 @@ export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
   private readonly logger = new Logger(AgentKeyAuthGuard.name);
   private cache = new Map<string, CachedKey>();
   private devContext: { context: IngestionContext; expiresAt: number } | null = null;
-  private readonly CACHE_TTL_MS = 30 * 60 * 1000;
+  // 5 min TTL keeps revoked-key staleness bounded while still amortizing the
+  // DB lookup across hot ingest bursts. Mutations call invalidateCache()
+  // directly when keys rotate or deactivate.
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000;
   private readonly MAX_CACHE_SIZE = 10_000;
   private readonly cleanupTimer: ReturnType<typeof setInterval>;
 

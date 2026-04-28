@@ -16,8 +16,13 @@ export function connectSse(): () => void {
   const bumpPing = () => setPingCount((n) => n + 1);
 
   // Legacy generic 'ping' from older deployments — keep listening so a partial
-  // upgrade still works.
-  es.addEventListener('ping', bumpPing);
+  // upgrade (old backend, new frontend) still triggers refetches. The safe
+  // default is to treat unknown 'ping' as a message-class change since that's
+  // the kind the bus emitted before typed events landed.
+  es.addEventListener('ping', () => {
+    setMessagePing((n) => n + 1);
+    bumpPing();
+  });
 
   es.addEventListener('message', () => {
     setMessagePing((n) => n + 1);

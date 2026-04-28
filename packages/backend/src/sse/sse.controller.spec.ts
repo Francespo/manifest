@@ -32,7 +32,7 @@ describe('SseController', () => {
     expect(() => controller.events({} as never)).toThrow(UnauthorizedException);
   });
 
-  it('returns an observable that maps event-bus payloads to typed SSE events', (done) => {
+  it('fans each bus event into a typed event and a legacy ping', (done) => {
     const user = { id: 'user-1', name: 'Test', email: 'test@test.com' } as never;
     const stream$ = controller.events(user);
     const received: unknown[] = [];
@@ -40,11 +40,14 @@ describe('SseController', () => {
     stream$.subscribe({
       next: (event) => {
         received.push(event);
-        if (received.length === 3) {
+        if (received.length === 6) {
           expect(received).toEqual([
             { type: 'message', data: 'message' },
+            { type: 'ping', data: 'ping' },
             { type: 'agent', data: 'agent' },
+            { type: 'ping', data: 'ping' },
             { type: 'routing', data: 'routing' },
+            { type: 'ping', data: 'ping' },
           ]);
           done();
         }

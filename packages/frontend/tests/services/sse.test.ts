@@ -25,16 +25,22 @@ describe("sse", () => {
     expect(mockEventSource.close).toHaveBeenCalled();
   });
 
-  it("increments pingCount when legacy 'ping' event is received", async () => {
-    const { connectSse, pingCount } = await import("../../src/services/sse");
+  it("increments pingCount AND messagePing when legacy 'ping' event is received", async () => {
+    const { connectSse, pingCount, messagePing } = await import(
+      "../../src/services/sse"
+    );
     connectSse();
     const pingHandler = mockEventSource.addEventListener.mock.calls.find(
       (c: any[]) => c[0] === "ping",
     )?.[1];
     expect(pingHandler).toBeDefined();
-    const before = pingCount();
+    const beforePing = pingCount();
+    const beforeMessage = messagePing();
     pingHandler();
-    expect(pingCount()).toBe(before + 1);
+    expect(pingCount()).toBe(beforePing + 1);
+    // legacy ping is treated as a message-class change so MessageLog/Overview
+    // stay reactive when talking to an older backend.
+    expect(messagePing()).toBe(beforeMessage + 1);
   });
 
   it("increments messagePing AND pingCount on 'message' event", async () => {

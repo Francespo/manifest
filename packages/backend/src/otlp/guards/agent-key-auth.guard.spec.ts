@@ -512,7 +512,7 @@ describe('AgentKeyAuthGuard', () => {
     expect(internalCache.has(testCacheKey(token))).toBe(true);
   });
 
-  it('caches entries for at least 30 minutes', async () => {
+  it('caches entries for the configured 5 minute TTL', async () => {
     const token = 'mnfst_ttl-check-key';
     mockGetMany.mockResolvedValue([
       {
@@ -533,7 +533,9 @@ describe('AgentKeyAuthGuard', () => {
     const internalCache = (guard as any).cache as Map<string, { expiresAt: number }>;
     const entry = internalCache.get(testCacheKey(token));
     expect(entry).toBeDefined();
-    expect(entry!.expiresAt - before).toBeGreaterThanOrEqual(30 * 60 * 1000 - 1000);
+    const ttlMs = entry!.expiresAt - before;
+    expect(ttlMs).toBeGreaterThanOrEqual(5 * 60 * 1000 - 1000);
+    expect(ttlMs).toBeLessThanOrEqual(5 * 60 * 1000 + 1000);
   });
 
   it('LRU touch on cache hit moves entry to tail of insertion order', async () => {

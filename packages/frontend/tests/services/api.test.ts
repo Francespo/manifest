@@ -64,6 +64,9 @@ vi.mock('../../src/services/toast-store.js', () => ({
 const mockFetch = vi.fn();
 
 beforeEach(() => {
+  // mockFetch is module-scoped, so call counts and resolved values persist
+  // across tests if we don't reset them here.
+  mockFetch.mockReset();
   vi.stubGlobal('fetch', mockFetch);
   vi.stubGlobal('location', { origin: 'http://localhost:3000' });
   // Module-scoped caches survive across tests; reset them so a previous test's
@@ -410,12 +413,10 @@ describe('getAgentInfo', () => {
     expect(result).toBeNull();
   });
 
-  it('should return null on fetch error', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('boom'));
+  it('propagates fetch errors instead of swallowing them', async () => {
+    mockError(500, 'Internal Server Error');
 
-    const result = await getAgentInfo('any-agent');
-
-    expect(result).toBeNull();
+    await expect(getAgentInfo('any-agent')).rejects.toThrow('API error: 500 Internal Server Error');
   });
 });
 

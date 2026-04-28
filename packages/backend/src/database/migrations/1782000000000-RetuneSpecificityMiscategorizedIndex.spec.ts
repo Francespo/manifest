@@ -16,20 +16,33 @@ describe('RetuneSpecificityMiscategorizedIndex1782000000000', () => {
     jest.clearAllMocks();
   });
 
-  it('drops the old index and recreates it keyed by agent_id', async () => {
+  it('opts out of TypeORM migration transaction so CONCURRENTLY is allowed', () => {
+    expect(migration.transaction).toBe(false);
+  });
+
+  it('drops the old index and recreates it keyed by agent_id (CONCURRENTLY)', async () => {
     await migration.up(mockQueryRunner);
     expect(queries).toHaveLength(2);
-    expect(queries[0]).toContain('DROP INDEX IF EXISTS "IDX_agent_messages_miscategorized"');
-    expect(queries[1]).toContain('CREATE INDEX "IDX_agent_messages_miscategorized"');
+    expect(queries[0]).toContain(
+      'DROP INDEX CONCURRENTLY IF EXISTS "IDX_agent_messages_miscategorized"',
+    );
+    expect(queries[1]).toContain(
+      'CREATE INDEX CONCURRENTLY IF NOT EXISTS "IDX_agent_messages_miscategorized"',
+    );
     expect(queries[1]).toContain('"agent_id", "specificity_category"');
     expect(queries[1]).toContain(`WHERE "specificity_miscategorized" = true`);
     expect(queries[1]).not.toMatch(/"tenant_id"\s*,\s*"agent_id"/);
   });
 
-  it('rollback restores the original (tenant_id, agent_id, ...) index', async () => {
+  it('rollback restores the original (tenant_id, agent_id, ...) index (CONCURRENTLY)', async () => {
     await migration.down(mockQueryRunner);
     expect(queries).toHaveLength(2);
-    expect(queries[0]).toContain('DROP INDEX IF EXISTS "IDX_agent_messages_miscategorized"');
+    expect(queries[0]).toContain(
+      'DROP INDEX CONCURRENTLY IF EXISTS "IDX_agent_messages_miscategorized"',
+    );
+    expect(queries[1]).toContain(
+      'CREATE INDEX CONCURRENTLY IF NOT EXISTS "IDX_agent_messages_miscategorized"',
+    );
     expect(queries[1]).toContain('"tenant_id", "agent_id", "specificity_category"');
     expect(queries[1]).toContain(`WHERE "specificity_miscategorized" = true`);
   });
