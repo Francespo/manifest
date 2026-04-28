@@ -192,13 +192,12 @@ const migrations = [
         extra: {
           max: config.get<number>('app.dbPoolMax') ?? 50,
           idleTimeoutMillis: 30000,
-          // Pass session GUCs via PostgreSQL's `options` connection parameter
-          // (`-c name=value`) instead of as top-level pg client options. The pg
-          // driver forwards keys like `statement_timeout` as protocol-level
-          // startup parameters, which poolers such as Railway's PgBouncer
-          // reject with "FATAL: unsupported startup parameter: statement_timeout"
-          // — crashing the app before it can listen on PORT.
-          options: '-c statement_timeout=30000 -c idle_in_transaction_session_timeout=60000',
+          // statement_timeout / idle_in_transaction_session_timeout were tried
+          // here (#1745) and via the `options` connection string (#1749), but
+          // Railway's PgBouncer rejects both forms — its
+          // `ignore_startup_parameters` allowlist only includes
+          // `extra_float_digits`. If we need per-query timeouts later, set
+          // them with `SET LOCAL` inside the relevant transaction instead.
         },
       }),
     }),
