@@ -41,7 +41,6 @@ Manifest is a smart model router for agents and AI applications that redirects e
 - 🎛️ Mix your providers: API keys, Subscriptions, Local models, Custom providers
 - 📊 Track every single dollar, setup notifications and limits
 - 🚑 Fallback on different models when queries fails
-- 
 
 ## Quick start
 
