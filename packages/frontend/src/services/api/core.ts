@@ -15,11 +15,20 @@ export async function fetchJson<T>(
 
   const res = await fetch(url.toString(), { credentials: 'include', cache: 'no-store' });
   if (res.status === 401) {
-    // Session expired or user logged out — silently redirect to login
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login';
+    // Only redirect to /login when the 401 looks like a real session
+    // expiry. Per-endpoint 401s (e.g. an endpoint that requires a
+    // user-scoped credential when called with a shared API key) shouldn't
+    // log the user out.
+    const body = await res.text().catch(() => '');
+    const looksLikeSessionExpiry =
+      !body || /session|cookie|unauthenticated|not authenticated/i.test(body);
+    if (looksLikeSessionExpiry) {
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+      throw new Error('Session expired');
     }
-    throw new Error('Session expired');
+    throw new Error(body || 'Unauthorized');
   }
   if (!res.ok) {
     const body = await res.text().catch(() => '');

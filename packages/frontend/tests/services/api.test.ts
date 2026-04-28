@@ -1414,7 +1414,7 @@ describe('fetchJson 401 redirect', () => {
   it('redirects to /login on 401 response and throws', async () => {
     const loc = { origin: 'http://localhost:3000', pathname: '/overview', href: '' };
     vi.stubGlobal('location', loc);
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401, text: async () => '' });
 
     await expect(getHealth()).rejects.toThrow('Session expired');
     expect(loc.href).toBe('/login');
@@ -1423,7 +1423,7 @@ describe('fetchJson 401 redirect', () => {
   it('does not redirect if already on /login but still throws', async () => {
     const loc = { origin: 'http://localhost:3000', pathname: '/login', href: '' };
     vi.stubGlobal('location', loc);
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401, text: async () => '' });
 
     await expect(getHealth()).rejects.toThrow('Session expired');
     expect(loc.href).toBe('');

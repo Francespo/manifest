@@ -9,7 +9,10 @@ function testCacheKey(token: string): string {
 }
 
 function makeContext(headers: Record<string, string | undefined>, ip = '203.0.113.1') {
-  const request: Record<string, unknown> = { headers, ip };
+  // The guard reads request.socket.remoteAddress for its loopback decision
+  // (request.ip is spoofable via X-Forwarded-For when trust proxy is set).
+  // Mirror the test's `ip` onto the socket so existing scenarios still hold.
+  const request: Record<string, unknown> = { headers, ip, socket: { remoteAddress: ip } };
   return {
     req: request,
     ctx: {
@@ -331,7 +334,7 @@ describe('AgentKeyAuthGuard', () => {
   });
 
   it('handles request.ip being undefined without crashing', async () => {
-    const request: Record<string, unknown> = { headers: {}, ip: undefined };
+    const request: Record<string, unknown> = { headers: {}, ip: undefined, socket: {} };
     const ctx = {
       switchToHttp: () => ({
         getRequest: () => request,

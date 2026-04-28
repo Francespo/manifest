@@ -53,8 +53,13 @@ export async function bootstrap() {
 
   const isDev = process.env['NODE_ENV'] !== 'production';
   if (isDev) {
+    // Default to a single origin (the Vite dev server). Operators that need
+    // a different origin must set CORS_ORIGIN explicitly. Previously the
+    // fallback regex allowed http+https on both 3000 and 3001 with
+    // credentials, letting any locally-bound process on those ports read
+    // session cookies cross-origin.
     app.enableCors({
-      origin: process.env['CORS_ORIGIN'] || /^https?:\/\/(localhost|127\.0\.0\.1):(3000|3001)$/,
+      origin: process.env['CORS_ORIGIN'] || 'http://localhost:3000',
       credentials: true,
     });
   }
@@ -73,11 +78,19 @@ export async function bootstrap() {
   // Trust reverse proxy (Railway, Render, Traefik, Nginx, etc.) so Express
   // sees the real client IP from X-Forwarded-For headers. Enabled in
   // production deployments only — dev runs on loopback with no proxy.
+  //
+  // Restrict the trust to loopback / link-local / private subnets so a
+  // remote attacker cannot forge an X-Forwarded-For value to make Express
+  // think the request originated from a trusted IP. Operators with proxies
+  // outside these ranges should set TRUST_PROXY explicitly.
   if (!isDev) {
-    expressApp.set('trust proxy', 1);
+    const trustProxy = process.env['TRUST_PROXY'] ?? 'loopback, linklocal, uniquelocal';
+    expressApp.set('trust proxy', trustProxy);
   }
 
-  // Rate limit login attempts (Better Auth runs outside NestJS, so ThrottlerGuard doesn't apply)
+  // Rate limit auth endpoints (Better Auth runs outside NestJS, so
+  // ThrottlerGuard doesn't apply). Each endpoint gets its own limiter so
+  // sign-in attempts don't share a budget with sign-up / password-reset.
   const { default: rateLimit } = await import('express-rate-limit');
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -86,7 +99,36 @@ export async function bootstrap() {
     legacyHeaders: false,
     message: { error: 'Too many login attempts. Try again later.' },
   });
+  const signupLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many sign-up attempts. Try again later.' },
+  });
+  // forget-password is the worst offender: each request sends an email and
+  // can be used for account enumeration via timing differences. Tight cap.
+  const forgetPasswordLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many password reset requests. Try again later.' },
+  });
+  const verifyEmailLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many verification requests. Try again later.' },
+  });
   expressApp.use('/api/auth/sign-in', loginLimiter);
+  expressApp.use('/api/auth/sign-up', signupLimiter);
+  expressApp.use('/api/auth/forget-password', forgetPasswordLimiter);
+  expressApp.use('/api/auth/forgot-password', forgetPasswordLimiter);
+  expressApp.use('/api/auth/reset-password', forgetPasswordLimiter);
+  expressApp.use('/api/auth/verify-email', verifyEmailLimiter);
+  expressApp.use('/api/auth/send-verification-email', verifyEmailLimiter);
 
   // Mount Better Auth handler (needs raw body, before express.json)
   const { toNodeHandler } = await import('better-auth/node');
@@ -105,6 +147,24 @@ export async function bootstrap() {
     logger.warn(
       `Development mode with BIND_ADDRESS=${host} — auth guards are relaxed for loopback IPs. ` +
         'Ensure this server is not exposed to untrusted networks.',
+    );
+  }
+
+  // Warn loudly when HSTS is silently disabled in production. Operators
+  // running behind an HTTPS reverse proxy without setting BETTER_AUTH_URL
+  // (or with an http:// value) will otherwise lose HSTS protection
+  // without realizing it.
+  if (
+    !isDev &&
+    !hstsEnabled &&
+    host !== '127.0.0.1' &&
+    host !== 'localhost' &&
+    host !== '::1' &&
+    process.env['MANIFEST_DISABLE_HSTS'] !== '1'
+  ) {
+    logger.warn(
+      'HSTS is disabled. Set BETTER_AUTH_URL to your https:// origin to enable it, or set ' +
+        'MANIFEST_DISABLE_HSTS=1 to silence this warning for HTTP-only LAN deployments.',
     );
   }
 
