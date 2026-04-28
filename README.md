@@ -6,7 +6,7 @@
   </picture>
 </p>
 <p align="center">
-    Affordable Personal AI
+Reduce your AI costs 
 </p>
 
 ![manifest-gh](https://github.com/user-attachments/assets/7dd74fc2-f7d6-4558-a95a-014ed754a125)
