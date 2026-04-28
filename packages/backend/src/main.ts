@@ -84,7 +84,18 @@ export async function bootstrap() {
   // think the request originated from a trusted IP. Operators with proxies
   // outside these ranges should set TRUST_PROXY explicitly.
   if (!isDev) {
-    const trustProxy = process.env['TRUST_PROXY'] ?? 'loopback, linklocal, uniquelocal';
+    // Env values are always strings, but Express's `trust proxy` treats
+    // numbers (hop count) and booleans differently from their string
+    // equivalents — `"1"` is parsed as a CIDR / IP literal, not "trust
+    // first hop". Coerce numeric and bool-shaped values explicitly.
+    const rawTrustProxy = process.env['TRUST_PROXY'] ?? 'loopback, linklocal, uniquelocal';
+    const trustProxy: string | number | boolean = /^\d+$/.test(rawTrustProxy)
+      ? Number(rawTrustProxy)
+      : rawTrustProxy === 'true'
+        ? true
+        : rawTrustProxy === 'false'
+          ? false
+          : rawTrustProxy;
     expressApp.set('trust proxy', trustProxy);
   }
 
