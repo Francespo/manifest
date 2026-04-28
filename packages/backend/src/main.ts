@@ -17,8 +17,12 @@ export async function bootstrap() {
   app.enableShutdownHooks();
   app.useGlobalFilters(new SpaFallbackFilter(process.env['BETTER_AUTH_URL']));
 
+  const betterAuthUrl = process.env['BETTER_AUTH_URL'] || '';
+  const hstsEnabled = /^https:\/\//i.test(betterAuthUrl);
+
   app.use(
     helmet({
+      hsts: hstsEnabled,
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
