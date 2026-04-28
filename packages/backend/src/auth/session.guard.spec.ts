@@ -47,6 +47,10 @@ describe('SessionGuard', () => {
     jest.clearAllMocks();
   });
 
+  afterEach(() => {
+    guard.onModuleDestroy();
+  });
+
   it('allows public routes', async () => {
     jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(true);
     const { context } = createMockContext({});
@@ -238,6 +242,150 @@ describe('SessionGuard', () => {
 
       expect(request['user']).toBeUndefined();
       expect(request['authMethod']).toBeUndefined();
+    });
+  });
+
+  describe('session cache', () => {
+    it('reuses cached session for same cookie within TTL', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+      const mockSession = {
+        user: { id: 'u1', name: 'A', email: 'a@b.c' },
+        session: { id: 's1' },
+      };
+      (auth.api.getSession as jest.Mock).mockResolvedValue(mockSession);
+      const headers = { cookie: 'session=abc; theme=dark' };
+
+      const first = createMockContext({ headers });
+      await guard.canActivate(first.context);
+      expect(auth.api.getSession).toHaveBeenCalledTimes(1);
+
+      const second = createMockContext({ headers });
+      const result = await guard.canActivate(second.context);
+
+      expect(result).toBe(true);
+      expect(auth.api.getSession).toHaveBeenCalledTimes(1);
+      expect(second.request['user']).toEqual(mockSession.user);
+      expect(second.request['session']).toEqual(mockSession.session);
+      expect(second.request['authMethod']).toBe('session');
+    });
+
+    it('does not cache anonymous responses', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+      (auth.api.getSession as jest.Mock).mockResolvedValue(null);
+      const headers = { cookie: 'session=abc' };
+
+      await guard.canActivate(createMockContext({ headers }).context);
+      await guard.canActivate(createMockContext({ headers }).context);
+
+      expect(auth.api.getSession).toHaveBeenCalledTimes(2);
+    });
+
+    it('skips cache when no cookie header is present', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+      const mockSession = {
+        user: { id: 'u1', name: 'A', email: 'a@b.c' },
+        session: { id: 's1' },
+      };
+      (auth.api.getSession as jest.Mock).mockResolvedValue(mockSession);
+
+      await guard.canActivate(createMockContext({}).context);
+      await guard.canActivate(createMockContext({}).context);
+
+      expect(auth.api.getSession).toHaveBeenCalledTimes(2);
+    });
+
+    it('uses different cache entries for different cookies', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+      (auth.api.getSession as jest.Mock).mockImplementation(() =>
+        Promise.resolve({
+          user: { id: 'u1', name: 'A', email: 'a@b.c' },
+          session: { id: 's1' },
+        }),
+      );
+
+      await guard.canActivate(createMockContext({ headers: { cookie: 'session=alpha' } }).context);
+      await guard.canActivate(createMockContext({ headers: { cookie: 'session=beta' } }).context);
+      await guard.canActivate(createMockContext({ headers: { cookie: 'session=alpha' } }).context);
+
+      expect(auth.api.getSession).toHaveBeenCalledTimes(2);
+    });
+
+    it('invalidateCache clears entries for a cookie', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+      const mockSession = {
+        user: { id: 'u1', name: 'A', email: 'a@b.c' },
+        session: { id: 's1' },
+      };
+      (auth.api.getSession as jest.Mock).mockResolvedValue(mockSession);
+      const headers = { cookie: 'session=abc' };
+
+      await guard.canActivate(createMockContext({ headers }).context);
+      guard.invalidateCache('session=abc');
+      await guard.canActivate(createMockContext({ headers }).context);
+
+      expect(auth.api.getSession).toHaveBeenCalledTimes(2);
+    });
+
+    it('invalidateCache without arg clears the entire cache', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+      const mockSession = {
+        user: { id: 'u1', name: 'A', email: 'a@b.c' },
+        session: { id: 's1' },
+      };
+      (auth.api.getSession as jest.Mock).mockResolvedValue(mockSession);
+
+      await guard.canActivate(createMockContext({ headers: { cookie: 'session=a' } }).context);
+      await guard.canActivate(createMockContext({ headers: { cookie: 'session=b' } }).context);
+      guard.invalidateCache();
+      await guard.canActivate(createMockContext({ headers: { cookie: 'session=a' } }).context);
+      await guard.canActivate(createMockContext({ headers: { cookie: 'session=b' } }).context);
+
+      expect(auth.api.getSession).toHaveBeenCalledTimes(4);
+    });
+
+    it('expires cache entries past the TTL', async () => {
+      jest.useFakeTimers();
+      try {
+        jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+        (auth.api.getSession as jest.Mock).mockResolvedValue({
+          user: { id: 'u1', name: 'A', email: 'a@b.c' },
+          session: { id: 's1' },
+        });
+        const headers = { cookie: 'session=abc' };
+
+        await guard.canActivate(createMockContext({ headers }).context);
+        jest.advanceTimersByTime(61_000);
+        await guard.canActivate(createMockContext({ headers }).context);
+
+        expect(auth.api.getSession).toHaveBeenCalledTimes(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('evicts oldest entry when cache exceeds max size', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+      const mockSession = {
+        user: { id: 'u1', name: 'A', email: 'a@b.c' },
+        session: { id: 's1' },
+      };
+      (auth.api.getSession as jest.Mock).mockResolvedValue(mockSession);
+
+      // Resize the cache cap for the test by exposing private state via cast
+      type WritableMax = { MAX_CACHE_SIZE: number };
+      (guard as unknown as WritableMax).MAX_CACHE_SIZE = 2;
+
+      await guard.canActivate(createMockContext({ headers: { cookie: 'a' } }).context);
+      await guard.canActivate(createMockContext({ headers: { cookie: 'b' } }).context);
+      await guard.canActivate(createMockContext({ headers: { cookie: 'c' } }).context);
+
+      // 'a' should have been evicted
+      await guard.canActivate(createMockContext({ headers: { cookie: 'a' } }).context);
+      expect(auth.api.getSession).toHaveBeenCalledTimes(4);
+
+      // 'c' is still cached
+      await guard.canActivate(createMockContext({ headers: { cookie: 'c' } }).context);
+      expect(auth.api.getSession).toHaveBeenCalledTimes(4);
     });
   });
 });

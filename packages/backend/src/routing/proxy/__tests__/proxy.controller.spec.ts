@@ -2347,26 +2347,24 @@ describe('ProxyController', () => {
       await controller.chatCompletions(req as never, res as never);
       await new Promise((r) => setTimeout(r, 10));
 
-      // 4 inserts: primary failure + 2 intermediate failures + fallback success
-      expect(mockMessageRepo.insert).toHaveBeenCalledTimes(4);
+      // 3 inserts: primary failure + 1 batched failed-fallbacks + fallback success
+      expect(mockMessageRepo.insert).toHaveBeenCalledTimes(3);
 
-      // Intermediate failures recorded as fallback_error (handled)
-      expect(mockMessageRepo.insert).toHaveBeenCalledWith(
+      // Intermediate failures batched into a single insert with both rows
+      expect(mockMessageRepo.insert).toHaveBeenCalledWith([
         expect.objectContaining({
           model: 'deepseek-chat',
           status: 'fallback_error',
           fallback_from_model: 'gemini-flash',
           fallback_index: 0,
         }),
-      );
-      expect(mockMessageRepo.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           model: 'gpt-4o-mini',
           status: 'fallback_error',
           fallback_from_model: 'gemini-flash',
           fallback_index: 1,
         }),
-      );
+      ]);
     });
 
     it('should record message with zero tokens when response has no usage data', async () => {
@@ -2493,7 +2491,7 @@ describe('ProxyController', () => {
           error_message: 'primary error',
         }),
       );
-      expect(mockMessageRepo.insert).toHaveBeenCalledWith(
+      expect(mockMessageRepo.insert).toHaveBeenCalledWith([
         expect.objectContaining({
           model: 'deepseek-chat',
           status: 'error',
@@ -2501,7 +2499,7 @@ describe('ProxyController', () => {
           fallback_index: 0,
           error_message: 'auth fail',
         }),
-      );
+      ]);
       expect(headers['X-Manifest-Fallback-Exhausted']).toBe('true');
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2693,28 +2691,26 @@ describe('ProxyController', () => {
       await controller.chatCompletions(req as never, res as never);
       await new Promise((r) => setTimeout(r, 10));
 
-      // 3 inserts: primary (fallback_error) + intermediate (fallback_error) + last (error)
-      expect(mockMessageRepo.insert).toHaveBeenCalledTimes(3);
+      // 2 inserts: primary (fallback_error) + 1 batched failed-fallbacks (2 rows)
+      expect(mockMessageRepo.insert).toHaveBeenCalledTimes(2);
       expect(mockMessageRepo.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           model: 'gemini-flash',
           status: 'fallback_error',
         }),
       );
-      expect(mockMessageRepo.insert).toHaveBeenCalledWith(
+      expect(mockMessageRepo.insert).toHaveBeenCalledWith([
         expect.objectContaining({
           model: 'deepseek-chat',
           status: 'fallback_error',
           fallback_index: 0,
         }),
-      );
-      expect(mockMessageRepo.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           model: 'gpt-4o-mini',
           status: 'error',
           fallback_index: 1,
         }),
-      );
+      ]);
     });
   });
 
@@ -2756,13 +2752,13 @@ describe('ProxyController', () => {
     await controller.chatCompletions(req as never, res as never);
     await new Promise((r) => setTimeout(r, 50));
 
-    // Fallback failure recorded with auth_type from meta
-    expect(mockMessageRepo.insert).toHaveBeenCalledWith(
+    // Fallback failure recorded with auth_type from meta (batched as array)
+    expect(mockMessageRepo.insert).toHaveBeenCalledWith([
       expect.objectContaining({
         model: 'deepseek-chat',
         auth_type: 'subscription',
       }),
-    );
+    ]);
     // Primary failure also recorded with auth_type
     expect(mockMessageRepo.insert).toHaveBeenCalledWith(
       expect.objectContaining({

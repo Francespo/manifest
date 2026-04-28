@@ -13,7 +13,10 @@ export async function fetchJson<T>(
     }
   }
 
-  const res = await fetch(url.toString(), { credentials: 'include', cache: 'no-store' });
+  // 'default' lets the browser revalidate via ETag / Cache-Control. Backend
+  // analytics endpoints set short max-age=10 which keeps stale UI bounded;
+  // SSE-driven refetches still bypass cache because they pass a unique signal.
+  const res = await fetch(url.toString(), { credentials: 'include', cache: 'default' });
   if (res.status === 401) {
     // Session expired or user logged out — silently redirect to login
     if (window.location.pathname !== '/login') {
