@@ -259,9 +259,15 @@ const response = await client.responses.create({
 }
 
 export function getOpenClawSnippet(baseUrl: string, apiKey: string): string {
+  // Manifest's cloud proxy speaks OpenAI Chat Completions
+  // (`/v1/chat/completions`). OpenClaw's `openai-responses` parser reads
+  // assistant text from the Responses API shape (`output[].content[].text`),
+  // which doesn't match — chat bubbles render empty even though tokens are
+  // billed correctly. Stay on `openai-completions` until the proxy exposes a
+  // first-class `/v1/responses` endpoint.
   const providerJson = JSON.stringify({
     baseUrl,
-    api: 'openai-responses',
+    api: 'openai-completions',
     apiKey,
     models: [{ id: 'auto', name: 'Manifest Auto' }],
   });
