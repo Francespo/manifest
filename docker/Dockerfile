@@ -25,7 +25,11 @@ RUN npx turbo build --filter=manifest-backend --filter=manifest-frontend --filte
 
 # Stage 3: Production dependencies only. npm ci runs with --ignore-scripts
 # so nothing is compiled — all runtime deps are pure JS, making the glibc
-# of this stage irrelevant to the final image.
+# of this stage irrelevant to the final image. --omit=optional drops the
+# platform-specific binaries that vite/rollup/esbuild ship as
+# optionalDependencies; without it, npm hoists @esbuild/linux-x64 (a Go
+# binary) into node_modules even though `--omit=dev` strips its parent,
+# and CVE scanners then flag the embedded Go stdlib.
 FROM node:24-slim@sha256:03eae3ef7e88a9de535496fb488d67e02b9d96a063a8967bae657744ecd513f2 AS prod-deps
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -33,14 +37,12 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/frontend/package.json packages/frontend/
 COPY packages/backend/package.json packages/backend/
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev --ignore-scripts \
+    npm ci --omit=dev --omit=optional --ignore-scripts \
            --prefer-offline --no-audit --no-fund --loglevel=error && \
     rm -rf node_modules/typescript node_modules/@types \
            node_modules/ts-node node_modules/acorn \
            node_modules/create-require node_modules/v8-compile-cache-lib && \
-    find . -path "*/node_modules/vitest" -type d -exec rm -rf {} + 2>/dev/null; \
-    find . -path "*/node_modules/vite-node" -type d -exec rm -rf {} + 2>/dev/null; \
-    find . -path "*/node_modules/rollup" -type d -exec rm -rf {} + 2>/dev/null; \
+    find . -path "*/node_modules/@esbuild" -type d -exec rm -rf {} + 2>/dev/null; \
     find . -path "*/node_modules/@vitest" -type d -exec rm -rf {} + 2>/dev/null; \
     find . -path "*/node_modules/*" \( -name "*.map" -o -name "README*" \
       -o -name "LICENSE*" -o -name "CHANGELOG*" -o -name "*.txt" \
