@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OPENAI_RESPONSES_ONLY_RE, stripVendorPrefix } from '../../common/constants/openai-models';
 import { PROVIDER_ENDPOINTS, ProviderEndpoint, resolveEndpointKey } from './provider-endpoints';
+import { validatePublicUrl } from '../../common/utils/url-validation';
+import { isSelfHosted } from '../../common/utils/detect-self-hosted';
 import { resolveSubscriptionEndpointKey } from './provider-hooks';
 import { injectOpenRouterCacheControl } from './cache-injection';
 import {
@@ -104,6 +106,19 @@ export class ProviderClient {
     const finalHeaders = extraHeaders ? { ...headers, ...extraHeaders } : headers;
 
     this.logger.debug(`Forwarding to ${endpointKey}: ${url.replace(/key=[^&]+/, 'key=***')}`);
+
+    // SSRF defense in depth for user-supplied endpoint URLs (custom providers,
+    // subscription resource URLs). validatePublicUrl was called when the URL
+    // was stored, but DNS for the hostname may have rebound to a private or
+    // cloud-metadata address since then. Re-resolve and re-check now.
+    if (endpoint.requiresSsrfRevalidation) {
+      try {
+        await validatePublicUrl(url, { allowPrivate: isSelfHosted() });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`Refusing to forward to disallowed URL: ${message}`);
+      }
+    }
 
     return this.executeFetch(url, finalHeaders, requestBody, signal, {
       isGoogle,
@@ -253,6 +268,9 @@ export class ProviderClient {
         headers,
         body: JSON.stringify(requestBody),
         signal: fetchSignal,
+        // Block redirect-based SSRF escalation: a hostile upstream could 302
+        // to a private/metadata endpoint after our pre-fetch validation.
+        redirect: 'error',
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

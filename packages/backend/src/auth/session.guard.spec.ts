@@ -21,8 +21,13 @@ function createMockContext(overrides: { ip?: string; headers?: Record<string, st
   context: ExecutionContext;
   request: Record<string, unknown>;
 } {
+  // The guard reads request.socket.remoteAddress (the actual TCP peer) for
+  // its loopback decision. Mirror the test's `ip` field onto the socket so
+  // existing assertions still describe the scenario they intend to.
+  const peerIp = overrides.ip ?? '127.0.0.1';
   const request: Record<string, unknown> = {
-    ip: overrides.ip ?? '127.0.0.1',
+    ip: peerIp,
+    socket: { remoteAddress: peerIp },
     headers: overrides.headers ?? {},
   };
 
