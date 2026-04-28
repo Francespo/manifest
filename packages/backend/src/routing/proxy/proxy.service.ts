@@ -27,8 +27,11 @@ import {
 import { ThoughtSignatureCache } from './thought-signature-cache';
 import { ThinkingBlockCache } from './thinking-block-cache';
 import { buildFriendlyResponse, getDashboardUrl } from './proxy-friendly-response';
+import { peekStream } from './stream-warmup';
 import type { AuthType } from 'manifest-shared';
 import { toChatCompletionsRequest } from './responses-adapter';
+
+const STREAM_WARMUP_MS = 15_000;
 
 type ResolvedRouting = Awaited<ReturnType<ResolveService['resolve']>>;
 
@@ -184,6 +187,64 @@ export class ProxyService {
         apiMode,
       });
       if (fallbackResult) return fallbackResult;
+    }
+
+    // Stream warm-up: for streaming 200 responses, verify the provider
+    // actually starts delivering data before committing to the client.
+    // If the stream stalls or dies, we can still try fallback providers.
+    if (forward.response.ok && stream && forward.response.body) {
+      const warmup = await peekStream(forward.response.body, STREAM_WARMUP_MS);
+      if (warmup.ok) {
+        const peeked: ForwardResult = {
+          response: new Response(warmup.stream, {
+            status: forward.response.status,
+            statusText: forward.response.statusText,
+            headers: forward.response.headers,
+          }),
+          isGoogle: forward.isGoogle,
+          isAnthropic: forward.isAnthropic,
+          isChatGpt: forward.isChatGpt,
+        };
+        this.recordTierIfScoring(sessionKey, resolved.tier);
+        this.recordCategoryIfValid(sessionKey, resolved.specificity_category);
+        return { forward: peeked, meta: this.buildBaseMeta(resolved, primaryModel) };
+      }
+
+      this.logger.warn(
+        `Stream warmup failed: provider=${resolved.provider} model=${primaryModel} reason=${warmup.reason} message=${warmup.message}`,
+      );
+
+      const syntheticForward: ForwardResult = {
+        response: new Response(
+          JSON.stringify({ error: { message: `Stream warmup failed: ${warmup.message}` } }),
+          { status: 502, headers: { 'content-type': 'application/json' } },
+        ),
+        isGoogle: forward.isGoogle,
+        isAnthropic: forward.isAnthropic,
+        isChatGpt: forward.isChatGpt,
+      };
+      const fallbackResult = await this.tryFallbackChain({
+        agentId,
+        userId,
+        resolved,
+        primaryModel,
+        forward: syntheticForward,
+        body,
+        chatBody,
+        stream,
+        sessionKey,
+        signal,
+        signatureLookup,
+        thinkingLookup,
+        apiMode,
+      });
+      if (fallbackResult) return fallbackResult;
+
+      // Warmup failed and no fallbacks available: return the synthetic 502
+      // instead of the original forward (whose body was consumed by peekStream).
+      this.recordTierIfScoring(sessionKey, resolved.tier);
+      this.recordCategoryIfValid(sessionKey, resolved.specificity_category);
+      return { forward: syntheticForward, meta: this.buildBaseMeta(resolved, primaryModel) };
     }
 
     this.recordTierIfScoring(sessionKey, resolved.tier);
