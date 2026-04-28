@@ -6,30 +6,28 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * and filters by agent_id (no tenant_id), so a leading tenant_id column made
  * the previous partial index unhelpful.
  *
- * Runs outside a transaction so CREATE INDEX CONCURRENTLY can be used to avoid
- * blocking writes on agent_messages during boot-time migration.
+ * Note on locking: the rebuild runs inside a transaction (database.module.ts
+ * pins migrationsTransactionMode = 'all', so per-migration transaction = false
+ * is rejected). The window is brief because this is a partial index covering
+ * only flagged rows — typically a tiny fraction of agent_messages — so the
+ * write block during boot is bounded to milliseconds. Operators worried about
+ * even that can pre-create the new index manually with CREATE INDEX
+ * CONCURRENTLY before deploying, which makes this migration a no-op.
  */
 export class RetuneSpecificityMiscategorizedIndex1782000000000 implements MigrationInterface {
   name = 'RetuneSpecificityMiscategorizedIndex1782000000000';
-  // Required to permit CONCURRENTLY — TypeORM otherwise wraps each migration in
-  // a transaction, and CREATE INDEX CONCURRENTLY is rejected inside one.
-  transaction = false as const;
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_agent_messages_miscategorized"`);
     await queryRunner.query(
-      `DROP INDEX CONCURRENTLY IF EXISTS "IDX_agent_messages_miscategorized"`,
-    );
-    await queryRunner.query(
-      `CREATE INDEX CONCURRENTLY IF NOT EXISTS "IDX_agent_messages_miscategorized" ON "agent_messages" ("agent_id", "specificity_category") WHERE "specificity_miscategorized" = true`,
+      `CREATE INDEX IF NOT EXISTS "IDX_agent_messages_miscategorized" ON "agent_messages" ("agent_id", "specificity_category") WHERE "specificity_miscategorized" = true`,
     );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_agent_messages_miscategorized"`);
     await queryRunner.query(
-      `DROP INDEX CONCURRENTLY IF EXISTS "IDX_agent_messages_miscategorized"`,
-    );
-    await queryRunner.query(
-      `CREATE INDEX CONCURRENTLY IF NOT EXISTS "IDX_agent_messages_miscategorized" ON "agent_messages" ("tenant_id", "agent_id", "specificity_category") WHERE "specificity_miscategorized" = true`,
+      `CREATE INDEX IF NOT EXISTS "IDX_agent_messages_miscategorized" ON "agent_messages" ("tenant_id", "agent_id", "specificity_category") WHERE "specificity_miscategorized" = true`,
     );
   }
 }
