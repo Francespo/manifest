@@ -1,5 +1,19 @@
 # manifest
 
+## 5.56.0
+
+### Minor Changes
+
+- 97bfe4e: Public usage API combines cloud and self-hosted message counts. The `/api/v1/public/usage` endpoint now adds the fleet-wide self-hosted total fetched from the peacock control plane (when `TELEMETRY_AGGREGATE_KEY` is configured) to the cloud count, falling back to cloud-only if peacock is unreachable.
+
+### Patch Changes
+
+- 114e684: Fix proxy recording 0 tokens and "—" cost for streaming requests against Mistral, Kimi (Moonshot), MiniMax, DeepSeek, Qwen, xAI, Z.AI, Copilot, OpenCode-Go, and custom OpenAI-compatible providers. The proxy now injects `stream_options.include_usage: true` for all OpenAI-format endpoints so usage data flows back from the upstream.
+
+  Also fix the cache-tokens column staying empty for the same providers: usage extraction now reads `prompt_tokens_details.cached_tokens` (DeepSeek, Z.AI, Mistral, MiniMax, OpenAI shape) in addition to the top-level `cache_read_tokens` and Anthropic-native `input_tokens_details.cached_tokens` keys.
+
+- bdb43df: Strip `reasoning_details` from message history before forwarding to non-OpenRouter providers. Mistral, Groq, and other strict OpenAI-compatible providers were rejecting requests with `extra_forbidden` (422) when conversations contained extended-thinking blocks from a prior turn.
+
 ## 5.55.5
 
 ### Patch Changes
