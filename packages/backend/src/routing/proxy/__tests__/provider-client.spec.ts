@@ -1352,6 +1352,17 @@ describe('ProviderClient', () => {
       ],
       temperature: 0.7,
     });
+    const makeBodyWithReasoningDetails = () => ({
+      messages: [
+        { role: 'user', content: 'What is 2+2?' },
+        {
+          role: 'assistant',
+          content: '4',
+          reasoning_details: [{ type: 'thinking', thinking: 'add them', signature: 'sig-abc' }],
+        },
+      ],
+      temperature: 0.7,
+    });
 
     it('strips OpenAI-only fields for Mistral', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
@@ -1544,6 +1555,75 @@ describe('ProviderClient', () => {
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(sentBody.messages[1].reasoning_content).toBe('Detailed internal reasoning');
+    });
+
+    it('strips reasoning_details for Mistral assistant messages without mutating the input', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+      const bodyWithReasoningDetails = makeBodyWithReasoningDetails();
+
+      await client.forward({
+        provider: 'mistral',
+        apiKey: 'sk-mi',
+        model: 'ministral-3b-2512',
+        body: bodyWithReasoningDetails,
+        stream: false,
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.messages[1].reasoning_details).toBeUndefined();
+      expect(bodyWithReasoningDetails.messages[1].reasoning_details).toEqual([
+        { type: 'thinking', thinking: 'add them', signature: 'sig-abc' },
+      ]);
+    });
+
+    it('strips reasoning_details for native OpenAI targets', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+      const bodyWithReasoningDetails = makeBodyWithReasoningDetails();
+
+      await client.forward({
+        provider: 'openai',
+        apiKey: 'sk-test',
+        model: 'gpt-4o',
+        body: bodyWithReasoningDetails,
+        stream: false,
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.messages[1].reasoning_details).toBeUndefined();
+    });
+
+    it('strips reasoning_details for DeepSeek (does not support reasoning_details)', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+      const bodyWithReasoningDetails = makeBodyWithReasoningDetails();
+
+      await client.forward({
+        provider: 'deepseek',
+        apiKey: 'sk-ds',
+        model: 'deepseek-reasoner',
+        body: bodyWithReasoningDetails,
+        stream: false,
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.messages[1].reasoning_details).toBeUndefined();
+    });
+
+    it('preserves reasoning_details for OpenRouter targets', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+      const bodyWithReasoningDetails = makeBodyWithReasoningDetails();
+
+      await client.forward({
+        provider: 'openrouter',
+        apiKey: 'sk-or',
+        model: 'minimax/minimax-m2.7',
+        body: bodyWithReasoningDetails,
+        stream: false,
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.messages[1].reasoning_details).toEqual([
+        { type: 'thinking', thinking: 'add them', signature: 'sig-abc' },
+      ]);
     });
 
     it('leaves non-array messages unchanged during sanitization', async () => {
