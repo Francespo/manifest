@@ -41,7 +41,23 @@ const PROVIDER_TIMEOUT_MS = 180_000;
  * `stream_options.include_usage`. Token usage is needed for DB logging and for
  * downstream clients (e.g. OpenClaw context management).
  */
-const SUPPORTS_USAGE_STREAM_OPTIONS = new Set(['openai', 'openrouter', 'ollama', 'ollama-cloud']);
+const SUPPORTS_USAGE_STREAM_OPTIONS = new Set([
+  'openai',
+  'openrouter',
+  'ollama',
+  'ollama-cloud',
+  'mistral',
+  'deepseek',
+  'moonshot',
+  'minimax',
+  'qwen',
+  'xai',
+  'zai',
+  'zai-subscription',
+  'copilot',
+  'opencode-go',
+  'custom',
+]);
 
 /**
  * Strip vendor prefix from model name (e.g. "anthropic/claude-sonnet-4" → "claude-sonnet-4").
