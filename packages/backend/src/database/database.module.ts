@@ -82,6 +82,8 @@ import { BackfillLocalAuthType1777200000000 } from './migrations/1777200000000-B
 import { BackfillLocalCustomProviders1777300000000 } from './migrations/1777300000000-BackfillLocalCustomProviders';
 import { DropComplexityRoutingFlag1780000000000 } from './migrations/1780000000000-DropComplexityRoutingFlag';
 import { ReAddComplexityRoutingFlag1781000000000 } from './migrations/1781000000000-ReAddComplexityRoutingFlag';
+import { AddSavingsBaselineModel1782000000000 } from './migrations/1782000000000-AddSavingsBaselineModel';
+import { AddBaselineCostColumns1782100000000 } from './migrations/1782100000000-AddBaselineCostColumns';
 import { RetuneSpecificityMiscategorizedIndex1782000000000 } from './migrations/1782000000000-RetuneSpecificityMiscategorizedIndex';
 
 const entities = [
@@ -166,6 +168,8 @@ const migrations = [
   BackfillLocalCustomProviders1777300000000,
   DropComplexityRoutingFlag1780000000000,
   ReAddComplexityRoutingFlag1781000000000,
+  AddSavingsBaselineModel1782000000000,
+  AddBaselineCostColumns1782100000000,
   RetuneSpecificityMiscategorizedIndex1782000000000,
 ];
 

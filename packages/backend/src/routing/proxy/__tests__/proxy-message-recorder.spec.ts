@@ -37,7 +37,21 @@ describe('ProxyMessageRecorder', () => {
           }),
         ),
     } as never;
-    recorder = new ProxyMessageRecorder(repo, pricingCache, dedup, eventBus, customProviders);
+    const providerService = { getProviders: jest.fn().mockResolvedValue([]) } as never;
+    const tierService = { getTiers: jest.fn().mockResolvedValue([]) } as never;
+    const specificityService = { getAssignments: jest.fn().mockResolvedValue([]) } as never;
+    const headerTierService = { list: jest.fn().mockResolvedValue([]) } as never;
+    recorder = new ProxyMessageRecorder(
+      repo,
+      pricingCache,
+      dedup,
+      eventBus,
+      customProviders,
+      providerService,
+      tierService,
+      specificityService,
+      headerTierService,
+    );
   });
 
   afterEach(() => {
@@ -631,12 +645,20 @@ describe('ProxyMessageRecorder', () => {
             }),
           ),
       } as never;
+      const providerService = { getProviders: jest.fn().mockResolvedValue([]) } as never;
+      const tierService = { getTiers: jest.fn().mockResolvedValue([]) } as never;
+      const specificityService = { getAssignments: jest.fn().mockResolvedValue([]) } as never;
+      const headerTierService = { list: jest.fn().mockResolvedValue([]) } as never;
       recorder = new ProxyMessageRecorder(
         repo,
         pricingCache,
         dedupWithLock,
         eventBus,
         passthroughCustomProviders,
+        providerService,
+        tierService,
+        specificityService,
+        headerTierService,
       );
     });
 
@@ -974,12 +996,20 @@ describe('ProxyMessageRecorder', () => {
             }),
           ),
       } as never;
+      const providerService = { getProviders: jest.fn().mockResolvedValue([]) } as never;
+      const tierService = { getTiers: jest.fn().mockResolvedValue([]) } as never;
+      const specificityService = { getAssignments: jest.fn().mockResolvedValue([]) } as never;
+      const headerTierService = { list: jest.fn().mockResolvedValue([]) } as never;
       recorder = new ProxyMessageRecorder(
         repo,
         pricingCache,
         dedupWithLock,
         eventBus,
         passthroughCustomProviders,
+        providerService,
+        tierService,
+        specificityService,
+        headerTierService,
       );
 
       // Insert path
@@ -1141,12 +1171,20 @@ describe('ProxyMessageRecorder with real CustomProviderService', () => {
       pricingCache,
     );
 
+    const mockProviderService = { getProviders: jest.fn().mockResolvedValue([]) } as never;
+    const mockTierService = { getTiers: jest.fn().mockResolvedValue([]) } as never;
+    const mockSpecificityService = { getAssignments: jest.fn().mockResolvedValue([]) } as never;
+    const mockHeaderTierService = { list: jest.fn().mockResolvedValue([]) } as never;
     const recorder = new ProxyMessageRecorder(
       messageRepo,
       pricingCache,
       dedup,
       eventBus,
       customProviders,
+      mockProviderService,
+      mockTierService,
+      mockSpecificityService,
+      mockHeaderTierService,
     );
     return { recorder, insertMock };
   }
