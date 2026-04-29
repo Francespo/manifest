@@ -3,7 +3,6 @@ import {
   ModelPricingCacheService,
   PricingEntry,
 } from '../model-prices/model-pricing-cache.service';
-import type { SelfHostedUsageService } from './self-hosted-usage.service';
 
 function mockQueryBuilder(result: unknown) {
   const qb: Record<string, jest.Mock> = {};
@@ -34,7 +33,6 @@ describe('PublicStatsService', () => {
   let service: PublicStatsService;
   let mockRepo: { createQueryBuilder: jest.Mock };
   let mockPricingCache: { getAll: jest.Mock; getByModel: jest.Mock };
-  let mockSelfHostedUsage: { fetchAggregate: jest.Mock };
 
   beforeEach(() => {
     mockRepo = { createQueryBuilder: jest.fn() };
@@ -42,11 +40,9 @@ describe('PublicStatsService', () => {
       getAll: jest.fn().mockReturnValue([]),
       getByModel: jest.fn().mockReturnValue(null),
     };
-    mockSelfHostedUsage = { fetchAggregate: jest.fn().mockResolvedValue(null) };
     service = new PublicStatsService(
       mockRepo as never,
       mockPricingCache as unknown as ModelPricingCacheService,
-      mockSelfHostedUsage as unknown as SelfHostedUsageService,
     );
   });
 
@@ -249,24 +245,6 @@ describe('PublicStatsService', () => {
 
       expect(result.top_models[0].tokens_previous_7d).toBe(0);
       expect(result.top_models[0].tokens_30d).toBe(0);
-    });
-
-    it('adds the self-hosted aggregate to total_messages when available', async () => {
-      setupQueries({ total: '42' }, [], []);
-      mockSelfHostedUsage.fetchAggregate.mockResolvedValue({ messages_total: 1000 });
-
-      const result = await service.getUsageStats();
-
-      expect(result.total_messages).toBe(1042);
-    });
-
-    it('falls back to cloud-only count when the self-hosted aggregate is unavailable', async () => {
-      setupQueries({ total: '42' }, [], []);
-      mockSelfHostedUsage.fetchAggregate.mockResolvedValue(null);
-
-      const result = await service.getUsageStats();
-
-      expect(result.total_messages).toBe(42);
     });
   });
 

@@ -4,7 +4,6 @@ import { Repository } from 'typeorm';
 import { AgentMessage } from '../entities/agent-message.entity';
 import { ModelPricingCacheService } from '../model-prices/model-pricing-cache.service';
 import { computeCutoff, sqlDateBucket } from '../common/utils/postgres-sql';
-import { SelfHostedUsageService } from './self-hosted-usage.service';
 
 const MAX_RESULTS = 10;
 const EXCLUDED_PROVIDERS = new Set(['Unknown']);
@@ -61,7 +60,6 @@ export class PublicStatsService {
     @InjectRepository(AgentMessage)
     private readonly messageRepo: Repository<AgentMessage>,
     private readonly pricingCache: ModelPricingCacheService,
-    private readonly selfHostedUsage: SelfHostedUsageService,
   ) {}
 
   async getUsageStats(): Promise<UsageStats> {
@@ -69,44 +67,42 @@ export class PublicStatsService {
     const cutoff14d = computeCutoff('14 days');
     const cutoff30d = computeCutoff('30 days');
 
-    const [countRow, topRows, tokenRows, tokenRowsPrev7d, tokenRows30d, selfHostedAggregate] =
-      await Promise.all([
-        this.messageRepo.createQueryBuilder('at').select('COUNT(*)', 'total').getRawOne(),
-        this.messageRepo
-          .createQueryBuilder('at')
-          .select('at.model', 'model')
-          .addSelect('COUNT(*)', 'usage_count')
-          .where('at.model IS NOT NULL')
-          .groupBy('at.model')
-          .orderBy('usage_count', 'DESC')
-          .getRawMany(),
-        this.messageRepo
-          .createQueryBuilder('at')
-          .select('at.model', 'model')
-          .addSelect('SUM(at.input_tokens + at.output_tokens)', 'tokens')
-          .where('at.model IS NOT NULL')
-          .andWhere('at.timestamp >= :cutoff', { cutoff: cutoff7d })
-          .groupBy('at.model')
-          .getRawMany(),
-        this.messageRepo
-          .createQueryBuilder('at')
-          .select('at.model', 'model')
-          .addSelect('SUM(at.input_tokens + at.output_tokens)', 'tokens')
-          .where('at.model IS NOT NULL')
-          .andWhere('at.timestamp >= :cutoff14d', { cutoff14d })
-          .andWhere('at.timestamp < :cutoff7d', { cutoff7d })
-          .groupBy('at.model')
-          .getRawMany(),
-        this.messageRepo
-          .createQueryBuilder('at')
-          .select('at.model', 'model')
-          .addSelect('SUM(at.input_tokens + at.output_tokens)', 'tokens')
-          .where('at.model IS NOT NULL')
-          .andWhere('at.timestamp >= :cutoff30d', { cutoff30d })
-          .groupBy('at.model')
-          .getRawMany(),
-        this.selfHostedUsage.fetchAggregate(),
-      ]);
+    const [countRow, topRows, tokenRows, tokenRowsPrev7d, tokenRows30d] = await Promise.all([
+      this.messageRepo.createQueryBuilder('at').select('COUNT(*)', 'total').getRawOne(),
+      this.messageRepo
+        .createQueryBuilder('at')
+        .select('at.model', 'model')
+        .addSelect('COUNT(*)', 'usage_count')
+        .where('at.model IS NOT NULL')
+        .groupBy('at.model')
+        .orderBy('usage_count', 'DESC')
+        .getRawMany(),
+      this.messageRepo
+        .createQueryBuilder('at')
+        .select('at.model', 'model')
+        .addSelect('SUM(at.input_tokens + at.output_tokens)', 'tokens')
+        .where('at.model IS NOT NULL')
+        .andWhere('at.timestamp >= :cutoff', { cutoff: cutoff7d })
+        .groupBy('at.model')
+        .getRawMany(),
+      this.messageRepo
+        .createQueryBuilder('at')
+        .select('at.model', 'model')
+        .addSelect('SUM(at.input_tokens + at.output_tokens)', 'tokens')
+        .where('at.model IS NOT NULL')
+        .andWhere('at.timestamp >= :cutoff14d', { cutoff14d })
+        .andWhere('at.timestamp < :cutoff7d', { cutoff7d })
+        .groupBy('at.model')
+        .getRawMany(),
+      this.messageRepo
+        .createQueryBuilder('at')
+        .select('at.model', 'model')
+        .addSelect('SUM(at.input_tokens + at.output_tokens)', 'tokens')
+        .where('at.model IS NOT NULL')
+        .andWhere('at.timestamp >= :cutoff30d', { cutoff30d })
+        .groupBy('at.model')
+        .getRawMany(),
+    ]);
 
     const tokenMap = new Map<string, number>();
     for (const r of tokenRows) {
@@ -153,11 +149,8 @@ export class PublicStatsService {
     const topModels = eligible.slice(0, MAX_RESULTS);
     topModels.forEach((m, i) => (m.usage_rank = i + 1));
 
-    const cloudMessages = Number(countRow?.total ?? 0);
-    const selfHostedMessages = selfHostedAggregate?.messages_total ?? 0;
-
     return {
-      total_messages: cloudMessages + selfHostedMessages,
+      total_messages: Number(countRow?.total ?? 0),
       top_models: topModels,
       token_map: tokenMap,
     };
