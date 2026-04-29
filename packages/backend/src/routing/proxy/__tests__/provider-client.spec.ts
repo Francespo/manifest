@@ -1830,18 +1830,46 @@ describe('ProviderClient', () => {
       expect(sentBody.stream_options).toBeUndefined();
     });
 
-    it('does not inject stream_options for non-passthrough providers', async () => {
+    it.each([
+      ['mistral', 'mistral-small'],
+      ['deepseek', 'deepseek-chat'],
+      ['moonshot', 'kimi-k2-0905-preview'],
+      ['minimax', 'MiniMax-M2'],
+      ['qwen', 'qwen-max'],
+      ['xai', 'grok-3'],
+      ['zai', 'glm-4.6'],
+      ['copilot', 'gpt-4o-copilot'],
+      ['opencode-go', 'claude-sonnet-4'],
+    ])(
+      'injects stream_options.include_usage for %s streaming requests',
+      async (provider, model) => {
+        mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+        await client.forward({
+          provider,
+          apiKey: 'sk-test',
+          model,
+          body: { messages: [{ role: 'user', content: 'Hello' }] },
+          stream: true,
+        });
+
+        const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+        expect(sentBody.stream_options).toEqual({ include_usage: true });
+      },
+    );
+
+    it('injects stream_options.include_usage for Z.AI subscription streaming requests', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
       await client.forward({
-        provider: 'mistral',
-        apiKey: 'sk-mi',
-        model: 'mistral-small',
+        provider: 'zai',
+        apiKey: 'sk-zai-sub',
+        model: 'glm-4.6',
         body: { messages: [{ role: 'user', content: 'Hello' }] },
         stream: true,
+        authType: 'subscription',
       });
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(sentBody.stream_options).toBeUndefined();
+      expect(sentBody.stream_options).toEqual({ include_usage: true });
     });
 
     it('preserves existing stream_options fields when injecting include_usage', async () => {
@@ -1922,6 +1950,7 @@ describe('ProviderClient', () => {
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(sentBody.stream).toBe(true);
+      expect(sentBody.stream_options).toEqual({ include_usage: true });
     });
 
     it('merges extraHeaders with custom endpoint headers', async () => {
