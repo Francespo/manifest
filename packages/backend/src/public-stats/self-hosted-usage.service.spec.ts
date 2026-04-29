@@ -169,6 +169,27 @@ describe('SelfHostedUsageService', () => {
     expect(await service.fetchAggregate()).toBeNull();
   });
 
+  it('returns null when messages_total is null', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ messages_total: null }));
+    const service = makeService();
+
+    expect(await service.fetchAggregate()).toBeNull();
+  });
+
+  it('returns null when messages_total is an empty string', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ messages_total: '' }));
+    const service = makeService();
+
+    expect(await service.fetchAggregate()).toBeNull();
+  });
+
+  it('returns null when messages_total is whitespace only', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ messages_total: '   ' }));
+    const service = makeService();
+
+    expect(await service.fetchAggregate()).toBeNull();
+  });
+
   it('returns null when messages_total is non-numeric', async () => {
     fetchSpy.mockResolvedValue(jsonResponse({ messages_total: 'not-a-number' }));
     const service = makeService();
@@ -178,6 +199,13 @@ describe('SelfHostedUsageService', () => {
 
   it('returns null when messages_total is negative', async () => {
     fetchSpy.mockResolvedValue(jsonResponse({ messages_total: -1 }));
+    const service = makeService();
+
+    expect(await service.fetchAggregate()).toBeNull();
+  });
+
+  it('returns null when messages_total is an unsupported type (boolean)', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ messages_total: true }));
     const service = makeService();
 
     expect(await service.fetchAggregate()).toBeNull();
@@ -247,18 +275,45 @@ describe('SelfHostedUsageService', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('clears the in-flight slot after a failed fetch so the next call retries', async () => {
-    fetchSpy
-      .mockRejectedValueOnce(new Error('boom'))
-      .mockResolvedValueOnce(jsonResponse({ messages_total: 5 }));
-    const service = makeService();
+  it('caches failures for 30s — repeated calls during an outage do not re-fetch', async () => {
+    jest.useFakeTimers();
+    try {
+      fetchSpy.mockRejectedValue(new Error('boom'));
+      const service = makeService();
 
-    const first = await service.fetchAggregate();
-    const second = await service.fetchAggregate();
+      const first = await service.fetchAggregate();
+      jest.setSystemTime(Date.now() + 5_000);
+      const second = await service.fetchAggregate();
+      jest.setSystemTime(Date.now() + 20_000);
+      const third = await service.fetchAggregate();
 
-    expect(first).toBeNull();
-    expect(second).toEqual({ messages_total: 5 });
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(first).toBeNull();
+      expect(second).toBeNull();
+      expect(third).toBeNull();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('retries after the failure cache expires', async () => {
+    jest.useFakeTimers();
+    try {
+      fetchSpy
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce(jsonResponse({ messages_total: 5 }));
+      const service = makeService();
+
+      const first = await service.fetchAggregate();
+      jest.setSystemTime(Date.now() + 31_000);
+      const second = await service.fetchAggregate();
+
+      expect(first).toBeNull();
+      expect(second).toEqual({ messages_total: 5 });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('aborts the request when the fetch outlasts the 2s timeout', async () => {

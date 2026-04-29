@@ -4,6 +4,7 @@ import { isSelfHosted } from '../common/utils/detect-self-hosted';
 export const DEFAULT_AGGREGATE_ENDPOINT = 'https://telemetry.manifest.build/v1/aggregate/usage';
 
 const CACHE_TTL_MS = 60_000;
+const FAILURE_CACHE_TTL_MS = 30_000;
 const FETCH_TIMEOUT_MS = 2_000;
 
 export interface SelfHostedUsageConfig {
@@ -45,12 +46,14 @@ export class SelfHostedUsageService {
 
   private cached: SelfHostedAggregate | null = null;
   private cachedAt = 0;
+  private cachedFailure = false;
   private inflight: Promise<SelfHostedAggregate | null> | null = null;
 
   async fetchAggregate(): Promise<SelfHostedAggregate | null> {
     if (!this.config.enabled) return null;
-    if (this.cached && Date.now() - this.cachedAt < CACHE_TTL_MS) {
-      return this.cached;
+    if (this.cachedAt > 0) {
+      const ttl = this.cachedFailure ? FAILURE_CACHE_TTL_MS : CACHE_TTL_MS;
+      if (Date.now() - this.cachedAt < ttl) return this.cached;
     }
     if (!this.inflight) {
       this.inflight = this.compute().finally(() => {
@@ -70,26 +73,42 @@ export class SelfHostedUsageService {
       });
       if (!res.ok) {
         this.logger.warn(`Aggregate endpoint returned ${res.status}`);
-        return null;
+        return this.cacheFailure();
       }
       const json = (await res.json()) as Record<string, unknown>;
       const raw = json['messages_total'];
+      if (typeof raw !== 'number' && typeof raw !== 'string') {
+        this.logger.warn(`Aggregate endpoint returned invalid messages_total: ${String(raw)}`);
+        return this.cacheFailure();
+      }
+      if (typeof raw === 'string' && raw.trim().length === 0) {
+        this.logger.warn('Aggregate endpoint returned empty messages_total');
+        return this.cacheFailure();
+      }
       const messages_total = typeof raw === 'number' ? raw : Number(raw);
       if (!Number.isFinite(messages_total) || messages_total < 0) {
         this.logger.warn(`Aggregate endpoint returned invalid messages_total: ${String(raw)}`);
-        return null;
+        return this.cacheFailure();
       }
       const result: SelfHostedAggregate = { messages_total };
       this.cached = result;
+      this.cachedFailure = false;
       this.cachedAt = Date.now();
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Aggregate fetch failed: ${msg}`);
-      return null;
+      return this.cacheFailure();
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private cacheFailure(): null {
+    this.cached = null;
+    this.cachedFailure = true;
+    this.cachedAt = Date.now();
+    return null;
   }
 }
 
