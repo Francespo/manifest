@@ -903,6 +903,36 @@ describe('proxy-response-handler', () => {
       expect(res.json).toHaveBeenCalledWith(body);
     });
 
+    it('should extract cached prompt tokens from prompt_tokens_details', async () => {
+      const { res } = mockResponse();
+      const client = mockProviderClient();
+      const body = {
+        id: 'chatcmpl-cached',
+        usage: {
+          prompt_tokens: 50,
+          completion_tokens: 25,
+          prompt_tokens_details: { cached_tokens: 12 },
+        },
+      };
+      const forward = mockForward(body);
+      const meta = makeMeta();
+
+      const usage = await handleNonStreamResponse(
+        res as any,
+        forward as any,
+        meta,
+        {},
+        client as any,
+      );
+
+      expect(usage).toEqual({
+        prompt_tokens: 50,
+        completion_tokens: 25,
+        cache_read_tokens: 12,
+        cache_creation_tokens: undefined,
+      });
+    });
+
     it('should pass through native Responses JSON and extract Responses usage', async () => {
       const { res } = mockResponse();
       const client = mockProviderClient();
