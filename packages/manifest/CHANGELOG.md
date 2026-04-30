@@ -1,5 +1,27 @@
 # manifest
 
+## 6.0.0
+
+### Major Changes
+
+- d4675ba: Drop the legacy routing identity columns from `tier_assignments`, `specificity_assignments`, and `header_tiers`. The structured `route` shape introduced in #1772 is now the only persistence form.
+
+  Schema: 13 columns dropped (`override_model`, `override_provider`, `override_auth_type`, `fallback_models` from all three tables; `auto_assigned_model` from tier and specificity tables). Migration `1784000000000-DropLegacyRoutingColumns` runs on boot. `down()` re-adds the columns nullable but data is one-way lost — backup before upgrading if you maintain a hot-standby.
+
+  API breaking change: `POST /api/v1/routing/resolve` no longer returns the flat `model`, `provider`, `auth_type`, `fallback_models` fields. External callers must read `route.model`, `route.provider`, `route.authType`, and `fallback_routes` instead.
+
+  Internals: removes the legacy inference cascade in `proxy-fallback.service.ts`, the dual-write paths in routing services, and the `?? legacy` reads throughout. Same model name on different auth types stays correctly distinct (the #1708 fix).
+
+### Minor Changes
+
+- 1ce8ed9: Stable error codes for the proxy. Every user-facing `[🦚 Manifest]` message now embeds an `M###` code (M001–M500) and a docs link at `manifest.build/errors/M###`. Companion encyclopedia pages live in mnfst/docs.
+- 1d37134: Routing identity is now backed by a structured `ModelRoute = (provider, authType, model)` shape stored alongside the existing legacy columns on `tier_assignments`, `specificity_assignments`, and `header_tiers`. Reads prefer the new shape and fall back to legacy, so existing rows keep working without intervention. Selecting the same model name under different auth types (e.g. `gpt-4o` on subscription and on api_key) is now correctly treated as two distinct routes — fixes #1708. The `/api/v1/routing/resolve` response gains additive `route` and `fallback_routes` fields without breaking the existing flat shape. Per-fallback-attempt `auth_type` is now recorded on `agent_messages` instead of inheriting the primary's. No UI, API contract, or data is removed in this release; legacy columns and fields stay populated for one cycle before being dropped in a follow-up.
+
+### Patch Changes
+
+- 4e7843a: Recreating an agent with a previously used name now produces a clean slate without losing the deleted agent's history. Agent deletion is soft (the row stays with `deleted_at` set, telemetry rows are preserved) and per-agent analytics scope to the live agent's id, so the new agent starts at zero while the old data remains queryable in storage.
+- 2d4a06e: Show the Manifest version in the bottom-right corner of self-hosted Docker installs. Baked into the image at build time, no API call.
+
 ## 5.58.0
 
 ### Minor Changes
