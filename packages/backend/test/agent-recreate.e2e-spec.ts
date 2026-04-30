@@ -36,9 +36,13 @@ describe('agent delete + recreate (issue #1765)', () => {
       [uuid(), TEST_TENANT_ID, v1Id, now, agentName],
     );
     await ds.query(
-      `INSERT INTO tier_assignments (id, user_id, agent_id, tier, override_model, override_provider)
-       VALUES ($1, 'test-user-001', $2, 'simple', 'gpt-4o-mini', 'openai')`,
-      [uuid(), v1Id],
+      `INSERT INTO tier_assignments (id, user_id, agent_id, tier, override_route)
+       VALUES ($1, 'test-user-001', $2, 'simple', $3::jsonb)`,
+      [
+        uuid(),
+        v1Id,
+        JSON.stringify({ provider: 'openai', authType: 'api_key', model: 'gpt-4o-mini' }),
+      ],
     );
 
     // Sanity: messages visible
@@ -104,8 +108,8 @@ describe('agent delete + recreate (issue #1765)', () => {
       .get(`/api/v1/routing/${agentName}/tiers`)
       .set('x-api-key', TEST_API_KEY)
       .expect(200);
-    const overridden = (tiers.body as Array<{ override_model: string | null }>).filter(
-      (t) => t.override_model !== null,
+    const overridden = (tiers.body as Array<{ override_route: unknown | null }>).filter(
+      (t) => t.override_route !== null,
     );
     expect(overridden).toEqual([]);
 

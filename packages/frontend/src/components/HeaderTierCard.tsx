@@ -55,13 +55,15 @@ const HeaderTierCard: Component<Props> = (props) => {
   const [menuOpen, setMenuOpen] = createSignal(false);
   const [resetting, setResetting] = createSignal(false);
 
-  const currentModel = (): string | null => props.tier.override_model;
-  const fallbacks = (): string[] => props.tier.fallback_models ?? [];
+  const currentModel = (): string | null => props.tier.override_route?.model ?? null;
+  const fallbacks = (): string[] => props.tier.fallback_routes?.map((r) => r.model) ?? [];
 
   const providerId = (): string | undefined => {
     const m = currentModel();
     if (!m) return undefined;
-    if (props.tier.override_provider) return props.tier.override_provider.toLowerCase();
+    if (props.tier.override_route?.provider) {
+      return props.tier.override_route.provider.toLowerCase();
+    }
     return providerIdForModel(m, props.models);
   };
 
@@ -83,7 +85,7 @@ const HeaderTierCard: Component<Props> = (props) => {
   };
 
   const effectiveAuth = (): AuthType | null => {
-    if (props.tier.override_auth_type) return props.tier.override_auth_type;
+    if (props.tier.override_route?.authType) return props.tier.override_route.authType;
     const id = providerId();
     if (!id) return null;
     const provs = props.connectedProviders.filter(

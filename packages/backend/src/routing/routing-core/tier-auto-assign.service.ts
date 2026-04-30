@@ -84,7 +84,6 @@ export class TierAutoAssignService {
       const existing = tierMap.get(slot);
 
       if (existing) {
-        existing.auto_assigned_model = best?.model_name ?? null;
         existing.auto_assigned_route = best?.route ?? null;
         existing.updated_at = new Date().toISOString();
         toSave.push(existing);
@@ -94,9 +93,6 @@ export class TierAutoAssignService {
           user_id: '',
           agent_id: agentId,
           tier: slot,
-          override_model: null,
-          override_provider: null,
-          auto_assigned_model: best?.model_name ?? null,
           override_route: null,
           auto_assigned_route: best?.route ?? null,
           fallback_routes: null,

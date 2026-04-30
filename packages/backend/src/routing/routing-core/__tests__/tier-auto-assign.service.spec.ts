@@ -1,184 +1,329 @@
-import { Repository } from 'typeorm';
+import type { Repository } from 'typeorm';
 import { TierAutoAssignService } from '../tier-auto-assign.service';
 import { TierAssignment } from '../../../entities/tier-assignment.entity';
-import { ModelDiscoveryService } from '../../../model-discovery/model-discovery.service';
-import { DiscoveredModel } from '../../../model-discovery/model-fetcher';
+import type { ModelDiscoveryService } from '../../../model-discovery/model-discovery.service';
+import type { DiscoveredModel } from '../../../model-discovery/model-fetcher';
 
-/**
- * Extra coverage for the dual-write invariant in TierAutoAssignService:
- *   recalculate() must populate auto_assigned_route alongside
- *   auto_assigned_model on every tier slot, using the (provider, authType)
- *   carried by the picked DiscoveredModel.
- *
- * The existing tier-auto-assign.service.spec.ts (in the parent dir) covers
- * picking logic. This file isolates the route-shape contract.
- */
-
-function m(partial: Partial<DiscoveredModel> & { id: string; provider: string }): DiscoveredModel {
-  return {
-    name: partial.id,
-    authType: 'api_key',
-    inputPricePerToken: null,
-    outputPricePerToken: null,
-    qualityScore: 3,
-    capabilityCode: false,
+const mkModel = (overrides: Partial<DiscoveredModel>): DiscoveredModel =>
+  ({
+    id: overrides.id ?? 'm-1',
+    displayName: overrides.displayName ?? overrides.id ?? 'm-1',
+    provider: overrides.provider ?? 'openai',
+    contextWindow: 128_000,
+    inputPricePerToken: 0.001,
+    outputPricePerToken: 0.002,
     capabilityReasoning: false,
-    ...partial,
-  } as DiscoveredModel;
-}
+    capabilityCode: false,
+    qualityScore: 3,
+    authType: 'api_key',
+    ...overrides,
+  }) as DiscoveredModel;
 
-function makeService(options: {
-  models?: DiscoveredModel[];
-  existingTiers?: Partial<TierAssignment>[];
-}) {
-  const getModelsForAgent = jest.fn().mockResolvedValue(options.models ?? []);
-  const find = jest.fn().mockResolvedValue(options.existingTiers ?? []);
-  const save = jest.fn().mockResolvedValue(undefined);
-  const insert = jest.fn().mockResolvedValue(undefined);
+const makeRepo = () => ({
+  find: jest.fn().mockResolvedValue([]),
+  insert: jest.fn().mockResolvedValue(undefined),
+  save: jest.fn().mockImplementation(async (rows) => rows),
+});
 
-  const discoveryService = { getModelsForAgent } as unknown as ModelDiscoveryService;
-  const tierRepo = { find, save, insert } as unknown as Repository<TierAssignment>;
-  const svc = new TierAutoAssignService(discoveryService, tierRepo);
-  return { svc, getModelsForAgent, find, save, insert };
-}
+describe('TierAutoAssignService', () => {
+  let discoveryService: jest.Mocked<Pick<ModelDiscoveryService, 'getModelsForAgent'>>;
+  let tierRepo: ReturnType<typeof makeRepo>;
+  let svc: TierAutoAssignService;
 
-describe('TierAutoAssignService — auto_assigned_route dual-write', () => {
-  it('writes auto_assigned_route alongside auto_assigned_model on every inserted slot', async () => {
-    const { svc, insert } = makeService({
-      models: [
-        m({
-          id: 'gpt-5',
-          provider: 'openai',
-          authType: 'api_key',
-          inputPricePerToken: 5,
-          outputPricePerToken: 5,
-          qualityScore: 7,
-          capabilityCode: true,
-        }),
-      ],
+  beforeEach(() => {
+    discoveryService = { getModelsForAgent: jest.fn().mockResolvedValue([]) };
+    tierRepo = makeRepo();
+    svc = new TierAutoAssignService(
+      discoveryService as unknown as ModelDiscoveryService,
+      tierRepo as unknown as Repository<TierAssignment>,
+    );
+  });
+
+  describe('recalculate', () => {
+    it('inserts auto-assigned routes for every slot when no existing tiers', async () => {
+      discoveryService.getModelsForAgent.mockResolvedValue([
+        mkModel({ id: 'gpt-4o', qualityScore: 4, capabilityCode: true }),
+      ]);
+      tierRepo.find.mockResolvedValue([]);
+
+      await svc.recalculate('agent-1');
+      expect(tierRepo.insert).toHaveBeenCalledTimes(1);
+      const inserted = tierRepo.insert.mock.calls[0][0];
+      expect(inserted).toHaveLength(5);
+      expect(inserted.every((r: { auto_assigned_route: unknown }) => r.auto_assigned_route)).toBe(
+        true,
+      );
     });
 
-    await svc.recalculate('agent-1');
+    it('updates existing tier rows in-place via save', async () => {
+      discoveryService.getModelsForAgent.mockResolvedValue([
+        mkModel({ id: 'gpt-4o', qualityScore: 4, capabilityCode: true }),
+      ]);
+      const existing = [
+        {
+          tier: 'simple',
+          auto_assigned_route: null,
+        } as TierAssignment,
+      ];
+      tierRepo.find.mockResolvedValue(existing);
 
-    const inserted = insert.mock.calls[0][0] as Array<Record<string, unknown>>;
-    for (const row of inserted) {
-      expect(row.auto_assigned_model).toBe('gpt-5');
-      expect(row.auto_assigned_route).toEqual({
+      await svc.recalculate('agent-1');
+      // existing row was saved in-place, missing slots inserted.
+      expect(tierRepo.save).toHaveBeenCalledTimes(1);
+      expect(tierRepo.insert).toHaveBeenCalledTimes(1);
+      expect(existing[0].auto_assigned_route).toEqual({
         provider: 'openai',
         authType: 'api_key',
-        model: 'gpt-5',
+        model: 'gpt-4o',
       });
-    }
-  });
-
-  it('saves the route on existing tier rows that already have a slot', async () => {
-    const existing: Partial<TierAssignment>[] = [
-      Object.assign(new TierAssignment(), {
-        id: 't-simple',
-        agent_id: 'agent-1',
-        tier: 'simple',
-        auto_assigned_model: 'old-model',
-        auto_assigned_route: null,
-      }),
-    ];
-    const { svc, save } = makeService({
-      models: [
-        m({
-          id: 'cheap',
-          provider: 'openai',
-          authType: 'api_key',
-          inputPricePerToken: 1,
-          outputPricePerToken: 1,
-          qualityScore: 1,
-        }),
-      ],
-      existingTiers: existing,
     });
 
-    await svc.recalculate('agent-1');
-
-    const saved = save.mock.calls[0][0] as TierAssignment[];
-    const simple = saved.find((t) => t.tier === 'simple')!;
-    expect(simple.auto_assigned_model).toBe('cheap');
-    expect(simple.auto_assigned_route).toEqual({
-      provider: 'openai',
-      authType: 'api_key',
-      model: 'cheap',
-    });
-  });
-
-  it('leaves auto_assigned_route null when the picked model has no authType', async () => {
-    // Without an authType, buildRoute() returns null and the legacy
-    // auto_assigned_model column stays authoritative for routing.
-    const { svc, insert } = makeService({
-      models: [
-        m({
-          id: 'mystery',
-          provider: 'openai',
-          authType: undefined as any,
-          inputPricePerToken: 1,
-          outputPricePerToken: 1,
-          qualityScore: 5,
-        }),
-      ],
-    });
-
-    await svc.recalculate('agent-1');
-
-    const inserted = insert.mock.calls[0][0] as Array<Record<string, unknown>>;
-    for (const row of inserted) {
-      expect(row.auto_assigned_model).toBe('mystery');
-      expect(row.auto_assigned_route).toBeNull();
-    }
-  });
-
-  it('leaves auto_assigned_route null when no models are connected', async () => {
-    const { svc, insert } = makeService({ models: [] });
-
-    await svc.recalculate('agent-1');
-
-    const inserted = insert.mock.calls[0][0] as Array<Record<string, unknown>>;
-    for (const row of inserted) {
-      expect(row.auto_assigned_model).toBeNull();
-      expect(row.auto_assigned_route).toBeNull();
-    }
-  });
-
-  it('uses the subscription model route when subscription beats api_key', async () => {
-    // filterSubModels keeps the zero-cost subscription model and that beats
-    // any api_key model. Verify the route reflects the picked subscription.
-    const { svc, insert } = makeService({
-      models: [
-        m({
-          id: 'codex-mini',
-          provider: 'openai',
+    it('partitions subscription vs api_key models — subscription gets priority', async () => {
+      discoveryService.getModelsForAgent.mockResolvedValue([
+        mkModel({
+          id: 'subscription-model',
           authType: 'subscription',
           inputPricePerToken: 0,
           outputPricePerToken: 0,
-          qualityScore: 5,
+          qualityScore: 4,
           capabilityCode: true,
         }),
-        m({
-          id: 'gpt-5',
-          provider: 'openai',
-          authType: 'api_key',
-          inputPricePerToken: 5,
-          outputPricePerToken: 5,
-          qualityScore: 7,
-          capabilityCode: true,
-        }),
-      ],
+        mkModel({ id: 'api-model', authType: 'api_key', qualityScore: 3 }),
+      ]);
+      tierRepo.find.mockResolvedValue([]);
+
+      await svc.recalculate('agent-1');
+      const inserted = tierRepo.insert.mock.calls[0][0] as Array<{
+        tier: string;
+        auto_assigned_route: { model: string };
+      }>;
+      // Every tier picks the subscription (zero-cost) model in preference.
+      for (const row of inserted) {
+        expect(row.auto_assigned_route.model).toBe('subscription-model');
+      }
     });
 
-    await svc.recalculate('agent-1');
+    it('filters non-zero-cost subscription models when zero-cost ones exist for the same provider', async () => {
+      discoveryService.getModelsForAgent.mockResolvedValue([
+        mkModel({
+          id: 'codex-free',
+          authType: 'subscription',
+          provider: 'openai',
+          inputPricePerToken: 0,
+          outputPricePerToken: 0,
+          qualityScore: 3,
+        }),
+        mkModel({
+          id: 'gpt-4o-paid-sub',
+          authType: 'subscription',
+          provider: 'openai',
+          inputPricePerToken: 0.005,
+          outputPricePerToken: 0.01,
+          qualityScore: 5,
+        }),
+      ]);
+      tierRepo.find.mockResolvedValue([]);
 
-    const inserted = insert.mock.calls[0][0] as Array<Record<string, unknown>>;
-    for (const row of inserted) {
-      expect(row.auto_assigned_route).toEqual({
-        provider: 'openai',
-        authType: 'subscription',
-        model: 'codex-mini',
-      });
-    }
+      await svc.recalculate('agent-1');
+      const inserted = tierRepo.insert.mock.calls[0][0] as Array<{
+        tier: string;
+        auto_assigned_route: { model: string };
+      }>;
+      // The non-zero-cost subscription model is filtered out.
+      for (const row of inserted) {
+        expect(row.auto_assigned_route.model).not.toBe('gpt-4o-paid-sub');
+      }
+    });
+
+    it('uses non-zero-cost subscription models when no zero-cost ones exist for the provider', async () => {
+      discoveryService.getModelsForAgent.mockResolvedValue([
+        mkModel({
+          id: 'paid-sub',
+          authType: 'subscription',
+          provider: 'anthropic',
+          inputPricePerToken: 0.005,
+          outputPricePerToken: 0.01,
+          qualityScore: 5,
+        }),
+      ]);
+      tierRepo.find.mockResolvedValue([]);
+
+      await svc.recalculate('agent-1');
+      const inserted = tierRepo.insert.mock.calls[0][0] as Array<{
+        auto_assigned_route: { model: string };
+      }>;
+      expect(inserted[0].auto_assigned_route.model).toBe('paid-sub');
+    });
+
+    it('sets auto_assigned_route to null when no models are discovered', async () => {
+      discoveryService.getModelsForAgent.mockResolvedValue([]);
+      tierRepo.find.mockResolvedValue([]);
+      await svc.recalculate('agent-1');
+      const inserted = tierRepo.insert.mock.calls[0][0] as Array<{
+        auto_assigned_route: unknown;
+      }>;
+      expect(inserted.every((r) => r.auto_assigned_route === null)).toBe(true);
+    });
+
+    it('does not insert anything when every slot already exists', async () => {
+      discoveryService.getModelsForAgent.mockResolvedValue([mkModel({ id: 'gpt-4o' })]);
+      tierRepo.find.mockResolvedValue([
+        { tier: 'simple', auto_assigned_route: null } as TierAssignment,
+        { tier: 'standard', auto_assigned_route: null } as TierAssignment,
+        { tier: 'complex', auto_assigned_route: null } as TierAssignment,
+        { tier: 'reasoning', auto_assigned_route: null } as TierAssignment,
+        { tier: 'default', auto_assigned_route: null } as TierAssignment,
+      ]);
+      await svc.recalculate('agent-1');
+      expect(tierRepo.insert).not.toHaveBeenCalled();
+      expect(tierRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips models with null authType when building routes', async () => {
+      discoveryService.getModelsForAgent.mockResolvedValue([
+        mkModel({ id: 'no-auth', authType: undefined }),
+      ]);
+      tierRepo.find.mockResolvedValue([]);
+      await svc.recalculate('agent-1');
+      const inserted = tierRepo.insert.mock.calls[0][0] as Array<{
+        auto_assigned_route: unknown;
+      }>;
+      // buildRoute returns null when authType is missing.
+      expect(inserted.every((r) => r.auto_assigned_route === null)).toBe(true);
+    });
+  });
+
+  describe('pickBest', () => {
+    it('returns null for an empty list', () => {
+      expect(svc.pickBest([], 'simple')).toBeNull();
+    });
+
+    it('picks cheapest for simple tier', () => {
+      const result = svc.pickBest(
+        [
+          mkModel({ id: 'a', inputPricePerToken: 1, outputPricePerToken: 1 }),
+          mkModel({ id: 'b', inputPricePerToken: 0.1, outputPricePerToken: 0.1 }),
+        ],
+        'simple',
+      );
+      expect(result?.model_name).toBe('b');
+    });
+
+    it('treats null prices as Infinity (deferred to last)', () => {
+      const result = svc.pickBest(
+        [
+          mkModel({ id: 'unknown', inputPricePerToken: null, outputPricePerToken: null }),
+          mkModel({ id: 'known', inputPricePerToken: 0.1, outputPricePerToken: 0.1 }),
+        ],
+        'simple',
+      );
+      expect(result?.model_name).toBe('known');
+    });
+
+    it('picks cheapest tool-capable quality>=2 for standard tier', () => {
+      const result = svc.pickBest(
+        [
+          mkModel({
+            id: 'low-q',
+            qualityScore: 1,
+            inputPricePerToken: 0.01,
+            outputPricePerToken: 0.01,
+          }),
+          mkModel({
+            id: 'tool-2',
+            qualityScore: 2,
+            capabilityCode: true,
+            inputPricePerToken: 0.02,
+            outputPricePerToken: 0.02,
+          }),
+          mkModel({
+            id: 'no-tool-3',
+            qualityScore: 3,
+            capabilityCode: false,
+            inputPricePerToken: 0.05,
+            outputPricePerToken: 0.05,
+          }),
+        ],
+        'standard',
+      );
+      expect(result?.model_name).toBe('tool-2');
+    });
+
+    it('falls back to non-tool when no tool-capable models exist for standard', () => {
+      const result = svc.pickBest(
+        [
+          mkModel({
+            id: 'q3',
+            qualityScore: 3,
+            capabilityCode: false,
+            inputPricePerToken: 0.01,
+            outputPricePerToken: 0.01,
+          }),
+        ],
+        'standard',
+      );
+      expect(result?.model_name).toBe('q3');
+    });
+
+    it('picks highest-quality tool-capable for complex tier', () => {
+      const result = svc.pickBest(
+        [
+          mkModel({ id: 'q4', qualityScore: 4, capabilityCode: true }),
+          mkModel({ id: 'q5', qualityScore: 5, capabilityCode: true }),
+          mkModel({ id: 'q5-no-tool', qualityScore: 5, capabilityCode: false }),
+        ],
+        'complex',
+      );
+      expect(result?.model_name).toBe('q5');
+    });
+
+    it('picks highest-quality tool-capable reasoning model when reasoning models exist', () => {
+      const result = svc.pickBest(
+        [
+          mkModel({
+            id: 'r-tool',
+            qualityScore: 4,
+            capabilityReasoning: true,
+            capabilityCode: true,
+          }),
+          mkModel({
+            id: 'r-no-tool',
+            qualityScore: 5,
+            capabilityReasoning: true,
+            capabilityCode: false,
+          }),
+          mkModel({ id: 'no-r', qualityScore: 6, capabilityCode: true }),
+        ],
+        'reasoning',
+      );
+      // Tool-capable wins among reasoning-capable models.
+      expect(result?.model_name).toBe('r-tool');
+    });
+
+    it('falls back to highest-quality when no reasoning-capable models exist', () => {
+      const result = svc.pickBest(
+        [
+          mkModel({ id: 'a', qualityScore: 4, capabilityReasoning: false, capabilityCode: true }),
+          mkModel({ id: 'b', qualityScore: 5, capabilityReasoning: false, capabilityCode: true }),
+        ],
+        'reasoning',
+      );
+      expect(result?.model_name).toBe('b');
+    });
+
+    it('picks highest-quality reasoning model without tool capability when no tool-capable reasoning exists', () => {
+      const result = svc.pickBest(
+        [
+          mkModel({
+            id: 'r-only',
+            qualityScore: 5,
+            capabilityReasoning: true,
+            capabilityCode: false,
+          }),
+        ],
+        'reasoning',
+      );
+      expect(result?.model_name).toBe('r-only');
+    });
   });
 });

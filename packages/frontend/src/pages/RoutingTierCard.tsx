@@ -80,29 +80,12 @@ export interface RoutingTierCardProps {
   persistClearFallbacks?: (agentName: string, tier: string) => Promise<unknown>;
 }
 
-const effectiveModel = (t: TierAssignment): string | null =>
-  t.override_model ?? t.auto_assigned_model;
-
-/**
- * Read the structured route currently driving this tier's primary slot.
- * Falls back to the legacy override columns when the tier predates the
- * dual-write migration (route fields stay null on those rows). Returns null
- * when nothing identifies the primary at all.
- */
 const effectiveRoute = (
   t: TierAssignment,
-): { provider: string; authType: AuthType; model: string } | null => {
-  if (t.override_route) return t.override_route;
-  if (t.auto_assigned_route) return t.auto_assigned_route;
-  if (t.override_model && t.override_provider && t.override_auth_type) {
-    return {
-      provider: t.override_provider,
-      authType: t.override_auth_type,
-      model: t.override_model,
-    };
-  }
-  return null;
-};
+): { provider: string; authType: AuthType; model: string } | null =>
+  t.override_route ?? t.auto_assigned_route;
+
+const effectiveModel = (t: TierAssignment): string | null => effectiveRoute(t)?.model ?? null;
 
 const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
   const eff = () => {
@@ -111,11 +94,10 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
   };
   const manualProviderId = () => {
     const t = props.tier();
-    return t?.override_model ? (t.override_provider ?? undefined) : undefined;
+    return t?.override_route?.provider;
   };
-  const isManual = () =>
-    props.tier()?.override_model !== null && props.tier()?.override_model !== undefined;
-  const hasFallbacks = () => (props.tier()?.fallback_models ?? []).length > 0;
+  const isManual = () => props.tier()?.override_route != null;
+  const hasFallbacks = () => (props.tier()?.fallback_routes ?? []).length > 0;
   const hasCustomizations = () => isManual() || hasFallbacks();
   const [confirmReset, setConfirmReset] = createSignal(false);
   const [primaryDragging, setPrimaryDragging] = createSignal(false);
@@ -327,7 +309,8 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
                 manualProviderId() ?? providerIdForModel(modelName(), props.models());
               const effectiveAuth = (): AuthType | null => {
                 const t = props.tier();
-                if (t?.override_auth_type) return t.override_auth_type;
+                const route = t ? effectiveRoute(t) : null;
+                if (route?.authType) return route.authType;
                 const id = provId();
                 if (!id) return null;
                 const provs = props

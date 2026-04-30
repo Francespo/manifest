@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, IsNull, Repository, In } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { UserProvider } from '../../entities/user-provider.entity';
 import { TierAssignment } from '../../entities/tier-assignment.entity';
 import { SpecificityAssignment } from '../../entities/specificity-assignment.entity';
@@ -278,7 +278,7 @@ export class ProviderService {
       const tierMap = new Map(updatedTiers.map((t) => [t.tier, t]));
       for (const { tier, modelName } of invalidated) {
         const updated = tierMap.get(tier);
-        const newModel = updated?.auto_assigned_model ?? null;
+        const newModel = updated?.auto_assigned_route?.model ?? null;
         const tierLabel = TIER_LABELS[tier as keyof typeof TIER_LABELS] ?? tier;
         const suffix = newModel
           ? `${tierLabel} is back to automatic mode (${newModel}).`
@@ -297,10 +297,6 @@ export class ProviderService {
     await this.tierRepo.update(
       { agent_id: agentId },
       {
-        override_model: null,
-        override_provider: null,
-        override_auth_type: null,
-        fallback_models: null,
         override_route: null,
         auto_assigned_route: null,
         fallback_routes: null,
@@ -388,44 +384,15 @@ export class ProviderService {
       return modelBelongs(route.model);
     };
 
-    const tierOverrides = await this.tierRepo.find({
-      where: { agent_id: agentId, override_model: Not(IsNull()) },
-    });
-    const tiersToSave: TierAssignment[] = [];
-    for (const tier of tierOverrides) {
-      const overrideProvider = tier.override_provider?.toLowerCase();
-      if (
-        (overrideProvider && providerNames.has(overrideProvider)) ||
-        routeBelongs(tier.override_route) ||
-        modelBelongs(tier.override_model!)
-      ) {
-        invalidated.push({ tier: tier.tier, modelName: tier.override_model! });
-        tier.override_model = null;
-        tier.override_provider = null;
-        tier.override_auth_type = null;
-        tier.override_route = null;
-        tier.updated_at = new Date().toISOString();
-        tiersToSave.push(tier);
-      }
-    }
-
     const allTiers = await this.tierRepo.find({ where: { agent_id: agentId } });
     const hadTierAssignments = allTiers.length > 0;
-    const savedTierIds = new Set(tiersToSave.map((tier) => tier.id));
+    const tiersToSave: TierAssignment[] = [];
     for (const tier of allTiers) {
       let mutated = false;
-      // Catch override_route on rows where override_model was already null
-      // but the route was populated by a later mutation.
       if (tier.override_route && routeBelongs(tier.override_route)) {
+        invalidated.push({ tier: tier.tier, modelName: tier.override_route.model });
         tier.override_route = null;
         mutated = true;
-      }
-      if (tier.fallback_models && tier.fallback_models.length > 0) {
-        const filtered = tier.fallback_models.filter((model) => !modelBelongs(model));
-        if (filtered.length !== tier.fallback_models.length) {
-          tier.fallback_models = filtered.length > 0 ? filtered : null;
-          mutated = true;
-        }
       }
       if (tier.fallback_routes && tier.fallback_routes.length > 0) {
         const filteredRoutes = tier.fallback_routes.filter((route) => !routeBelongs(route));
@@ -436,7 +403,7 @@ export class ProviderService {
       }
       if (mutated) {
         tier.updated_at = new Date().toISOString();
-        if (!savedTierIds.has(tier.id)) tiersToSave.push(tier);
+        tiersToSave.push(tier);
       }
     }
 
@@ -446,28 +413,9 @@ export class ProviderService {
     const specToSave: SpecificityAssignment[] = [];
     for (const row of specificityRows) {
       let changed = false;
-      const overrideProvider = row.override_provider?.toLowerCase();
-      if (
-        row.override_model !== null &&
-        ((overrideProvider && providerNames.has(overrideProvider)) ||
-          routeBelongs(row.override_route) ||
-          modelBelongs(row.override_model))
-      ) {
-        row.override_model = null;
-        row.override_provider = null;
-        row.override_auth_type = null;
+      if (row.override_route && routeBelongs(row.override_route)) {
         row.override_route = null;
         changed = true;
-      } else if (row.override_route && routeBelongs(row.override_route)) {
-        row.override_route = null;
-        changed = true;
-      }
-      if (row.fallback_models && row.fallback_models.length > 0) {
-        const filtered = row.fallback_models.filter((model) => !modelBelongs(model));
-        if (filtered.length !== row.fallback_models.length) {
-          row.fallback_models = filtered.length > 0 ? filtered : null;
-          changed = true;
-        }
       }
       if (row.fallback_routes && row.fallback_routes.length > 0) {
         const filteredRoutes = row.fallback_routes.filter((route) => !routeBelongs(route));

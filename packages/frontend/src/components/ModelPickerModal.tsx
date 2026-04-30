@@ -170,19 +170,16 @@ const ModelPickerModal: Component<Props> = (props) => {
   const isRecommended = (modelName: string, providerId?: string, authType?: AuthType): boolean => {
     const t = props.tiers.find((r) => r.tier === props.tierId);
     if (!t) return false;
-    // Prefer the structured auto_assigned_route when present so the
-    // (recommended) tag matches the exact (provider, auth_type) combination
-    // the auto-assigner picked, not just the model name. Falls through to
-    // the legacy auto_assigned_model field for unmigrated rows.
     const route = t.auto_assigned_route;
-    if (route && providerId && authType) {
+    if (!route) return false;
+    if (providerId && authType) {
       return (
         route.model === modelName &&
         route.provider.toLowerCase() === providerId.toLowerCase() &&
         route.authType === authType
       );
     }
-    return t.auto_assigned_model === modelName;
+    return route.model === modelName;
   };
 
   /** Returns the role of a model in the current tier: "Primary", "Fallback 1", etc. or null */
@@ -194,32 +191,26 @@ const ModelPickerModal: Component<Props> = (props) => {
     const t = props.tiers.find((r) => r.tier === props.tierId);
     if (!t) return null;
     const primaryRoute = t.override_route ?? t.auto_assigned_route ?? null;
-    if (primaryRoute && providerId && authType) {
-      if (
-        primaryRoute.model === modelName &&
-        primaryRoute.provider.toLowerCase() === providerId.toLowerCase() &&
-        primaryRoute.authType === authType
-      ) {
-        return 'Primary';
-      }
-    } else {
-      const primary = t.override_model ?? t.auto_assigned_model;
-      if (primary === modelName) return 'Primary';
+    if (primaryRoute) {
+      const matches =
+        providerId && authType
+          ? primaryRoute.model === modelName &&
+            primaryRoute.provider.toLowerCase() === providerId.toLowerCase() &&
+            primaryRoute.authType === authType
+          : primaryRoute.model === modelName;
+      if (matches) return 'Primary';
     }
-    const fbRoutes = t.fallback_routes ?? null;
-    if (fbRoutes && providerId && authType) {
-      const idx = fbRoutes.findIndex(
-        (r) =>
-          r.model === modelName &&
-          r.provider.toLowerCase() === providerId.toLowerCase() &&
-          r.authType === authType,
-      );
-      if (idx !== -1) return `Fallback ${idx + 1}`;
-    } else {
-      const fb = t.fallback_models ?? [];
-      const fbIndex = fb.indexOf(modelName);
-      if (fbIndex !== -1) return `Fallback ${fbIndex + 1}`;
-    }
+    const fbRoutes = t.fallback_routes ?? [];
+    const idx =
+      providerId && authType
+        ? fbRoutes.findIndex(
+            (r) =>
+              r.model === modelName &&
+              r.provider.toLowerCase() === providerId.toLowerCase() &&
+              r.authType === authType,
+          )
+        : fbRoutes.findIndex((r) => r.model === modelName);
+    if (idx !== -1) return `Fallback ${idx + 1}`;
     return null;
   };
 

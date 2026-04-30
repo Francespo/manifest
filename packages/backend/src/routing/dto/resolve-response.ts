@@ -1,24 +1,27 @@
 import { ScoringReason } from '../../scoring';
-import type { AuthType, ModelRoute, SpecificityCategory, TierSlot } from 'manifest-shared';
+import type { ModelRoute, SpecificityCategory, TierSlot } from 'manifest-shared';
 
 export type { AuthType } from 'manifest-shared';
 
 export interface ResolveResponse {
   tier: TierSlot;
-  model: string | null;
-  provider: string | null;
   confidence: number;
   score: number;
   reason: ScoringReason;
-  auth_type?: AuthType;
+  /**
+   * Resolved routing identity. Null when no model could be picked (no
+   * provider connected, override invalidated, etc.). Replaces the legacy
+   * flat `model` / `provider` / `auth_type` fields removed in this release;
+   * read `route.model`, `route.provider`, `route.authType` instead.
+   */
+  route: ModelRoute | null;
+  /**
+   * Ordered fallback routes for the resolved tier. Null when none configured.
+   * Replaces the legacy `fallback_models: string[]` field.
+   */
+  fallback_routes: ModelRoute[] | null;
   specificity_category?: SpecificityCategory;
-  fallback_models?: string[] | null;
   header_tier_id?: string;
   header_tier_name?: string;
   header_tier_color?: string;
-  // Additive route fields. Populated alongside the flat fields above for
-  // every successful resolve so external callers can opt in to the
-  // unambiguous shape without breaking the existing contract.
-  route?: ModelRoute | null;
-  fallback_routes?: ModelRoute[] | null;
 }

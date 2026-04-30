@@ -136,7 +136,7 @@ const Routing: Component = () => {
     setFallbackPickerTier(null);
     if (isSpecificityTier(tierId)) {
       const sa = specificityAssignments()?.find((a) => a.category === tierId);
-      const current = sa?.fallback_models ?? [];
+      const current = sa?.fallback_routes?.map((r) => r.model) ?? [];
       if (current.includes(modelName)) return;
       const updated = [...current, modelName];
       try {
@@ -155,7 +155,7 @@ const Routing: Component = () => {
   const isEnabled = () => connectedProviders()?.some((p) => p.is_active) ?? false;
   const activeProviders = () => connectedProviders()?.filter((p) => p.is_active) ?? [];
   const hasProviders = () => activeProviders().length > 0 || (customProviders()?.length ?? 0) > 0;
-  const hasOverrides = () => tiers()?.some((t) => t.override_model !== null) ?? false;
+  const hasOverrides = () => tiers()?.some((t) => t.override_route !== null) ?? false;
 
   const openProviderModal = () => {
     setWasEnabledBeforeModal(isEnabled());
