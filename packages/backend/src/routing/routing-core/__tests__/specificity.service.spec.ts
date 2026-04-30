@@ -1,5 +1,6 @@
 import { SpecificityService } from '../specificity.service';
 import { RoutingCacheService } from '../routing-cache.service';
+import { ModelDiscoveryService } from '../../../model-discovery/model-discovery.service';
 import { SpecificityAssignment } from '../../../entities/specificity-assignment.entity';
 
 function makeMockRepo() {
@@ -47,9 +48,13 @@ describe('SpecificityService', () => {
       invalidateAgent: jest.fn(),
     };
 
+    const discoveryService = {
+      getModelsForAgent: jest.fn().mockResolvedValue([]),
+    } as unknown as ModelDiscoveryService;
     service = new SpecificityService(
       repo as unknown as any,
       cache as unknown as RoutingCacheService,
+      discoveryService,
     );
   });
 

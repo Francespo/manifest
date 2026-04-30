@@ -6,6 +6,7 @@ import { ModelDiscoveryService } from '../../model-discovery/model-discovery.ser
 import { DiscoveredModel } from '../../model-discovery/model-fetcher';
 import { randomUUID } from 'crypto';
 import { Tier } from '../../scoring/types';
+import type { ModelRoute } from 'manifest-shared';
 import { TIER_SLOTS } from 'manifest-shared';
 
 /**
@@ -41,6 +42,12 @@ function filterSubModels(models: DiscoveredModel[]): DiscoveredModel[] {
 interface ScoredModel {
   model_name: string;
   score: number;
+  route: ModelRoute | null;
+}
+
+function buildRoute(picked: DiscoveredModel): ModelRoute | null {
+  if (!picked.authType) return null;
+  return { provider: picked.provider, authType: picked.authType, model: picked.id };
 }
 
 @Injectable()
@@ -78,6 +85,7 @@ export class TierAutoAssignService {
 
       if (existing) {
         existing.auto_assigned_model = best?.model_name ?? null;
+        existing.auto_assigned_route = best?.route ?? null;
         existing.updated_at = new Date().toISOString();
         toSave.push(existing);
       } else {
@@ -89,6 +97,9 @@ export class TierAutoAssignService {
           override_model: null,
           override_provider: null,
           auto_assigned_model: best?.model_name ?? null,
+          override_route: null,
+          auto_assigned_route: best?.route ?? null,
+          fallback_routes: null,
         });
       }
     }
@@ -160,6 +171,6 @@ export class TierAutoAssignService {
       }
     }
 
-    return { model_name: picked.id, score: quality(picked) };
+    return { model_name: picked.id, score: quality(picked), route: buildRoute(picked) };
   }
 }

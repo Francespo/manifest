@@ -9,12 +9,22 @@ import { SpecificityPenaltyService } from '../routing-core/specificity-penalty.s
 import { HeaderTierService } from '../header-tiers/header-tier.service';
 import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
 import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
+import { readFallbackRoutes } from '../routing-core/route-helpers';
 import { scoreRequest, ScorerInput, MomentumInput, scanMessages } from '../../scoring';
 import { ResolveResponse } from '../dto/resolve-response';
 import { inferProviderFromModelName } from '../../common/utils/provider-aliases';
 import { Agent } from '../../entities/agent.entity';
-import type { SpecificityCategory, TierSlot } from 'manifest-shared';
+import type { AuthType, ModelRoute, SpecificityCategory, TierSlot } from 'manifest-shared';
 import type { HeaderTier } from '../../entities/header-tier.entity';
+
+function buildRouteFromResolved(
+  model: string | null,
+  provider: string | null,
+  authType: AuthType | undefined,
+): ModelRoute | null {
+  if (!model || !provider || !authType) return null;
+  return { provider, authType, model };
+}
 
 /**
  * When specificity detection is below this confidence, skip specificity
@@ -111,8 +121,11 @@ export class ResolveService {
     }
 
     const provider = await this.resolveProvider(agentId, assignment, model);
+    // override_auth_type only applies when the resolved model is the override
+    // model itself; otherwise the auto-assigned model could inherit the
+    // override's auth and route to wrong credentials.
     const authType = provider
-      ? (assignment.override_auth_type ??
+      ? ((assignment.override_model === model ? assignment.override_auth_type : null) ??
         (await this.providerKeyService.getAuthType(agentId, provider)))
       : undefined;
 
@@ -124,6 +137,8 @@ export class ResolveService {
       score: result.score,
       reason: result.reason,
       auth_type: authType,
+      route: buildRouteFromResolved(model, provider, authType),
+      fallback_routes: readFallbackRoutes(assignment),
     };
   }
 
@@ -142,7 +157,7 @@ export class ResolveService {
     const model = await this.providerKeyService.getEffectiveModel(agentId, assignment);
     const provider = model ? await this.resolveProvider(agentId, assignment, model) : null;
     const authType = provider
-      ? (assignment.override_auth_type ??
+      ? ((assignment.override_model === model ? assignment.override_auth_type : null) ??
         (await this.providerKeyService.getAuthType(agentId, provider)))
       : undefined;
 
@@ -155,6 +170,8 @@ export class ResolveService {
       reason,
       auth_type: authType,
       fallback_models: assignment.fallback_models ?? null,
+      route: buildRouteFromResolved(model ?? null, provider, authType),
+      fallback_routes: readFallbackRoutes(assignment),
     };
   }
 
@@ -210,6 +227,8 @@ export class ResolveService {
       header_tier_id: match.id,
       header_tier_name: match.name,
       header_tier_color: match.badge_color,
+      route: buildRouteFromResolved(match.override_model, provider, authType),
+      fallback_routes: readFallbackRoutes(match),
     };
   }
 
@@ -261,7 +280,7 @@ export class ResolveService {
       model,
     );
     const authType = provider
-      ? (assignment.override_auth_type ??
+      ? ((assignment.override_model === model ? assignment.override_auth_type : null) ??
         (await this.providerKeyService.getAuthType(agentId, provider)))
       : undefined;
 
@@ -275,6 +294,8 @@ export class ResolveService {
       auth_type: authType,
       specificity_category: detected.category,
       fallback_models: assignment.fallback_models ?? null,
+      route: buildRouteFromResolved(model, provider, authType),
+      fallback_routes: readFallbackRoutes(assignment),
     };
   }
 

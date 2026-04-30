@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import type { AuthType, ModelRoute } from 'manifest-shared';
 import { ProviderKeyService } from '../routing-core/provider-key.service';
 import { CustomProvider } from '../../entities/custom-provider.entity';
 import { CustomProviderService } from '../custom-provider/custom-provider.service';
@@ -35,6 +36,11 @@ export interface FailedFallback {
   fallbackIndex: number;
   status: number;
   errorBody: string;
+  // Auth used for this specific attempt. When the caller passes structured
+  // routes the value is taken from the route; otherwise it falls back to the
+  // legacy inference path. Either way the recorder can attribute the error
+  // to the actual credential that failed instead of inheriting the primary's.
+  authType?: AuthType;
 }
 
 @Injectable()
@@ -67,51 +73,68 @@ export class ProxyFallbackService {
     thinkingLookup?: ThinkingBlockLookup,
     apiMode?: ProxyApiMode,
     chatBody?: Record<string, unknown>,
+    fallbackRoutes?: ModelRoute[] | null,
   ): Promise<{
     success: {
       forward: ForwardResult;
       model: string;
       provider: string;
       fallbackIndex: number;
+      authType?: AuthType;
     } | null;
     failures: FailedFallback[];
   }> {
     const failures: FailedFallback[] = [];
 
     // Track auth types that already failed per provider so fallbacks for the
-    // same provider try a different credential (fixes #1272).
+    // same provider try a different credential (fixes #1272). Only used on
+    // the legacy inference path — when fallbackRoutes is present, the route's
+    // explicit auth wins.
     const failedAuthByProvider = new Map<string, Set<string>>();
     if (primaryProvider && primaryAuthType) {
       failedAuthByProvider.set(primaryProvider.toLowerCase(), new Set([primaryAuthType]));
     }
 
+    const useStructuredRoutes =
+      Array.isArray(fallbackRoutes) && fallbackRoutes.length === fallbackModels.length;
+
     for (let i = 0; i < fallbackModels.length; i++) {
       const requestedModel = fallbackModels[i];
-      const pricing = this.pricingCache.getByModel(requestedModel);
-
-      // Determine provider: custom prefix -> model name inference -> pricing cache -> user's connected providers
+      const route = useStructuredRoutes ? fallbackRoutes![i] : null;
       let provider: string | undefined;
-      if (CustomProviderService.isCustom(requestedModel)) {
-        const slashIdx = requestedModel.indexOf('/');
-        provider = slashIdx > 0 ? requestedModel.substring(0, slashIdx) : requestedModel;
+      let authType: AuthType;
+
+      if (route) {
+        provider = route.provider;
+        authType = route.authType;
       } else {
-        const prefix = inferProviderFromModelName(requestedModel);
-        provider =
-          (prefix && (await this.providerKeyService.hasActiveProvider(agentId, prefix))
-            ? prefix
-            : undefined) ??
-          pricing?.provider ??
-          (await this.providerKeyService.findProviderForModel(agentId, requestedModel));
+        const pricing = this.pricingCache.getByModel(requestedModel);
+        if (CustomProviderService.isCustom(requestedModel)) {
+          const slashIdx = requestedModel.indexOf('/');
+          provider = slashIdx > 0 ? requestedModel.substring(0, slashIdx) : requestedModel;
+        } else {
+          const prefix = inferProviderFromModelName(requestedModel);
+          provider =
+            (prefix && (await this.providerKeyService.hasActiveProvider(agentId, prefix))
+              ? prefix
+              : undefined) ??
+            pricing?.provider ??
+            (await this.providerKeyService.findProviderForModel(agentId, requestedModel));
+        }
+        if (!provider) {
+          this.logger.debug(`Fallback ${i}: skipping model=${requestedModel} (no provider data)`);
+          continue;
+        }
+        const excludeAuth = failedAuthByProvider.get(provider.toLowerCase());
+        authType = (await this.providerKeyService.getAuthType(
+          agentId,
+          provider,
+          excludeAuth,
+        )) as AuthType;
       }
 
-      if (!provider) {
-        this.logger.debug(`Fallback ${i}: skipping model=${requestedModel} (no provider data)`);
-        continue;
-      }
       const model = normalizeProviderModel(provider, requestedModel);
-      const excludeAuth = failedAuthByProvider.get(provider.toLowerCase());
-      const authType = await this.providerKeyService.getAuthType(agentId, provider, excludeAuth);
-      let apiKey = await this.providerKeyService.getProviderApiKey(agentId, provider, authType);
+      const apiKey = await this.providerKeyService.getProviderApiKey(agentId, provider, authType);
       if (apiKey === null) {
         this.logger.debug(
           `Fallback ${i}: skipping model=${model} provider=${provider} (no API key)`,
@@ -156,7 +179,10 @@ export class ProxyFallbackService {
       });
 
       if (forward.response.ok) {
-        return { success: { forward, model, provider, fallbackIndex: i }, failures };
+        return {
+          success: { forward, model, provider, fallbackIndex: i, authType },
+          failures,
+        };
       }
 
       const errorBody = await forward.response.text();
@@ -166,11 +192,9 @@ export class ProxyFallbackService {
         fallbackIndex: i,
         status: forward.response.status,
         errorBody,
+        authType,
       });
 
-      // Record this auth type as failed for the provider so subsequent
-      // fallback models from the same provider try a different credential.
-      // Create a new Set to avoid mutating the reference passed to getAuthType.
       const existing = failedAuthByProvider.get(provider.toLowerCase());
       const updated = new Set(existing);
       updated.add(authType);

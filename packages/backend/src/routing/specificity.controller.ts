@@ -12,7 +12,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthUser } from '../auth/auth.instance';
 import { SpecificityService } from './routing-core/specificity.service';
 import { ResolveAgentService } from './routing-core/resolve-agent.service';
-import { AgentNameParamDto } from './dto/routing.dto';
+import { AgentNameParamDto, SetFallbacksDto } from './dto/routing.dto';
 import { SetSpecificityOverrideDto, ToggleSpecificityDto } from './dto/specificity.dto';
 import { SPECIFICITY_CATEGORIES } from 'manifest-shared';
 
@@ -38,13 +38,16 @@ export class SpecificityController {
   ) {
     this.validateCategory(category);
     const agent = await this.resolveAgentService.resolve(user.id, agentName);
+    const model = body.route?.model ?? body.model;
+    const provider = body.route?.provider ?? body.provider;
+    const authType = body.route?.authType ?? body.authType;
     return this.specificityService.setOverride(
       agent.id,
       user.id,
       category,
-      body.model,
-      body.provider,
-      body.authType,
+      model,
+      provider,
+      authType,
     );
   }
 
@@ -77,11 +80,11 @@ export class SpecificityController {
     @CurrentUser() user: AuthUser,
     @Param('agentName') agentName: string,
     @Param('category') category: string,
-    @Body() body: { models: string[] },
+    @Body() body: SetFallbacksDto,
   ) {
     this.validateCategory(category);
     const agent = await this.resolveAgentService.resolve(user.id, agentName);
-    return this.specificityService.setFallbacks(agent.id, category, body.models);
+    return this.specificityService.setFallbacks(agent.id, category, body.models, body.routes);
   }
 
   @Delete(':agentName/specificity/:category/fallbacks')

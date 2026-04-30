@@ -3,6 +3,7 @@ import { Repository } from 'typeorm';
 import { HeaderTierService } from './header-tier.service';
 import { HeaderTier } from '../../entities/header-tier.entity';
 import { RoutingCacheService } from '../routing-core/routing-cache.service';
+import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
 
 type Repo = jest.Mocked<
   Pick<Repository<HeaderTier>, 'find' | 'findOne' | 'insert' | 'save' | 'delete'>
@@ -26,11 +27,18 @@ function makeCache() {
   } as unknown as jest.Mocked<RoutingCacheService>;
 }
 
+function makeDiscovery(): ModelDiscoveryService {
+  return {
+    getModelsForAgent: jest.fn().mockResolvedValue([]),
+  } as unknown as ModelDiscoveryService;
+}
+
 function makeService() {
   const repo = makeRepo();
   const cache = makeCache();
-  const svc = new HeaderTierService(repo as unknown as Repository<HeaderTier>, cache);
-  return { svc, repo, cache };
+  const discovery = makeDiscovery();
+  const svc = new HeaderTierService(repo as unknown as Repository<HeaderTier>, cache, discovery);
+  return { svc, repo, cache, discovery };
 }
 
 const validInput = {

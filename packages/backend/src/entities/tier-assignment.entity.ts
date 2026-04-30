@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryColumn, Index } from 'typeorm';
-import type { AuthType } from 'manifest-shared';
+import type { AuthType, ModelRoute } from 'manifest-shared';
 import { timestampType, timestampDefault } from '../common/utils/postgres-sql';
 
 @Entity('tier_assignments')
@@ -31,6 +31,19 @@ export class TierAssignment {
 
   @Column('simple-json', { nullable: true })
   fallback_models!: string[] | null;
+
+  // Dual-write columns: ModelRoute = (provider, authType, model). Populated
+  // alongside legacy columns above. Reads prefer these when present and fall
+  // back to legacy. Migration AddModelRouteColumns backfills these from
+  // existing rows. Legacy columns will be dropped in a follow-up release.
+  @Column('jsonb', { nullable: true })
+  override_route!: ModelRoute | null;
+
+  @Column('jsonb', { nullable: true })
+  auto_assigned_route!: ModelRoute | null;
+
+  @Column('jsonb', { nullable: true })
+  fallback_routes!: ModelRoute[] | null;
 
   @Column(timestampType(), { default: timestampDefault() })
   updated_at!: string;

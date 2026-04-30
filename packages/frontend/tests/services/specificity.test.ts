@@ -140,18 +140,25 @@ describe('overrideSpecificity', () => {
     );
   });
 
-  it('should include authType in body when provided', async () => {
+  it('should include authType + structured route in body when authType is provided', async () => {
     mockMutateOk(assignment);
 
     await overrideSpecificity('my-agent', 'code_generation', 'gpt-4o', 'openai', 'subscription');
 
+    // Dual-write: legacy fields PLUS the structured route. Older backends
+    // use the flat fields, newer ones prefer the unambiguous route tuple.
     expect(mockFetch).toHaveBeenCalledWith(
       '/api/v1/routing/my-agent/specificity/code_generation',
       {
         credentials: 'include',
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-4o', provider: 'openai', authType: 'subscription' }),
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          provider: 'openai',
+          authType: 'subscription',
+          route: { provider: 'openai', authType: 'subscription', model: 'gpt-4o' },
+        }),
       },
     );
   });

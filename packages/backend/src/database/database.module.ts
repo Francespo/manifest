@@ -86,6 +86,7 @@ import { AddSavingsBaselineModel1782000000000 } from './migrations/1782000000000
 import { AddBaselineCostColumns1782100000000 } from './migrations/1782100000000-AddBaselineCostColumns';
 import { RetuneSpecificityMiscategorizedIndex1782000000000 } from './migrations/1782000000000-RetuneSpecificityMiscategorizedIndex';
 import { AddAgentSoftDelete1782200000000 } from './migrations/1782200000000-AddAgentSoftDelete';
+import { AddModelRouteColumns1783000000000 } from './migrations/1783000000000-AddModelRouteColumns';
 
 const entities = [
   AgentMessage,
@@ -173,6 +174,7 @@ const migrations = [
   AddBaselineCostColumns1782100000000,
   RetuneSpecificityMiscategorizedIndex1782000000000,
   AddAgentSoftDelete1782200000000,
+  AddModelRouteColumns1783000000000,
 ];
 
 @Module({

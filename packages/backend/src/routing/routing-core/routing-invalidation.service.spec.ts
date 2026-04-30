@@ -174,22 +174,26 @@ describe('RoutingInvalidationService', () => {
       expect(tierRepo.save).not.toHaveBeenCalled();
     });
 
-    it('should scope fallback scan to affected agents when overrides found', async () => {
+    it('scans every tier on the second pass so route-only-stale rows are caught', async () => {
+      // Earlier this scan was scoped to agents found in the legacy override
+      // pass — a tier whose only stale state lives in override_route (legacy
+      // override_model is null) would be missed. Today's writers always write
+      // both columns so that condition is unreachable, but the legacy-drop
+      // follow-up makes it reachable. Keep the scan unconditional.
       const overrideTier = makeTier({
         agent_id: 'agent-1',
         override_model: 'gpt-4o',
         override_provider: 'openai',
       });
       tierRepo.find.mockResolvedValueOnce([overrideTier]); // overrides found
-      tierRepo.find.mockResolvedValueOnce([]); // fallbackTiers scoped to agent-1
+      tierRepo.find.mockResolvedValueOnce([]); // fallbackTiers full scan
 
       await service.invalidateOverridesForRemovedModels(['gpt-4o']);
 
-      // Second find should be scoped
       expect(tierRepo.find).toHaveBeenCalledTimes(2);
-      expect(tierRepo.find.mock.calls[1][0]).toEqual({
-        where: { agent_id: expect.anything() },
-      });
+      // Second find runs without a where clause — full table scan filtered
+      // in JS by the loop body.
+      expect(tierRepo.find.mock.calls[1][0]).toBeUndefined();
     });
   });
 });

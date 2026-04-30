@@ -269,9 +269,7 @@ export class ProxyService {
     }
     sanitizeNullContent(messages as Record<string, unknown>[]);
     if (messages.length > MAX_MESSAGES_PER_REQUEST) {
-      throw new BadRequestException(
-        formatManifestError('M301', { max: MAX_MESSAGES_PER_REQUEST }),
-      );
+      throw new BadRequestException(formatManifestError('M301', { max: MAX_MESSAGES_PER_REQUEST }));
     }
   }
 
@@ -363,8 +361,18 @@ export class ProxyService {
     } = args;
     const tiers = await this.tierService.getTiers(agentId);
     const assignment = tiers.find((t) => t.tier === resolved.tier);
-    const fallbackModels = resolved.fallback_models ?? assignment?.fallback_models;
+    // Pair fallback_models and fallback_routes from the same source — mixing
+    // resolved.fallback_models with assignment.fallback_routes (or vice versa)
+    // would desynchronize positions and could route a fallback model to the
+    // credentials of a different fallback in the wrong list.
+    const useResolvedFallbacks = resolved.fallback_models != null;
+    const fallbackModels = useResolvedFallbacks
+      ? resolved.fallback_models
+      : assignment?.fallback_models;
     if (!fallbackModels || fallbackModels.length === 0) return null;
+    const fallbackRoutes = useResolvedFallbacks
+      ? (resolved.fallback_routes ?? null)
+      : (assignment?.fallback_routes ?? null);
 
     const primaryStatus = forward.response.status;
     const primaryErrorBody = await forward.response.text();
@@ -383,6 +391,7 @@ export class ProxyService {
       args.thinkingLookup,
       apiMode,
       chatBody,
+      fallbackRoutes,
     );
 
     this.recordTierIfScoring(sessionKey, resolved.tier);
