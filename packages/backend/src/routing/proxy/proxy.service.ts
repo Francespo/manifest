@@ -27,6 +27,7 @@ import {
 import { ThoughtSignatureCache } from './thought-signature-cache';
 import { ThinkingBlockCache } from './thinking-block-cache';
 import { buildFriendlyResponse, getDashboardUrl } from './proxy-friendly-response';
+import { formatManifestError } from '../../common/errors/error-codes';
 import { peekStream } from './stream-warmup';
 import type { AuthType } from 'manifest-shared';
 import { toChatCompletionsRequest } from './responses-adapter';
@@ -138,7 +139,7 @@ export class ProxyService {
     });
     if (credentials === null) {
       const dashboardUrl = getDashboardUrl(this.config, agentName, 'routing');
-      const content = `[🦚 Manifest] No ${resolved.provider} API key yet. Add one here: ${dashboardUrl}`;
+      const content = formatManifestError('M100', { provider: resolved.provider, dashboardUrl });
       return buildFriendlyResponse(content, body.stream === true, 'no_provider_key');
     }
 
@@ -264,12 +265,12 @@ export class ProxyService {
   private validatePayload(body: ProxyRequestOptions['body']): void {
     const messages = body.messages;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      throw new BadRequestException('messages array is required');
+      throw new BadRequestException(formatManifestError('M300'));
     }
     sanitizeNullContent(messages as Record<string, unknown>[]);
     if (messages.length > MAX_MESSAGES_PER_REQUEST) {
       throw new BadRequestException(
-        `messages array exceeds maximum length of ${MAX_MESSAGES_PER_REQUEST}`,
+        formatManifestError('M301', { max: MAX_MESSAGES_PER_REQUEST }),
       );
     }
   }
@@ -473,7 +474,13 @@ export class ProxyService {
         ? `$${Number(exceeded.threshold).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : Number(exceeded.threshold).toLocaleString(undefined, { maximumFractionDigits: 0 });
     const dashboardUrl = getDashboardUrl(this.config, agentName, 'limits');
-    return `[🦚 Manifest] You hit your ${exceeded.metricType} limit: ${fmt} used, ${threshFmt}/${exceeded.period} allowed. Adjust it here: ${dashboardUrl}`;
+    return formatManifestError('M200', {
+      metric: exceeded.metricType,
+      used: fmt,
+      threshold: threshFmt,
+      period: exceeded.period,
+      dashboardUrl,
+    });
   }
 
   private filterScoringMessages(messages: ScorerMessage[]): ScorerMessage[] {
@@ -496,7 +503,7 @@ export class ProxyService {
 
   private buildNoProviderResult(stream: boolean, agentName?: string): ProxyResult {
     const dashboardUrl = getDashboardUrl(this.config, agentName, 'routing');
-    const content = `[🦚 Manifest] You're connected, but no providers are set up yet. Add one here: ${dashboardUrl}`;
+    const content = formatManifestError('M101', { dashboardUrl });
     return buildFriendlyResponse(content, stream, 'no_provider');
   }
 }
