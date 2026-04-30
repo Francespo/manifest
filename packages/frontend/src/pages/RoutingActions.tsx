@@ -7,6 +7,7 @@ import {
   setFallbacks,
   type TierAssignment,
   type AuthType,
+  type ModelRoute,
 } from '../services/api.js';
 
 interface RoutingActionsInput {
@@ -131,14 +132,32 @@ export function createRoutingActions(input: RoutingActionsInput) {
     }
   };
 
-  const handleFallbackUpdate = (tierId: string, updatedFallbacks: string[]) => {
+  const handleFallbackUpdate = (
+    tierId: string,
+    updatedFallbacks: string[],
+    updatedRoutes?: ModelRoute[] | null,
+  ) => {
     setFallbackOverrides((prev) => {
       const next = { ...prev };
       delete next[tierId];
       return next;
     });
     input.mutateTiers((prev) =>
-      prev?.map((t) => (t.tier === tierId ? { ...t, fallback_models: updatedFallbacks } : t)),
+      prev?.map((t) =>
+        t.tier === tierId
+          ? {
+              ...t,
+              fallback_models: updatedFallbacks,
+              // Update fallback_routes alongside fallback_models so the UI
+              // doesn't render the new model list against the previous route
+              // metadata (which causes a gray "ghost" row when the routes
+              // describe a different auth than the new model). When the
+              // caller can't supply routes (legacy callers, ambiguous data)
+              // we leave the existing routes alone — a refetch will reconcile.
+              ...(updatedRoutes !== undefined ? { fallback_routes: updatedRoutes } : {}),
+            }
+          : t,
+      ),
     );
   };
 

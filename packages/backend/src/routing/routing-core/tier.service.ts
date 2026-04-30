@@ -7,39 +7,11 @@ import { TierAutoAssignService } from './tier-auto-assign.service';
 import { RoutingCacheService } from './routing-cache.service';
 import { ProviderService } from './provider.service';
 import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
-import type { DiscoveredModel } from '../../model-discovery/model-fetcher';
 import { randomUUID } from 'crypto';
 import type { AuthType, ModelRoute } from 'manifest-shared';
 import { TIER_SLOTS, TierSlot } from 'manifest-shared';
 import { isManifestUsableProvider } from '../../common/utils/subscription-support';
-
-/**
- * Build a ModelRoute from the explicit (model, provider, authType) triple
- * when all three are present. Returns null when any field is missing — the
- * legacy column path remains authoritative in that case.
- */
-function explicitRoute(
-  model: string,
-  provider: string | undefined,
-  authType: AuthType | undefined,
-): ModelRoute | null {
-  if (!provider || !authType) return null;
-  return { provider, authType, model };
-}
-
-/**
- * Resolve a model name to a single ModelRoute via the discovered model list.
- * Returns null when the name doesn't match exactly one (provider, authType)
- * pair — ambiguous matches stay legacy-only on disk so the proxy's existing
- * inference path handles them.
- */
-function unambiguousRoute(model: string, available: DiscoveredModel[]): ModelRoute | null {
-  const matches = available.filter((m) => m.id === model);
-  if (matches.length !== 1) return null;
-  const m = matches[0];
-  if (!m.authType) return null;
-  return { provider: m.provider, authType: m.authType, model: m.id };
-}
+import { explicitRoute, unambiguousRoute } from './route-helpers';
 
 @Injectable()
 export class TierService {

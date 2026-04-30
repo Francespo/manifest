@@ -199,6 +199,14 @@ export class AgentDuplicationService {
             override_auth_type: t.override_auth_type,
             auto_assigned_model: t.auto_assigned_model,
             fallback_models: t.fallback_models,
+            // Copy the structured route columns alongside the legacy ones so
+            // the duplicated agent isn't left with empty routing once the
+            // legacy columns are dropped in PR C. Today's reads fall back to
+            // legacy, so missing routes wouldn't be visible — the bug only
+            // surfaces post-cleanup. Catch it at the source.
+            override_route: t.override_route,
+            auto_assigned_route: t.auto_assigned_route,
+            fallback_routes: t.fallback_routes,
             updated_at: now,
           })),
         );
@@ -220,6 +228,9 @@ export class AgentDuplicationService {
             override_auth_type: s.override_auth_type,
             auto_assigned_model: s.auto_assigned_model,
             fallback_models: s.fallback_models,
+            override_route: s.override_route,
+            auto_assigned_route: s.auto_assigned_route,
+            fallback_routes: s.fallback_routes,
             updated_at: now,
           })),
         );

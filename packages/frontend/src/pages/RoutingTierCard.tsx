@@ -13,6 +13,7 @@ import type {
   TierAssignment,
   AvailableModel,
   AuthType,
+  ModelRoute,
   RoutingProvider,
   CustomProviderData,
 } from '../services/api.js';
@@ -62,16 +63,46 @@ export interface RoutingTierCardProps {
   onDropdownOpen: (tierId: string) => void;
   onOverride: (tierId: string, model: string, providerId: string, authType?: AuthType) => void;
   onReset: (tierId: string) => void;
-  onFallbackUpdate: (tierId: string, fallbacks: string[]) => void;
+  onFallbackUpdate: (
+    tierId: string,
+    fallbacks: string[],
+    fallbackRoutes?: ModelRoute[] | null,
+  ) => void;
   onAddFallback: (tierId: string) => void;
   getFallbacksFor: (tierId: string) => string[];
   connectedProviders: () => RoutingProvider[];
-  persistFallbacks?: (agentName: string, tier: string, models: string[]) => Promise<unknown>;
+  persistFallbacks?: (
+    agentName: string,
+    tier: string,
+    models: string[],
+    routes?: ModelRoute[],
+  ) => Promise<unknown>;
   persistClearFallbacks?: (agentName: string, tier: string) => Promise<unknown>;
 }
 
 const effectiveModel = (t: TierAssignment): string | null =>
   t.override_model ?? t.auto_assigned_model;
+
+/**
+ * Read the structured route currently driving this tier's primary slot.
+ * Falls back to the legacy override columns when the tier predates the
+ * dual-write migration (route fields stay null on those rows). Returns null
+ * when nothing identifies the primary at all.
+ */
+const effectiveRoute = (
+  t: TierAssignment,
+): { provider: string; authType: AuthType; model: string } | null => {
+  if (t.override_route) return t.override_route;
+  if (t.auto_assigned_route) return t.auto_assigned_route;
+  if (t.override_model && t.override_provider && t.override_auth_type) {
+    return {
+      provider: t.override_provider,
+      authType: t.override_auth_type,
+      model: t.override_model,
+    };
+  }
+  return null;
+};
 
 const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
   const eff = () => {
@@ -126,50 +157,88 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
   };
 
   const handlePrimaryDropAtSlot = async (slot: number) => {
+    const tier = props.tier();
+    if (!tier) return;
     const currentModel = eff();
     if (!currentModel) return;
+    // Carry the full primary route through the swap. Without this, the same
+    // model name on a different auth (subscription vs api_key) collapses back
+    // to "first match in discovery" when the backend rebuilds fallback_routes
+    // — and the UI ends up rendering a ghost row whose auth no longer matches.
+    const currentRoute = effectiveRoute(tier);
     const fallbacks = props.getFallbacksFor(props.stage.id);
+    const fallbackRoutes = tier.fallback_routes ?? null;
     // Build the unified list: insert current primary at drop slot
     const newFallbacks = [...fallbacks];
     newFallbacks.splice(slot, 0, currentModel);
-    // First item becomes new primary, rest stay as fallbacks
     const newPrimary = newFallbacks.shift()!;
     if (newPrimary === currentModel && slot === 0) return; // no-op
-    // Update fallbacks first, then override primary
-    props.onFallbackUpdate(props.stage.id, newFallbacks);
+    // Build the parallel route list when we have full coverage. If any
+    // fallback predates the dual-write migration we drop to legacy persist.
+    const buildRoutes = (): typeof fallbackRoutes => {
+      if (!currentRoute || !fallbackRoutes || fallbackRoutes.length !== fallbacks.length) {
+        return null;
+      }
+      const next = [...fallbackRoutes];
+      next.splice(slot, 0, currentRoute);
+      next.shift();
+      return next;
+    };
+    const newRoutes = buildRoutes();
+    // Resolve the new primary's route for the override call.
+    const newPrimaryRoute =
+      newRoutes && newRoutes.length === newFallbacks.length
+        ? // newPrimary came from position 0 of the post-splice list, which
+          // corresponds to the original fallback at the same slot
+          fallbackRoutes![0]
+        : null;
+    // Optimistic update: set BOTH model names and routes so the FallbackList
+    // doesn't render new names against stale fallback_routes (causes a gray
+    // ghost row when the routes describe a different auth than the new model).
+    props.onFallbackUpdate(props.stage.id, newFallbacks, newRoutes);
     try {
       const persistFn = props.persistFallbacks ?? setFallbacksApi;
-      await persistFn(props.agentName(), props.stage.id, newFallbacks);
+      await persistFn(props.agentName(), props.stage.id, newFallbacks, newRoutes ?? undefined);
     } catch {
-      props.onFallbackUpdate(props.stage.id, fallbacks);
+      props.onFallbackUpdate(props.stage.id, fallbacks, fallbackRoutes);
       toast.error('Failed to update fallbacks');
       return;
     }
-    const provId = providerIdForModel(newPrimary, props.models());
-    props.onOverride(props.stage.id, newPrimary, provId ?? '');
+    const provId = newPrimaryRoute?.provider ?? providerIdForModel(newPrimary, props.models());
+    props.onOverride(props.stage.id, newPrimary, provId ?? '', newPrimaryRoute?.authType);
   };
 
   const swapPrimaryWithFallback = async (fbIndex: number) => {
+    const tier = props.tier();
+    if (!tier) return;
     const currentModel = eff();
     if (!currentModel) return;
+    const currentRoute = effectiveRoute(tier);
     const fallbacks = props.getFallbacksFor(props.stage.id);
     const fbModel = fallbacks[fbIndex];
     if (!fbModel) return;
-    // Swap: fallback model goes to primary, current primary takes its place
+    const fallbackRoutes = tier.fallback_routes ?? null;
+    const fbRoute = fallbackRoutes?.[fbIndex] ?? null;
+    // Swap: fallback model goes to primary, current primary takes its place.
+    // Carry routes alongside model names so same-name-different-auth swaps
+    // don't collapse to a single auth on persist.
     const newFallbacks = [...fallbacks];
     newFallbacks[fbIndex] = currentModel;
-    // Update fallbacks first, then override primary
-    props.onFallbackUpdate(props.stage.id, newFallbacks);
+    const newRoutes =
+      fallbackRoutes && currentRoute && fallbackRoutes.length === fallbacks.length
+        ? fallbackRoutes.map((r, i) => (i === fbIndex ? currentRoute : r))
+        : null;
+    props.onFallbackUpdate(props.stage.id, newFallbacks, newRoutes);
     try {
       const persistFn = props.persistFallbacks ?? setFallbacksApi;
-      await persistFn(props.agentName(), props.stage.id, newFallbacks);
+      await persistFn(props.agentName(), props.stage.id, newFallbacks, newRoutes ?? undefined);
     } catch {
-      props.onFallbackUpdate(props.stage.id, fallbacks);
+      props.onFallbackUpdate(props.stage.id, fallbacks, fallbackRoutes);
       toast.error('Failed to update fallbacks');
       return;
     }
-    const provId = providerIdForModel(fbModel, props.models());
-    props.onOverride(props.stage.id, fbModel, provId ?? '');
+    const provId = fbRoute?.provider ?? providerIdForModel(fbModel, props.models());
+    props.onOverride(props.stage.id, fbModel, provId ?? '', fbRoute?.authType);
   };
 
   const modelInfo = (modelName: string): AvailableModel | undefined => {
@@ -401,11 +470,11 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
               models={props.models()}
               customProviders={props.customProviders()}
               connectedProviders={props.activeProviders()}
-              onUpdate={(updatedFallbacks) =>
-                // Routes intentionally not threaded through the parent's
-                // optimistic state — the next tier-list refetch picks them up
-                // from the server and re-renders with the persisted routes.
-                props.onFallbackUpdate(props.stage.id, updatedFallbacks)
+              onUpdate={(updatedFallbacks, updatedRoutes) =>
+                // Thread routes through optimistic state so the UI doesn't
+                // render the new model list against stale fallback_routes
+                // (the gray "ghost row" bug for same-name-different-auth).
+                props.onFallbackUpdate(props.stage.id, updatedFallbacks, updatedRoutes)
               }
               onAddFallback={() => props.onAddFallback(props.stage.id)}
               adding={props.addingFallback() === props.stage.id}

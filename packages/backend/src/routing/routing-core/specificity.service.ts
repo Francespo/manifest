@@ -5,25 +5,8 @@ import { randomUUID } from 'crypto';
 import type { AuthType, ModelRoute } from 'manifest-shared';
 import { SpecificityAssignment } from '../../entities/specificity-assignment.entity';
 import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
-import type { DiscoveredModel } from '../../model-discovery/model-fetcher';
 import { RoutingCacheService } from './routing-cache.service';
-
-function unambiguousRoute(model: string, available: DiscoveredModel[]): ModelRoute | null {
-  const matches = available.filter((m) => m.id === model);
-  if (matches.length !== 1) return null;
-  const m = matches[0];
-  if (!m.authType) return null;
-  return { provider: m.provider, authType: m.authType, model: m.id };
-}
-
-function explicitRoute(
-  model: string,
-  provider: string | undefined,
-  authType: AuthType | undefined,
-): ModelRoute | null {
-  if (!provider || !authType) return null;
-  return { provider, authType, model };
-}
+import { explicitRoute, unambiguousRoute } from './route-helpers';
 
 @Injectable()
 export class SpecificityService {

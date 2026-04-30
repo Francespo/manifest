@@ -3,6 +3,7 @@ import { legacyToRoute, isModelRoute, isModelRouteArray } from 'manifest-shared'
 import type { TierAssignment } from '../../entities/tier-assignment.entity';
 import type { SpecificityAssignment } from '../../entities/specificity-assignment.entity';
 import type { HeaderTier } from '../../entities/header-tier.entity';
+import type { DiscoveredModel } from '../../model-discovery/model-fetcher';
 
 type AnyOverrideRow = Pick<
   TierAssignment | SpecificityAssignment | HeaderTier,
@@ -28,7 +29,7 @@ export function readOverrideRoute(row: AnyOverrideRow): ModelRoute | null {
   return legacyToRoute({
     model: row.override_model,
     provider: row.override_provider,
-    authType: row.override_auth_type as AuthType | null,
+    authType: row.override_auth_type,
   });
 }
 
@@ -52,4 +53,32 @@ export function readFallbackRoutes(row: AnyOverrideRow): ModelRoute[] | null {
 
 export function effectiveRoute(row: AnyOverrideRow & AnyAutoRow): ModelRoute | null {
   return readOverrideRoute(row) ?? readAutoAssignedRoute(row);
+}
+
+/**
+ * Build a ModelRoute from the explicit (model, provider, authType) triple
+ * passed by an API caller. Returns null when any field is missing — the
+ * legacy column path stays authoritative for those rows.
+ */
+export function explicitRoute(
+  model: string,
+  provider: string | undefined,
+  authType: AuthType | undefined,
+): ModelRoute | null {
+  if (!provider || !authType) return null;
+  return { provider, authType, model };
+}
+
+/**
+ * Resolve a model name to a single ModelRoute via the discovered model list.
+ * Returns null when the name doesn't match exactly one (provider, authType)
+ * pair — ambiguous matches stay legacy-only on disk so the proxy's existing
+ * inference path handles them.
+ */
+export function unambiguousRoute(model: string, available: DiscoveredModel[]): ModelRoute | null {
+  const matches = available.filter((m) => m.id === model);
+  if (matches.length !== 1) return null;
+  const m = matches[0];
+  if (!m.authType) return null;
+  return { provider: m.provider, authType: m.authType, model: m.id };
 }

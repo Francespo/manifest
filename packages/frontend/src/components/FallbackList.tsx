@@ -258,6 +258,17 @@ const FallbackList: Component<FallbackListProps> = (props) => {
                     }}
                     draggable={true}
                     onDragStart={(e) => handleDragStart(i(), e)}
+                    // Bind dragend on the draggable row itself rather than
+                    // only on the container. When a fallback row is dropped
+                    // onto the primary slot (outside this container), the
+                    // container's onDragEnd doesn't always fire — the row
+                    // gets re-rendered with a new model name as part of the
+                    // optimistic swap, the drag source unmounts, and the
+                    // container loses the bubbled event. Result: dragIndex
+                    // stays set and the row keeps the --dragging class with
+                    // opacity 0.3 until the next refetch. Resetting on the
+                    // row itself catches every drop target.
+                    onDragEnd={handleDragEnd}
                   >
                     <span class="fallback-list__drag-handle" aria-hidden="true">
                       <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
