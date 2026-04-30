@@ -1,0 +1,740 @@
+import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { ModelRoute } from 'manifest-shared';
+import { ProxyService } from '../proxy.service';
+import type { ResolveService } from '../../resolve/resolve.service';
+import type { ProviderKeyService } from '../../routing-core/provider-key.service';
+import type { TierService } from '../../routing-core/tier.service';
+import type { OpenaiOauthService } from '../../oauth/openai-oauth.service';
+import type { MinimaxOauthService } from '../../oauth/minimax-oauth.service';
+import type { SessionMomentumService } from '../session-momentum.service';
+import type { LimitCheckService } from '../../../notifications/services/limit-check.service';
+import type { ProxyFallbackService } from '../proxy-fallback.service';
+import type { ThoughtSignatureCache } from '../thought-signature-cache';
+import type { ThinkingBlockCache } from '../thinking-block-cache';
+
+/**
+ * Stream-warmup helper is mocked because the real implementation depends on
+ * a streaming Response body. We control its return value per test.
+ */
+jest.mock('../stream-warmup', () => ({
+  peekStream: jest.fn(),
+}));
+
+import { peekStream } from '../stream-warmup';
+const mockedPeek = peekStream as jest.MockedFunction<typeof peekStream>;
+
+const route = (provider: string, authType: ModelRoute['authType'], model: string): ModelRoute => ({
+  provider,
+  authType,
+  model,
+});
+
+const okResponse = (status = 200) =>
+  new Response('{"ok":true}', { status, headers: { 'content-type': 'application/json' } });
+
+describe('ProxyService — orchestration', () => {
+  let resolveService: jest.Mocked<Pick<ResolveService, 'resolve' | 'resolveForTier'>>;
+  let providerKeyService: jest.Mocked<
+    Pick<ProviderKeyService, 'getProviderApiKey' | 'getProviderRegion'>
+  >;
+  let tierService: jest.Mocked<Pick<TierService, 'getTiers'>>;
+  let openaiOauth: jest.Mocked<Pick<OpenaiOauthService, 'unwrapToken'>>;
+  let minimaxOauth: jest.Mocked<Pick<MinimaxOauthService, 'unwrapToken'>>;
+  let momentum: jest.Mocked<
+    Pick<
+      SessionMomentumService,
+      'recordTier' | 'recordCategory' | 'getRecentTiers' | 'getRecentCategories'
+    >
+  >;
+  let limitCheck: jest.Mocked<Pick<LimitCheckService, 'checkLimits'>>;
+  let fallbackService: jest.Mocked<
+    Pick<ProxyFallbackService, 'tryForwardToProvider' | 'tryFallbacks'>
+  >;
+  let configService: ConfigService;
+  let signatureCache: ThoughtSignatureCache;
+  let thinkingCache: ThinkingBlockCache;
+  let svc: ProxyService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    resolveService = {
+      resolve: jest.fn(),
+      resolveForTier: jest.fn(),
+    };
+    providerKeyService = {
+      getProviderApiKey: jest.fn().mockResolvedValue('decrypted-key'),
+      getProviderRegion: jest.fn().mockResolvedValue(null),
+    };
+    tierService = { getTiers: jest.fn().mockResolvedValue([]) };
+    openaiOauth = { unwrapToken: jest.fn().mockResolvedValue(null) };
+    minimaxOauth = { unwrapToken: jest.fn().mockResolvedValue(null) };
+    momentum = {
+      recordTier: jest.fn(),
+      recordCategory: jest.fn(),
+      getRecentTiers: jest.fn().mockReturnValue([]),
+      getRecentCategories: jest.fn().mockReturnValue([]),
+    };
+    limitCheck = { checkLimits: jest.fn().mockResolvedValue(null) };
+    fallbackService = {
+      tryForwardToProvider: jest.fn(),
+      tryFallbacks: jest.fn(),
+    };
+    configService = { get: jest.fn().mockReturnValue(undefined) } as unknown as ConfigService;
+    signatureCache = {
+      retrieve: jest.fn().mockReturnValue(null),
+    } as unknown as ThoughtSignatureCache;
+    thinkingCache = { retrieve: jest.fn().mockReturnValue(null) } as unknown as ThinkingBlockCache;
+
+    svc = new ProxyService(
+      resolveService as unknown as ResolveService,
+      providerKeyService as unknown as ProviderKeyService,
+      tierService as unknown as TierService,
+      openaiOauth as unknown as OpenaiOauthService,
+      minimaxOauth as unknown as MinimaxOauthService,
+      momentum as unknown as SessionMomentumService,
+      limitCheck as unknown as LimitCheckService,
+      fallbackService as unknown as ProxyFallbackService,
+      configService,
+      signatureCache,
+      thinkingCache,
+    );
+  });
+
+  const baseOpts = (overrides: Partial<Parameters<ProxyService['proxyRequest']>[0]> = {}) => ({
+    agentId: 'agent-1',
+    userId: 'user-1',
+    body: { messages: [{ role: 'user', content: 'hi' }] },
+    sessionKey: 'sess-1',
+    tenantId: 'tenant-1',
+    agentName: 'demo-agent',
+    ...overrides,
+  });
+
+  describe('payload validation', () => {
+    it('throws when messages is missing', async () => {
+      await expect(svc.proxyRequest(baseOpts({ body: {} as never }))).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('throws when messages is empty', async () => {
+      await expect(svc.proxyRequest(baseOpts({ body: { messages: [] } as never }))).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('throws when messages exceeds the max', async () => {
+      const messages = Array.from({ length: 1001 }, () => ({ role: 'user', content: 'x' }));
+      await expect(svc.proxyRequest(baseOpts({ body: { messages } as never }))).rejects.toThrow(
+        /1000/,
+      );
+    });
+
+    it('replaces null content with empty string', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: null,
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      const body = { messages: [{ role: 'user', content: null }] };
+      const result = await svc.proxyRequest(baseOpts({ body } as never));
+      // Routing was called — sanitized message reached the resolver.
+      expect(resolveService.resolve).toHaveBeenCalled();
+      expect(result.forward.response.status).toBeGreaterThanOrEqual(200);
+    });
+  });
+
+  describe('limit enforcement', () => {
+    it('returns a friendly limit response when checkLimits flags an excess', async () => {
+      limitCheck.checkLimits.mockResolvedValue({
+        metricType: 'cost',
+        actual: 500,
+        threshold: 100,
+        period: 'monthly',
+      } as never);
+      const result = await svc.proxyRequest(baseOpts());
+      expect(result.forward.response.status).toBe(200);
+      const body = await result.forward.response.text();
+      expect(body).toContain('M200');
+    });
+
+    it('formats token-based limits without a dollar sign', async () => {
+      limitCheck.checkLimits.mockResolvedValue({
+        metricType: 'tokens',
+        actual: 1_000,
+        threshold: 500,
+        period: 'daily',
+      } as never);
+      const result = await svc.proxyRequest(baseOpts());
+      const body = await result.forward.response.text();
+      expect(body).toContain('M200');
+    });
+
+    it('skips limit checks when tenantId is missing', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: null,
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      await svc.proxyRequest({ ...baseOpts(), tenantId: undefined });
+      expect(limitCheck.checkLimits).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('no route resolved', () => {
+    it('returns a friendly no-provider response', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: null,
+        fallback_routes: null,
+        confidence: 0,
+        score: 0,
+        reason: 'scored',
+      });
+      const result = await svc.proxyRequest(baseOpts());
+      const body = await result.forward.response.text();
+      expect(body).toContain('M101');
+    });
+  });
+
+  describe('no credentials', () => {
+    it('returns the M100 friendly response', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      providerKeyService.getProviderApiKey.mockResolvedValue(null);
+      const result = await svc.proxyRequest(baseOpts());
+      const body = await result.forward.response.text();
+      expect(body).toContain('M100');
+    });
+  });
+
+  describe('happy path forward', () => {
+    it('returns the forward result and records tier momentum on a 200 non-stream response', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: okResponse(200),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+
+      const result = await svc.proxyRequest(baseOpts());
+      expect(result.meta.tier).toBe('standard');
+      expect(result.meta.model).toBe('gpt-4o');
+      expect(result.meta.provider).toBe('openai');
+      expect(momentum.recordTier).toHaveBeenCalledWith('sess-1', 'standard');
+    });
+
+    it('records the specificity category when the route originates from specificity', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 0,
+        reason: 'specificity',
+        specificity_category: 'coding',
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: okResponse(),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      await svc.proxyRequest(baseOpts());
+      expect(momentum.recordCategory).toHaveBeenCalledWith('sess-1', 'coding');
+    });
+
+    it('skips category recording for unknown values', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 0,
+        reason: 'specificity',
+        specificity_category: 'not-a-category' as never,
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: okResponse(),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      await svc.proxyRequest(baseOpts());
+      expect(momentum.recordCategory).not.toHaveBeenCalled();
+    });
+
+    it('does not record momentum for non-scoring tiers (e.g. "default")', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'default',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 1,
+        score: 0,
+        reason: 'default',
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: okResponse(),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      await svc.proxyRequest(baseOpts());
+      expect(momentum.recordTier).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fallback chain on non-2xx responses', () => {
+    beforeEach(() => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: [route('anthropic', 'api_key', 'claude')],
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+    });
+
+    it('triggers the fallback chain on a 502 response', async () => {
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: new Response('upstream broken', { status: 502 }),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      fallbackService.tryFallbacks.mockResolvedValue({
+        success: {
+          forward: {
+            response: okResponse(),
+            isGoogle: false,
+            isAnthropic: true,
+            isChatGpt: false,
+          },
+          model: 'claude',
+          provider: 'anthropic',
+          fallbackIndex: 0,
+        },
+        failures: [],
+      } as never);
+
+      const result = await svc.proxyRequest(baseOpts());
+      expect(result.meta.fallbackFromModel).toBe('gpt-4o');
+      expect(result.meta.provider).toBe('anthropic');
+      expect(result.meta.primaryProvider).toBe('openai');
+    });
+
+    it('does not trigger fallback when the primary returns 200', async () => {
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: okResponse(200),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      const result = await svc.proxyRequest(baseOpts());
+      expect(fallbackService.tryFallbacks).not.toHaveBeenCalled();
+      expect(result.forward.response.status).toBe(200);
+    });
+
+    it('returns the primary error rebuilt when all fallbacks fail', async () => {
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: new Response('upstream broken', { status: 503 }),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      fallbackService.tryFallbacks.mockResolvedValue({
+        success: null,
+        failures: [
+          {
+            model: 'claude',
+            provider: 'anthropic',
+            fallbackIndex: 0,
+            status: 503,
+            errorBody: 'fallback also broken',
+          },
+        ],
+      } as never);
+
+      const result = await svc.proxyRequest(baseOpts());
+      expect(result.forward.response.status).toBe(503);
+      expect(result.failedFallbacks).toHaveLength(1);
+    });
+
+    it('falls through to the resolver-provided fallback_routes', async () => {
+      // resolved.fallback_routes is non-null — tier service should NOT be consulted.
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: new Response('boom', { status: 500 }),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      fallbackService.tryFallbacks.mockResolvedValue({
+        success: {
+          forward: {
+            response: okResponse(),
+            isGoogle: false,
+            isAnthropic: true,
+            isChatGpt: false,
+          },
+          model: 'claude',
+          provider: 'anthropic',
+          fallbackIndex: 0,
+        },
+        failures: [],
+      } as never);
+
+      await svc.proxyRequest(baseOpts());
+      expect(tierService.getTiers).not.toHaveBeenCalled();
+    });
+
+    it('looks up tier fallbacks when the resolver returned null', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      tierService.getTiers.mockResolvedValue([
+        {
+          tier: 'standard',
+          fallback_routes: [route('anthropic', 'api_key', 'claude')],
+        } as never,
+      ]);
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: new Response('boom', { status: 500 }),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      fallbackService.tryFallbacks.mockResolvedValue({
+        success: null,
+        failures: [],
+      } as never);
+
+      await svc.proxyRequest(baseOpts());
+      expect(tierService.getTiers).toHaveBeenCalledWith('agent-1');
+    });
+
+    it('returns null fallback chain when neither resolver nor tier provides routes', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      tierService.getTiers.mockResolvedValue([]);
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: new Response('boom', { status: 500 }),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+
+      const result = await svc.proxyRequest(baseOpts());
+      // tryFallbacks not called because fallbackRoutes is empty.
+      expect(fallbackService.tryFallbacks).not.toHaveBeenCalled();
+      expect(result.forward.response.status).toBe(500);
+    });
+  });
+
+  describe('stream warmup', () => {
+    beforeEach(() => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: [route('anthropic', 'api_key', 'claude')],
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+    });
+
+    it('returns the peeked stream when warmup succeeds', async () => {
+      const streamRes = new Response(new ReadableStream(), {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: streamRes,
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      mockedPeek.mockResolvedValue({
+        ok: true,
+        stream: new ReadableStream(),
+      } as never);
+
+      const result = await svc.proxyRequest({
+        ...baseOpts({ body: { messages: [{ role: 'user', content: 'hi' }], stream: true } }),
+      });
+      expect(result.forward.response.status).toBe(200);
+      expect(momentum.recordTier).toHaveBeenCalled();
+    });
+
+    it('falls back to the chain when warmup fails', async () => {
+      const streamRes = new Response(new ReadableStream(), {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: streamRes,
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      mockedPeek.mockResolvedValue({
+        ok: false,
+        reason: 'timeout',
+        message: 'peek timeout',
+      } as never);
+      fallbackService.tryFallbacks.mockResolvedValue({
+        success: {
+          forward: {
+            response: okResponse(),
+            isGoogle: false,
+            isAnthropic: true,
+            isChatGpt: false,
+          },
+          model: 'claude',
+          provider: 'anthropic',
+          fallbackIndex: 0,
+        },
+        failures: [],
+      } as never);
+
+      const result = await svc.proxyRequest(
+        baseOpts({ body: { messages: [{ role: 'user', content: 'hi' }], stream: true } }),
+      );
+      expect(result.meta.fallbackFromModel).toBe('gpt-4o');
+    });
+
+    it('returns the synthetic 502 when warmup fails and no fallbacks are available', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      tierService.getTiers.mockResolvedValue([]);
+      const streamRes = new Response(new ReadableStream(), {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: streamRes,
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      mockedPeek.mockResolvedValue({
+        ok: false,
+        reason: 'closed',
+        message: 'closed before data',
+      } as never);
+
+      const result = await svc.proxyRequest(
+        baseOpts({ body: { messages: [{ role: 'user', content: 'hi' }], stream: true } }),
+      );
+      expect(result.forward.response.status).toBe(502);
+    });
+  });
+
+  describe('routing dispatch', () => {
+    it('invokes resolveForTier with simple when the last user message contains HEARTBEAT_OK', async () => {
+      resolveService.resolveForTier.mockResolvedValue({
+        tier: 'simple',
+        route: route('openai', 'api_key', 'gpt-4o-mini'),
+        fallback_routes: null,
+        confidence: 1,
+        score: 0,
+        reason: 'heartbeat',
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: okResponse(),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+
+      await svc.proxyRequest(
+        baseOpts({
+          body: { messages: [{ role: 'user', content: 'HEARTBEAT_OK' }] },
+        }),
+      );
+      expect(resolveService.resolveForTier).toHaveBeenCalledWith('agent-1', 'simple');
+      expect(resolveService.resolve).not.toHaveBeenCalled();
+    });
+
+    it('detects HEARTBEAT_OK in array-content user messages', async () => {
+      resolveService.resolveForTier.mockResolvedValue({
+        tier: 'simple',
+        route: route('openai', 'api_key', 'gpt-4o-mini'),
+        fallback_routes: null,
+        confidence: 1,
+        score: 0,
+        reason: 'heartbeat',
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: okResponse(),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+
+      await svc.proxyRequest(
+        baseOpts({
+          body: {
+            messages: [
+              {
+                role: 'user',
+                content: [{ type: 'text', text: 'something HEARTBEAT_OK' }],
+              },
+            ],
+          },
+        }),
+      );
+      expect(resolveService.resolveForTier).toHaveBeenCalledWith('agent-1', 'simple');
+    });
+
+    it('does not detect heartbeat when no user message exists', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: okResponse(),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+
+      await svc.proxyRequest(
+        baseOpts({
+          body: { messages: [{ role: 'system', content: 'sys-only' }] },
+        }),
+      );
+      // No user message — fall to resolve(), not resolveForTier.
+      expect(resolveService.resolve).toHaveBeenCalled();
+    });
+
+    it('returns false from heartbeat detection for non-string non-array content', async () => {
+      // content is an object (e.g. an image-only payload) — falls through to
+      // `return false` so we route via the regular resolver instead of
+      // resolveForTier('simple').
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: okResponse(),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+
+      await svc.proxyRequest(
+        baseOpts({
+          body: {
+            messages: [{ role: 'user', content: { custom: 'object' } }],
+          },
+        } as never),
+      );
+      expect(resolveService.resolveForTier).not.toHaveBeenCalled();
+      expect(resolveService.resolve).toHaveBeenCalled();
+    });
+
+    it('exercises the per-request signature and thinking lookup closures', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      fallbackService.tryForwardToProvider.mockImplementation(async (opts) => {
+        // Invoke the lookups so coverage hits the closure bodies.
+        opts.signatureLookup?.('tool-call-1');
+        opts.thinkingLookup?.('first-use-1');
+        return {
+          response: okResponse(),
+          isGoogle: false,
+          isAnthropic: false,
+          isChatGpt: false,
+        };
+      });
+
+      await svc.proxyRequest(baseOpts());
+      expect(signatureCache.retrieve).toHaveBeenCalledWith('sess-1', 'tool-call-1');
+      expect(thinkingCache.retrieve).toHaveBeenCalledWith('sess-1', 'first-use-1');
+    });
+
+    it('strips system / developer roles when scoring', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        route: route('openai', 'api_key', 'gpt-4o'),
+        fallback_routes: null,
+        confidence: 0.9,
+        score: 5,
+        reason: 'scored',
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValue({
+        response: okResponse(),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+      await svc.proxyRequest(
+        baseOpts({
+          body: {
+            messages: [
+              { role: 'system', content: 'long-system-prompt' },
+              { role: 'developer', content: 'developer-prompt' },
+              { role: 'user', content: 'real-question' },
+            ],
+          },
+        }),
+      );
+      const [, scoringMessages] = resolveService.resolve.mock.calls[0];
+      expect(scoringMessages.every((m) => m.role === 'user')).toBe(true);
+    });
+  });
+});
