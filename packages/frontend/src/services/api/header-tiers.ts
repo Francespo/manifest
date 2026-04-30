@@ -11,12 +11,8 @@ export interface HeaderTier {
   badge_color: TierColor;
   sort_order: number;
   enabled: boolean;
-  override_model: string | null;
-  override_provider: string | null;
-  override_auth_type: AuthType | null;
-  fallback_models: string[] | null;
-  override_route?: ModelRoute | null;
-  fallback_routes?: ModelRoute[] | null;
+  override_route: ModelRoute | null;
+  fallback_routes: ModelRoute[] | null;
   created_at: string;
   updated_at: string;
 }

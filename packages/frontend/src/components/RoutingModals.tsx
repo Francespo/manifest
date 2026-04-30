@@ -99,35 +99,28 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => (
     <Show when={props.fallbackPickerTier()}>
       {(tierId) => {
         const currentTier = () => props.getTier(tierId());
-        const currentFallbacks = () => currentTier()?.fallback_models ?? [];
         const currentFallbackRoutes = () => currentTier()?.fallback_routes ?? [];
-        const effectiveModel = () => {
-          const t = currentTier();
-          return t ? (t.override_model ?? t.auto_assigned_model) : null;
-        };
         const effectiveRoute = () => {
           const t = currentTier();
           return t ? (t.override_route ?? t.auto_assigned_route ?? null) : null;
         };
         // Filter out the model entry whose (model, provider, authType) matches
-        // the current primary route exactly, plus any entry already in the
-        // fallback list — also keyed on the full tuple when route info is
-        // available. Falls back to model-name-only when routes are missing,
-        // matching the legacy behavior for unmigrated rows.
+        // the current primary route, plus any entry already in the fallback
+        // list. Identity is keyed on the full route tuple — same model name
+        // on different auth types is intentionally NOT filtered (they're
+        // distinct routing slots).
         const isPrimaryEntry = (m: {
           model_name: string;
           provider: string;
           auth_type?: AuthType;
         }) => {
           const route = effectiveRoute();
-          if (route && m.auth_type) {
-            return (
-              m.model_name === route.model &&
-              m.provider.toLowerCase() === route.provider.toLowerCase() &&
-              m.auth_type === route.authType
-            );
-          }
-          return m.model_name === effectiveModel();
+          if (!route || !m.auth_type) return false;
+          return (
+            m.model_name === route.model &&
+            m.provider.toLowerCase() === route.provider.toLowerCase() &&
+            m.auth_type === route.authType
+          );
         };
         const isAlreadyFallback = (m: {
           model_name: string;
@@ -135,15 +128,13 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => (
           auth_type?: AuthType;
         }) => {
           const routes = currentFallbackRoutes();
-          if (routes.length > 0 && m.auth_type) {
-            return routes.some(
-              (r) =>
-                r.model === m.model_name &&
-                r.provider.toLowerCase() === m.provider.toLowerCase() &&
-                r.authType === m.auth_type,
-            );
-          }
-          return currentFallbacks().includes(m.model_name);
+          if (routes.length === 0 || !m.auth_type) return false;
+          return routes.some(
+            (r) =>
+              r.model === m.model_name &&
+              r.provider.toLowerCase() === m.provider.toLowerCase() &&
+              r.authType === m.auth_type,
+          );
         };
         const filteredModels = () =>
           props.models().filter((m) => !isPrimaryEntry(m) && !isAlreadyFallback(m));

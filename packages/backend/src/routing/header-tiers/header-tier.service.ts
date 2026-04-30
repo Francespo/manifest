@@ -85,10 +85,6 @@ export class HeaderTierService {
       badge_color: badgeColor,
       sort_order: nextOrder,
       enabled: true,
-      override_model: null,
-      override_provider: null,
-      override_auth_type: null,
-      fallback_models: null,
       override_route: null,
       fallback_routes: null,
       created_at: now,
@@ -185,9 +181,6 @@ export class HeaderTierService {
     const route =
       explicit ??
       unambiguousRoute(model, await this.discoveryService.getModelsForAgent(row.agent_id));
-    row.override_model = model;
-    row.override_provider = provider ?? route?.provider ?? null;
-    row.override_auth_type = authType ?? route?.authType ?? null;
     row.override_route = route;
     row.updated_at = new Date().toISOString();
     await this.repo.save(row);
@@ -197,10 +190,6 @@ export class HeaderTierService {
 
   async clearOverride(agentId: string, id: string): Promise<void> {
     const row = await this.findOrThrow(agentId, id);
-    row.override_model = null;
-    row.override_provider = null;
-    row.override_auth_type = null;
-    row.fallback_models = null;
     row.override_route = null;
     row.fallback_routes = null;
     row.updated_at = new Date().toISOString();
@@ -213,19 +202,17 @@ export class HeaderTierService {
     id: string,
     models: string[],
     routes?: ModelRoute[],
-  ): Promise<string[]> {
+  ): Promise<ModelRoute[]> {
     const row = await this.findOrThrow(agentId, id);
-    row.fallback_models = models.length > 0 ? models : null;
     row.fallback_routes = await this.buildFallbackRoutes(row.agent_id, models, routes);
     row.updated_at = new Date().toISOString();
     await this.repo.save(row);
     this.routingCache.invalidateAgent(agentId);
-    return models;
+    return row.fallback_routes ?? [];
   }
 
   async clearFallbacks(agentId: string, id: string): Promise<void> {
     const row = await this.findOrThrow(agentId, id);
-    row.fallback_models = null;
     row.fallback_routes = null;
     row.updated_at = new Date().toISOString();
     await this.repo.save(row);

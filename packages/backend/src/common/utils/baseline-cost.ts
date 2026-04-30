@@ -1,5 +1,6 @@
 import type { UserProvider } from '../../entities/user-provider.entity';
 import type { DiscoveredModel } from '../../model-discovery/model-fetcher';
+import type { ModelRoute } from 'manifest-shared';
 
 export interface BaselineCostResult {
   modelId: string;
@@ -24,9 +25,9 @@ export interface CapabilityLookup {
 
 /** Minimal shape shared by TierAssignment, SpecificityAssignment, HeaderTier. */
 export interface RoutingSlot {
-  override_model: string | null;
-  auto_assigned_model?: string | null;
-  fallback_models: string[] | null;
+  override_route: ModelRoute | null;
+  auto_assigned_route?: ModelRoute | null;
+  fallback_routes: ModelRoute[] | null;
 }
 
 /**
@@ -37,11 +38,11 @@ export interface RoutingSlot {
 export function collectRoutedModelIds(slots: RoutingSlot[]): string[] {
   const ids = new Set<string>();
   for (const slot of slots) {
-    const primary = slot.override_model ?? slot.auto_assigned_model ?? null;
+    const primary = slot.override_route?.model ?? slot.auto_assigned_route?.model ?? null;
     if (primary) ids.add(primary);
-    if (slot.fallback_models) {
-      for (const fb of slot.fallback_models) {
-        if (fb) ids.add(fb);
+    if (slot.fallback_routes) {
+      for (const fb of slot.fallback_routes) {
+        if (fb.model) ids.add(fb.model);
       }
     }
   }

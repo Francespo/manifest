@@ -124,28 +124,28 @@ export class ProxyService {
       specificityOverride,
       headers,
     );
-    if (!resolved.model || !resolved.provider) {
+    if (!resolved.route) {
       this.logger.warn(
-        `No model available for agent=${agentId}: ` +
-          `tier=${resolved.tier} model=${resolved.model} provider=${resolved.provider} ` +
-          `confidence=${resolved.confidence} reason=${resolved.reason}`,
+        `No route available for agent=${agentId}: ` +
+          `tier=${resolved.tier} confidence=${resolved.confidence} reason=${resolved.reason}`,
       );
       return this.buildNoProviderResult(body.stream === true, agentName);
     }
 
+    const route = resolved.route;
     const credentials = await this.resolveCredentials(agentId, userId, {
-      provider: resolved.provider,
-      auth_type: resolved.auth_type,
+      provider: route.provider,
+      auth_type: route.authType,
     });
     if (credentials === null) {
       const dashboardUrl = getDashboardUrl(this.config, agentName, 'routing');
-      const content = formatManifestError('M100', { provider: resolved.provider, dashboardUrl });
+      const content = formatManifestError('M100', { provider: route.provider, dashboardUrl });
       return buildFriendlyResponse(content, body.stream === true, 'no_provider_key');
     }
 
-    const primaryModel = normalizeProviderModel(resolved.provider, resolved.model);
+    const primaryModel = normalizeProviderModel(route.provider, route.model);
     this.logger.log(
-      `Proxy: tier=${resolved.tier} model=${primaryModel} provider=${resolved.provider} auth_type=${resolved.auth_type} confidence=${resolved.confidence}`,
+      `Proxy: tier=${resolved.tier} model=${primaryModel} provider=${route.provider} auth_type=${route.authType} confidence=${resolved.confidence}`,
     );
 
     const stream = body.stream === true;
@@ -155,7 +155,7 @@ export class ProxyService {
       this.thinkingCache.retrieve(sessionKey, firstToolUseId);
 
     const forward = await this.fallbackService.tryForwardToProvider({
-      provider: resolved.provider,
+      provider: route.provider,
       apiKey: credentials.apiKey,
       model: primaryModel,
       body,
@@ -163,7 +163,7 @@ export class ProxyService {
       stream,
       sessionKey,
       signal,
-      authType: resolved.auth_type,
+      authType: route.authType,
       apiMode,
       resourceUrl: credentials.resourceUrl,
       providerRegion: credentials.providerRegion,
@@ -212,7 +212,7 @@ export class ProxyService {
       }
 
       this.logger.warn(
-        `Stream warmup failed: provider=${resolved.provider} model=${primaryModel} reason=${warmup.reason} message=${warmup.message}`,
+        `Stream warmup failed: provider=${route.provider} model=${primaryModel} reason=${warmup.reason} message=${warmup.message}`,
       );
 
       const syntheticForward: ForwardResult = {
@@ -359,23 +359,22 @@ export class ProxyService {
       signal,
       apiMode,
     } = args;
-    const tiers = await this.tierService.getTiers(agentId);
-    const assignment = tiers.find((t) => t.tier === resolved.tier);
-    // Pair fallback_models and fallback_routes from the same source — mixing
-    // resolved.fallback_models with assignment.fallback_routes (or vice versa)
-    // would desynchronize positions and could route a fallback model to the
-    // credentials of a different fallback in the wrong list.
-    const useResolvedFallbacks = resolved.fallback_models != null;
-    const fallbackModels = useResolvedFallbacks
-      ? resolved.fallback_models
-      : assignment?.fallback_models;
-    if (!fallbackModels || fallbackModels.length === 0) return null;
-    const fallbackRoutes = useResolvedFallbacks
-      ? (resolved.fallback_routes ?? null)
-      : (assignment?.fallback_routes ?? null);
+    // Prefer the resolver's fallback_routes (which already contains the right
+    // tier's routes); fall back to a fresh tier lookup if the resolver returned
+    // null (e.g. the tier itself was missing).
+    let fallbackRoutes = resolved.fallback_routes ?? null;
+    if (!fallbackRoutes) {
+      const tiers = await this.tierService.getTiers(agentId);
+      const assignment = tiers.find((t) => t.tier === resolved.tier);
+      fallbackRoutes = assignment?.fallback_routes ?? null;
+    }
+    if (!fallbackRoutes || fallbackRoutes.length === 0) return null;
+    const fallbackModels = fallbackRoutes.map((r) => r.model);
 
     const primaryStatus = forward.response.status;
     const primaryErrorBody = await forward.response.text();
+    const primaryProvider = resolved.route?.provider;
+    const primaryAuth = resolved.route?.authType;
     const { success, failures } = await this.fallbackService.tryFallbacks(
       agentId,
       userId,
@@ -385,8 +384,8 @@ export class ProxyService {
       sessionKey,
       primaryModel,
       signal,
-      resolved.provider ?? undefined,
-      resolved.auth_type,
+      primaryProvider,
+      primaryAuth,
       args.signatureLookup,
       args.thinkingLookup,
       apiMode,
@@ -406,7 +405,7 @@ export class ProxyService {
           fallbackIndex: success.fallbackIndex,
           primaryErrorStatus: primaryStatus,
           primaryErrorBody,
-          primaryProvider: resolved.provider ?? undefined,
+          primaryProvider,
         }),
         failedFallbacks: failures,
       };
@@ -434,27 +433,17 @@ export class ProxyService {
   }
 
   private buildBaseMeta(
-    resolved: {
-      tier: string;
-      confidence: number;
-      reason: string;
-      auth_type?: string;
-      specificity_category?: string;
-      header_tier_id?: string;
-      header_tier_name?: string;
-      header_tier_color?: string;
-      provider?: string | null;
-    },
+    resolved: ResolvedRouting,
     model: string,
     overrides: Partial<RoutingMeta> = {},
   ): RoutingMeta {
     return {
-      tier: resolved.tier as TierSlot,
+      tier: resolved.tier,
       model,
-      provider: overrides.provider ?? resolved.provider ?? '',
+      provider: overrides.provider ?? resolved.route?.provider ?? '',
       confidence: resolved.confidence,
       reason: resolved.reason,
-      auth_type: resolved.auth_type,
+      auth_type: resolved.route?.authType,
       specificity_category: resolved.specificity_category,
       header_tier_id: resolved.header_tier_id,
       header_tier_name: resolved.header_tier_name,

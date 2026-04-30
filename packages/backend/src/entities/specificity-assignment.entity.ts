@@ -20,22 +20,6 @@ export class SpecificityAssignment {
   @Column('boolean', { default: false })
   is_active!: boolean;
 
-  @Column('varchar', { nullable: true })
-  override_model!: string | null;
-
-  @Column('varchar', { nullable: true })
-  override_provider!: string | null;
-
-  @Column('varchar', { nullable: true })
-  override_auth_type!: 'api_key' | 'subscription' | 'local' | null;
-
-  @Column('varchar', { nullable: true })
-  auto_assigned_model!: string | null;
-
-  @Column('simple-json', { nullable: true })
-  fallback_models!: string[] | null;
-
-  // Dual-write route columns. See TierAssignment for the rollout plan.
   @Column('jsonb', { nullable: true })
   override_route!: ModelRoute | null;
 

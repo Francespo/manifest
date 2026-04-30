@@ -31,7 +31,7 @@ export function createRoutingActions(input: RoutingActionsInput) {
   const getFallbacksFor = (tierId: string): string[] => {
     const overrides = fallbackOverrides();
     if (tierId in overrides) return overrides[tierId]!;
-    return getTier(tierId)?.fallback_models ?? [];
+    return getTier(tierId)?.fallback_routes?.map((r) => r.model) ?? [];
   };
 
   const handleOverride = async (
@@ -65,10 +65,8 @@ export function createRoutingActions(input: RoutingActionsInput) {
       input.mutateTiers((prev) =>
         prev?.map((t) => ({
           ...t,
-          override_model: null,
-          override_provider: null,
-          override_auth_type: null,
-          fallback_models: null,
+          override_route: null,
+          fallback_routes: null,
         })),
       );
       toast.success('All tiers reset to auto');
@@ -84,11 +82,7 @@ export function createRoutingActions(input: RoutingActionsInput) {
     try {
       await resetTier(input.agentName(), tierId);
       input.mutateTiers((prev) =>
-        prev?.map((t) =>
-          t.tier === tierId
-            ? { ...t, override_model: null, override_provider: null, override_auth_type: null }
-            : t,
-        ),
+        prev?.map((t) => (t.tier === tierId ? { ...t, override_route: null } : t)),
       );
       toast.success('Tier reset to auto');
     } catch {
@@ -105,15 +99,16 @@ export function createRoutingActions(input: RoutingActionsInput) {
     _authType?: AuthType,
   ) => {
     const tier = getTier(tierId);
-    const current = tier?.fallback_models ?? [];
+    const currentRoutes = tier?.fallback_routes ?? [];
+    const current = currentRoutes.map((r) => r.model);
     if (current.includes(modelName)) return;
     const updated = [...current, modelName];
     setFallbackOverrides((prev) => ({ ...prev, [tierId]: updated }));
     setAddingFallback(tierId);
     try {
-      await setFallbacks(input.agentName(), tierId, updated);
+      const persistedRoutes = await setFallbacks(input.agentName(), tierId, updated);
       input.mutateTiers((prev) =>
-        prev?.map((t) => (t.tier === tierId ? { ...t, fallback_models: updated } : t)),
+        prev?.map((t) => (t.tier === tierId ? { ...t, fallback_routes: persistedRoutes } : t)),
       );
       toast.success('Fallback added');
     } catch {
@@ -142,18 +137,12 @@ export function createRoutingActions(input: RoutingActionsInput) {
       delete next[tierId];
       return next;
     });
+    void updatedFallbacks; // names are derived from routes; kept in signature for caller convenience
     input.mutateTiers((prev) =>
       prev?.map((t) =>
         t.tier === tierId
           ? {
               ...t,
-              fallback_models: updatedFallbacks,
-              // Update fallback_routes alongside fallback_models so the UI
-              // doesn't render the new model list against the previous route
-              // metadata (which causes a gray "ghost" row when the routes
-              // describe a different auth than the new model). When the
-              // caller can't supply routes (legacy callers, ambiguous data)
-              // we leave the existing routes alone — a refetch will reconcile.
               ...(updatedRoutes !== undefined ? { fallback_routes: updatedRoutes } : {}),
             }
           : t,
