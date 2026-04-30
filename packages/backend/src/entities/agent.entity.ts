@@ -4,7 +4,7 @@ import { AgentApiKey } from './agent-api-key.entity';
 import { timestampType, timestampDefault } from '../common/utils/postgres-sql';
 
 @Entity('agents')
-@Index(['tenant_id', 'name'])
+@Index(['tenant_id', 'name'], { unique: true, where: '"deleted_at" IS NULL' })
 export class Agent {
   @PrimaryColumn('varchar')
   id!: string;

@@ -47,12 +47,13 @@ describe('AddAgentSoftDelete1782200000000', () => {
   });
 
   describe('down', () => {
-    it('drops the partial index, restores the legacy unique index, and drops the column', async () => {
+    it('drops the partial index, purges soft-deleted rows, restores the unique index, and drops the column', async () => {
       await migration.down(queryRunner as unknown as QueryRunner);
 
       const sqls = queryRunner.query.mock.calls.map((c) => c[0] as string);
       expect(sqls).toEqual([
         expect.stringContaining('DROP INDEX IF EXISTS "UQ_agents_tenant_name_live"'),
+        expect.stringContaining('DELETE FROM "agents" WHERE "deleted_at" IS NOT NULL'),
         expect.stringContaining('CREATE UNIQUE INDEX "IDX_agents_tenant_name"'),
         expect.stringContaining('DROP COLUMN "deleted_at"'),
       ]);
