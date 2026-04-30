@@ -121,8 +121,18 @@ export class MessagesQueryService {
       qb.andWhere('at.cost_usd >= :costMin', { costMin: params.cost_min });
     if (params.cost_max !== undefined)
       qb.andWhere('at.cost_usd <= :costMax', { costMax: params.cost_max });
-    if (params.agent_name)
-      qb.andWhere('at.agent_name = :filterAgent', { filterAgent: params.agent_name });
+    if (params.agent_name) {
+      qb.andWhere(
+        `at.agent_id = (
+          SELECT id FROM agents
+          WHERE tenant_id = at.tenant_id
+            AND name = :filterAgent
+            AND deleted_at IS NULL
+          LIMIT 1
+        )`,
+        { filterAgent: params.agent_name },
+      );
+    }
 
     if (params.status === 'errors') {
       qb.andWhere('at.status IN (:...errorStatuses)', { errorStatuses: ERROR_STATUSES });

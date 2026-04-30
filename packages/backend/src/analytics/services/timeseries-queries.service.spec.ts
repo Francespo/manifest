@@ -306,11 +306,11 @@ describe('TimeseriesQueriesService', () => {
 
     it('returns agents with sparkline data and display_name', async () => {
       mockGetMany.mockResolvedValueOnce([
-        { name: 'bot-1', display_name: 'Bot One', created_at: '2026-02-16' },
+        { id: 'agent-1', name: 'bot-1', display_name: 'Bot One', created_at: '2026-02-16' },
       ]);
       mockGetRawMany.mockResolvedValueOnce([
         {
-          agent_name: 'bot-1',
+          agent_id: 'agent-1',
           date: '2026-02-15',
           message_count: 4,
           cost: 2.0,
@@ -319,7 +319,7 @@ describe('TimeseriesQueriesService', () => {
           last_active: recentIso,
         },
         {
-          agent_name: 'bot-1',
+          agent_id: 'agent-1',
           date: '2026-02-16',
           message_count: 6,
           cost: 3.0,
@@ -341,11 +341,11 @@ describe('TimeseriesQueriesService', () => {
 
     it('falls back to agent_name when display_name is null', async () => {
       mockGetMany.mockResolvedValueOnce([
-        { name: 'bot-1', display_name: null, created_at: '2026-02-16' },
+        { id: 'agent-1', name: 'bot-1', display_name: null, created_at: '2026-02-16' },
       ]);
       mockGetRawMany.mockResolvedValueOnce([
         {
-          agent_name: 'bot-1',
+          agent_id: 'agent-1',
           date: '2026-02-16',
           message_count: 10,
           cost: 5.0,
@@ -361,11 +361,11 @@ describe('TimeseriesQueriesService', () => {
 
     it('returns empty sparkline for agent with no spark data', async () => {
       mockGetMany.mockResolvedValueOnce([
-        { name: 'lonely-bot', display_name: null, created_at: '2026-02-16' },
+        { id: 'agent-2', name: 'lonely-bot', display_name: null, created_at: '2026-02-16' },
       ]);
       mockGetRawMany.mockResolvedValueOnce([
         {
-          agent_name: 'lonely-bot',
+          agent_id: 'agent-2',
           date: '2026-02-01',
           message_count: 1,
           cost: 0,
@@ -381,7 +381,7 @@ describe('TimeseriesQueriesService', () => {
 
     it('returns agent with zero stats when no telemetry exists', async () => {
       mockGetMany.mockResolvedValueOnce([
-        { name: 'new-bot', display_name: null, created_at: '2026-02-16' },
+        { id: 'agent-3', name: 'new-bot', display_name: null, created_at: '2026-02-16' },
       ]);
       mockGetRawMany.mockResolvedValueOnce([]);
 
