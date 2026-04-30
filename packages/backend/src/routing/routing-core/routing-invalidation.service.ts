@@ -56,7 +56,13 @@ export class RoutingInvalidationService {
     for (const tier of fallbackTiers) {
       const hasLegacyFallbacks = tier.fallback_models && tier.fallback_models.length > 0;
       const hasRouteFallbacks = tier.fallback_routes && tier.fallback_routes.length > 0;
-      if (!hasLegacyFallbacks && !hasRouteFallbacks) continue;
+      const hasStaleOverrideRoute =
+        !!tier.override_route && removedSet.has(tier.override_route.model);
+      // We need to scan a tier when it carries any fallback list OR when its
+      // route override references a removed model — in older rows the legacy
+      // override_model can be null while override_route is set, so the
+      // override-only pass above misses them.
+      if (!hasLegacyFallbacks && !hasRouteFallbacks && !hasStaleOverrideRoute) continue;
       let mutated = false;
       if (tier.fallback_models && tier.fallback_models.length > 0) {
         const filtered = tier.fallback_models.filter((m) => !removedSet.has(m));

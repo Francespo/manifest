@@ -196,8 +196,12 @@ export class HeaderTierService {
     authType?: AuthType,
   ): Promise<HeaderTier> {
     const row = await this.findOrThrow(agentId, id);
-    const available = await this.discoveryService.getModelsForAgent(row.agent_id);
-    const route = explicitRoute(model, provider, authType) ?? unambiguousRoute(model, available);
+    // When the caller passes an explicit (provider, authType) the route is
+    // already unambiguous — skip the discovery fetch.
+    const explicit = explicitRoute(model, provider, authType);
+    const route =
+      explicit ??
+      unambiguousRoute(model, await this.discoveryService.getModelsForAgent(row.agent_id));
     row.override_model = model;
     row.override_provider = provider ?? route?.provider ?? null;
     row.override_auth_type = authType ?? route?.authType ?? null;
@@ -251,11 +255,21 @@ export class HeaderTierService {
     routes?: ModelRoute[],
   ): Promise<ModelRoute[] | null> {
     if (models.length === 0) return null;
+    const available = await this.discoveryService.getModelsForAgent(agentId);
     if (routes && routes.length === models.length) {
       const aligned = routes.every((r, i) => r.model === models[i]);
-      if (aligned) return routes;
+      const validated =
+        aligned &&
+        routes.every((r) =>
+          available.some(
+            (m) =>
+              m.id === r.model &&
+              m.provider.toLowerCase() === r.provider.toLowerCase() &&
+              m.authType === r.authType,
+          ),
+        );
+      if (validated) return routes;
     }
-    const available = await this.discoveryService.getModelsForAgent(agentId);
     const resolved: ModelRoute[] = [];
     for (const m of models) {
       const route = unambiguousRoute(m, available);

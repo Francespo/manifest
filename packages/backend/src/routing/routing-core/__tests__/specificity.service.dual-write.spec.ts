@@ -256,18 +256,22 @@ describe('SpecificityService — dual-write invariants', () => {
       expect(existing.fallback_routes).toBeNull();
     });
 
-    it('persists caller-supplied routes verbatim when aligned with the models', async () => {
+    it('persists caller-supplied routes verbatim when aligned and validated against discovery', async () => {
       const existing = makeAssignment();
       repo.findOne.mockResolvedValue(existing);
       const routes = [
         { provider: 'openai', authType: 'subscription' as const, model: 'gpt-4o' },
         { provider: 'anthropic', authType: 'api_key' as const, model: 'claude-3-haiku' },
       ];
+      discoveryService.getModelsForAgent.mockResolvedValue([
+        makeDiscoveredModel({ id: 'gpt-4o', provider: 'openai', authType: 'subscription' }),
+        makeDiscoveredModel({ id: 'claude-3-haiku', provider: 'anthropic', authType: 'api_key' }),
+      ]);
 
       await service.setFallbacks('agent-1', 'coding', ['gpt-4o', 'claude-3-haiku'], routes);
 
       expect(existing.fallback_routes).toBe(routes);
-      expect(discoveryService.getModelsForAgent).not.toHaveBeenCalled();
+      expect(discoveryService.getModelsForAgent).toHaveBeenCalled();
     });
 
     it('falls back to discovery when caller routes are misaligned', async () => {

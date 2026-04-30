@@ -98,8 +98,10 @@ export class SpecificityService {
     provider?: string,
     authType?: AuthType,
   ): Promise<SpecificityAssignment> {
-    const available = await this.discoveryService.getModelsForAgent(agentId);
-    const route = explicitRoute(model, provider, authType) ?? unambiguousRoute(model, available);
+    // Skip discovery fetch when the caller already provided the unambiguous triple.
+    const explicit = explicitRoute(model, provider, authType);
+    const route =
+      explicit ?? unambiguousRoute(model, await this.discoveryService.getModelsForAgent(agentId));
     const existing = await this.repo.findOne({ where: { agent_id: agentId, category } });
 
     if (existing) {
@@ -204,11 +206,21 @@ export class SpecificityService {
     routes?: ModelRoute[],
   ): Promise<ModelRoute[] | null> {
     if (models.length === 0) return null;
+    const available = await this.discoveryService.getModelsForAgent(agentId);
     if (routes && routes.length === models.length) {
       const aligned = routes.every((r, i) => r.model === models[i]);
-      if (aligned) return routes;
+      const validated =
+        aligned &&
+        routes.every((r) =>
+          available.some(
+            (m) =>
+              m.id === r.model &&
+              m.provider.toLowerCase() === r.provider.toLowerCase() &&
+              m.authType === r.authType,
+          ),
+        );
+      if (validated) return routes;
     }
-    const available = await this.discoveryService.getModelsForAgent(agentId);
     const resolved: ModelRoute[] = [];
     for (const m of models) {
       const route = unambiguousRoute(m, available);

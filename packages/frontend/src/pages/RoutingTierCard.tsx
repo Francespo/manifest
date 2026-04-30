@@ -402,6 +402,9 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
               customProviders={props.customProviders()}
               connectedProviders={props.activeProviders()}
               onUpdate={(updatedFallbacks) =>
+                // Routes intentionally not threaded through the parent's
+                // optimistic state — the next tier-list refetch picks them up
+                // from the server and re-renders with the persisted routes.
                 props.onFallbackUpdate(props.stage.id, updatedFallbacks)
               }
               onAddFallback={() => props.onAddFallback(props.stage.id)}

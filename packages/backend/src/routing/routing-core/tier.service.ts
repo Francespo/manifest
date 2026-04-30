@@ -291,11 +291,26 @@ export class TierService {
     routes?: ModelRoute[],
   ): Promise<ModelRoute[] | null> {
     if (models.length === 0) return null;
+    const available = await this.discoveryService.getModelsForAgent(agentId);
     if (routes && routes.length === models.length) {
       const aligned = routes.every((r, i) => r.model === models[i]);
-      if (aligned) return routes;
+      // Cross-check each caller-provided route against the discovered model
+      // list — a (provider, authType, model) tuple is only safe to persist
+      // if it actually corresponds to a connected provider that offers the
+      // model. Without this, a malformed payload could write a route that
+      // would later route to non-existent credentials.
+      const validated =
+        aligned &&
+        routes.every((r) =>
+          available.some(
+            (m) =>
+              m.id === r.model &&
+              m.provider.toLowerCase() === r.provider.toLowerCase() &&
+              m.authType === r.authType,
+          ),
+        );
+      if (validated) return routes;
     }
-    const available = await this.discoveryService.getModelsForAgent(agentId);
     const resolved: ModelRoute[] = [];
     for (const m of models) {
       const route = unambiguousRoute(m, available);

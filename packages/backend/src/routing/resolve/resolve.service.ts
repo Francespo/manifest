@@ -121,8 +121,11 @@ export class ResolveService {
     }
 
     const provider = await this.resolveProvider(agentId, assignment, model);
+    // override_auth_type only applies when the resolved model is the override
+    // model itself; otherwise the auto-assigned model could inherit the
+    // override's auth and route to wrong credentials.
     const authType = provider
-      ? (assignment.override_auth_type ??
+      ? ((assignment.override_model === model ? assignment.override_auth_type : null) ??
         (await this.providerKeyService.getAuthType(agentId, provider)))
       : undefined;
 
@@ -154,7 +157,7 @@ export class ResolveService {
     const model = await this.providerKeyService.getEffectiveModel(agentId, assignment);
     const provider = model ? await this.resolveProvider(agentId, assignment, model) : null;
     const authType = provider
-      ? (assignment.override_auth_type ??
+      ? ((assignment.override_model === model ? assignment.override_auth_type : null) ??
         (await this.providerKeyService.getAuthType(agentId, provider)))
       : undefined;
 
@@ -277,7 +280,7 @@ export class ResolveService {
       model,
     );
     const authType = provider
-      ? (assignment.override_auth_type ??
+      ? ((assignment.override_model === model ? assignment.override_auth_type : null) ??
         (await this.providerKeyService.getAuthType(agentId, provider)))
       : undefined;
 

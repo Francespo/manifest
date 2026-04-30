@@ -362,12 +362,18 @@ export class ProxyService {
     } = args;
     const tiers = await this.tierService.getTiers(agentId);
     const assignment = tiers.find((t) => t.tier === resolved.tier);
-    const fallbackModels = resolved.fallback_models ?? assignment?.fallback_models;
+    // Pair fallback_models and fallback_routes from the same source — mixing
+    // resolved.fallback_models with assignment.fallback_routes (or vice versa)
+    // would desynchronize positions and could route a fallback model to the
+    // credentials of a different fallback in the wrong list.
+    const useResolvedFallbacks = resolved.fallback_models != null;
+    const fallbackModels = useResolvedFallbacks
+      ? resolved.fallback_models
+      : assignment?.fallback_models;
     if (!fallbackModels || fallbackModels.length === 0) return null;
-    // Prefer per-route fallback identity when the resolver populated it.
-    // The proxy-fallback service falls back to inference when this is null,
-    // so existing rows without backfilled routes keep working.
-    const fallbackRoutes = resolved.fallback_routes ?? assignment?.fallback_routes ?? null;
+    const fallbackRoutes = useResolvedFallbacks
+      ? (resolved.fallback_routes ?? null)
+      : (assignment?.fallback_routes ?? null);
 
     const primaryStatus = forward.response.status;
     const primaryErrorBody = await forward.response.text();

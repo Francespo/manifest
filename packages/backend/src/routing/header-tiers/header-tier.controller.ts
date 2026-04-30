@@ -9,7 +9,15 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { IsArray, IsOptional, IsString, ValidateNested, ArrayMaxSize } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { CurrentUser } from '../../auth/current-user.decorator';
 import type { AuthUser } from '../../auth/auth.instance';
@@ -17,7 +25,7 @@ import { TenantCacheService } from '../../common/services/tenant-cache.service';
 import { ResolveAgentService } from '../routing-core/resolve-agent.service';
 import { ModelRouteDto } from '../dto/routing.dto';
 import { HeaderTierService } from './header-tier.service';
-import type { ModelRoute, TierColor } from 'manifest-shared';
+import { AUTH_TYPES, type TierColor } from 'manifest-shared';
 
 interface CreateHeaderTierBody {
   name: string;
@@ -37,11 +45,26 @@ interface ReorderBody {
   ids: string[];
 }
 
-interface OverrideBody {
-  model: string;
+class OverrideBody {
+  @IsString()
+  @IsNotEmpty()
+  model!: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
   provider?: string;
+
+  @IsOptional()
+  @IsIn(AUTH_TYPES)
   authType?: 'api_key' | 'subscription' | 'local';
-  route?: ModelRoute;
+
+  // Validate the nested route shape so a malformed payload can't bypass the
+  // legacy field validators above by being smuggled in through `route`.
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ModelRouteDto)
+  route?: ModelRouteDto;
 }
 
 class FallbacksBody {

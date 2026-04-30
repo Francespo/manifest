@@ -209,7 +209,7 @@ describe('HeaderTierService — dual-write invariants', () => {
       expect(existing.fallback_routes).toBeNull();
     });
 
-    it('persists caller-supplied routes verbatim when aligned with the model list', async () => {
+    it('persists caller-supplied routes verbatim when aligned and validated against discovery', async () => {
       const { svc, repo, discovery } = makeService();
       const existing = makeRow();
       repo.findOne.mockResolvedValue(existing);
@@ -217,11 +217,15 @@ describe('HeaderTierService — dual-write invariants', () => {
         { provider: 'openai', authType: 'subscription' as const, model: 'gpt-4o' },
         { provider: 'anthropic', authType: 'api_key' as const, model: 'claude-3-haiku' },
       ];
+      discovery.getModelsForAgent.mockResolvedValue([
+        makeDiscoveredModel({ id: 'gpt-4o', provider: 'openai', authType: 'subscription' }),
+        makeDiscoveredModel({ id: 'claude-3-haiku', provider: 'anthropic', authType: 'api_key' }),
+      ]);
 
       await svc.setFallbacks('a1', 'h1', ['gpt-4o', 'claude-3-haiku'], routes);
 
       expect(existing.fallback_routes).toBe(routes);
-      expect(discovery.getModelsForAgent).not.toHaveBeenCalled();
+      expect(discovery.getModelsForAgent).toHaveBeenCalled();
     });
 
     it('falls back to discovery when caller routes are misaligned', async () => {

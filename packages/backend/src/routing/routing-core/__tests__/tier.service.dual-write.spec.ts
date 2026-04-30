@@ -372,19 +372,24 @@ describe('TierService — dual-write invariants', () => {
   });
 
   describe('setFallbacks — caller-supplied routes', () => {
-    it('persists caller routes when they align 1:1 with the models', async () => {
+    it('persists caller routes when they align 1:1 with the models and validate against discovery', async () => {
       const existing = makeTier();
       tierRepo.findOne.mockResolvedValue(existing);
       const routes = [
         { provider: 'openai', authType: 'subscription' as const, model: 'gpt-4o' },
         { provider: 'anthropic', authType: 'api_key' as const, model: 'claude-3-haiku' },
       ];
+      // Caller routes are still cross-checked against discovery so a malformed
+      // payload can't smuggle a fake (provider, authType, model) tuple onto disk.
+      discoveryService.getModelsForAgent.mockResolvedValue([
+        makeDiscoveredModel({ id: 'gpt-4o', provider: 'openai', authType: 'subscription' }),
+        makeDiscoveredModel({ id: 'claude-3-haiku', provider: 'anthropic', authType: 'api_key' }),
+      ]);
 
       await service.setFallbacks('agent-1', 'simple', ['gpt-4o', 'claude-3-haiku'], routes);
 
       expect(existing.fallback_routes).toBe(routes);
-      // Discovery must not be consulted on this branch — caller's intent wins.
-      expect(discoveryService.getModelsForAgent).not.toHaveBeenCalled();
+      expect(discoveryService.getModelsForAgent).toHaveBeenCalled();
     });
 
     it('falls back to discovery when caller routes are misaligned with models', async () => {
