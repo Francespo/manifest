@@ -1,7 +1,7 @@
-import type { AuthType } from 'manifest-shared';
+import type { AuthType, ModelRoute } from 'manifest-shared';
 import { BASE_URL, fetchJson, fetchMutate, parseErrorMessage, routingPath } from './core.js';
 
-export type { AuthType };
+export type { AuthType, ModelRoute };
 
 export interface RoutingProvider {
   id: string;
@@ -116,6 +116,12 @@ export interface TierAssignment {
   override_auth_type: AuthType | null;
   auto_assigned_model: string | null;
   fallback_models: string[] | null;
+  // Optional structured route fields. Backend populates these alongside the
+  // legacy fields above. UI components prefer routes when present and fall
+  // back to legacy otherwise.
+  override_route?: ModelRoute | null;
+  auto_assigned_route?: ModelRoute | null;
+  fallback_routes?: ModelRoute[] | null;
   updated_at: string;
 }
 
@@ -130,10 +136,19 @@ export function overrideTier(
   provider: string,
   authType?: AuthType,
 ) {
+  // Send both the flat fields (for older backends) and the structured route
+  // (for newer backends). The backend resolves either form. When all three
+  // pieces are present the route is unambiguous and gets persisted into
+  // override_route on disk.
+  const body: Record<string, unknown> = { model, provider };
+  if (authType) {
+    body.authType = authType;
+    body.route = { provider, authType, model };
+  }
   return fetchMutate<TierAssignment>(routingPath(agentName, `tiers/${encodeURIComponent(tier)}`), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, provider, ...(authType && { authType }) }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -153,13 +168,20 @@ export function getFallbacks(agentName: string, tier: string) {
   return fetchJson<string[]>(routingPath(agentName, `tiers/${encodeURIComponent(tier)}/fallbacks`));
 }
 
-export function setFallbacks(agentName: string, tier: string, models: string[]) {
+export function setFallbacks(
+  agentName: string,
+  tier: string,
+  models: string[],
+  routes?: ModelRoute[],
+) {
+  const body: Record<string, unknown> = { models };
+  if (routes && routes.length === models.length) body.routes = routes;
   return fetchMutate<string[]>(
     routingPath(agentName, `tiers/${encodeURIComponent(tier)}/fallbacks`),
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ models }),
+      body: JSON.stringify(body),
     },
   );
 }

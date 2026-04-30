@@ -397,6 +397,7 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
               agentName={props.agentName()}
               tier={props.stage.id}
               fallbacks={props.getFallbacksFor(props.stage.id)}
+              fallbackRoutes={props.tier()?.fallback_routes ?? null}
               models={props.models()}
               customProviders={props.customProviders()}
               connectedProviders={props.activeProviders()}

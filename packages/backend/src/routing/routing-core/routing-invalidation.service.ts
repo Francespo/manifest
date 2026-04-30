@@ -40,6 +40,7 @@ export class RoutingInvalidationService {
       tier.override_model = null;
       tier.override_provider = null;
       tier.override_auth_type = null;
+      tier.override_route = null;
       tier.updated_at = new Date().toISOString();
       tiersToSave.push(tier);
       agentIds.add(tier.agent_id);
@@ -53,10 +54,33 @@ export class RoutingInvalidationService {
         : await this.tierRepo.find();
     const savedIds = new Set(tiersToSave.map((t) => t.id));
     for (const tier of fallbackTiers) {
-      if (!tier.fallback_models || tier.fallback_models.length === 0) continue;
-      const filtered = tier.fallback_models.filter((m) => !removedSet.has(m));
-      if (filtered.length !== tier.fallback_models.length) {
-        tier.fallback_models = filtered.length > 0 ? filtered : null;
+      const hasLegacyFallbacks = tier.fallback_models && tier.fallback_models.length > 0;
+      const hasRouteFallbacks = tier.fallback_routes && tier.fallback_routes.length > 0;
+      if (!hasLegacyFallbacks && !hasRouteFallbacks) continue;
+      let mutated = false;
+      if (tier.fallback_models && tier.fallback_models.length > 0) {
+        const filtered = tier.fallback_models.filter((m) => !removedSet.has(m));
+        if (filtered.length !== tier.fallback_models.length) {
+          tier.fallback_models = filtered.length > 0 ? filtered : null;
+          mutated = true;
+        }
+      }
+      if (tier.fallback_routes && tier.fallback_routes.length > 0) {
+        const filteredRoutes = tier.fallback_routes.filter((r) => !removedSet.has(r.model));
+        if (filteredRoutes.length !== tier.fallback_routes.length) {
+          tier.fallback_routes = filteredRoutes.length > 0 ? filteredRoutes : null;
+          mutated = true;
+        }
+      }
+      // If the override on the same tier was just cleared above, override_route
+      // is already null. Also drop override_route here when its model name is
+      // in removedSet — covers rows where the legacy override columns happened
+      // to be null but override_route was populated by a later mutation.
+      if (tier.override_route && removedSet.has(tier.override_route.model)) {
+        tier.override_route = null;
+        mutated = true;
+      }
+      if (mutated) {
         tier.updated_at = new Date().toISOString();
         if (!savedIds.has(tier.id)) tiersToSave.push(tier);
         agentIds.add(tier.agent_id);

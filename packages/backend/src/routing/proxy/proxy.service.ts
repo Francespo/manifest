@@ -364,6 +364,10 @@ export class ProxyService {
     const assignment = tiers.find((t) => t.tier === resolved.tier);
     const fallbackModels = resolved.fallback_models ?? assignment?.fallback_models;
     if (!fallbackModels || fallbackModels.length === 0) return null;
+    // Prefer per-route fallback identity when the resolver populated it.
+    // The proxy-fallback service falls back to inference when this is null,
+    // so existing rows without backfilled routes keep working.
+    const fallbackRoutes = resolved.fallback_routes ?? assignment?.fallback_routes ?? null;
 
     const primaryStatus = forward.response.status;
     const primaryErrorBody = await forward.response.text();
@@ -382,6 +386,7 @@ export class ProxyService {
       args.thinkingLookup,
       apiMode,
       chatBody,
+      fallbackRoutes,
     );
 
     this.recordTierIfScoring(sessionKey, resolved.tier);

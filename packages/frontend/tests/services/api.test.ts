@@ -735,10 +735,12 @@ describe('overrideTier', () => {
     expect(url).toContain('/routing/my-agent/tiers/tier%201');
   });
 
-  it('includes authType in body when provided', async () => {
+  it('includes authType + structured route in body when authType is provided', async () => {
     mockMutateOk({});
 
     await overrideTier('my-agent', 'simple', 'claude-sonnet-4', 'anthropic', 'subscription');
+    // Dual-write: legacy fields PLUS the structured route. Older backends
+    // pick up authType, newer backends prefer the unambiguous route tuple.
     expect(mockFetch).toHaveBeenCalledWith(
       '/api/v1/routing/my-agent/tiers/simple',
       expect.objectContaining({
@@ -747,6 +749,11 @@ describe('overrideTier', () => {
           model: 'claude-sonnet-4',
           provider: 'anthropic',
           authType: 'subscription',
+          route: {
+            provider: 'anthropic',
+            authType: 'subscription',
+            model: 'claude-sonnet-4',
+          },
         }),
       }),
     );

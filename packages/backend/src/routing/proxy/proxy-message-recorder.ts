@@ -262,6 +262,12 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
           ? 'rate_limited'
           : 'error';
       const canonical = canonicalFailures[i];
+      // Prefer the per-failure auth_type when the proxy was able to record
+      // it (fallback came from a structured ModelRoute, or the legacy
+      // inference path tried a different credential than the primary).
+      // Falling back to the primary auth keeps behavior identical for rows
+      // that haven't been backfilled with routes.
+      const recordedAuth = f.authType ?? authType ?? null;
       rows.push(
         buildMessageRow(ctx, {
           trace_id: traceId ?? null,
@@ -275,7 +281,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
           routing_reason: reason ?? null,
           fallback_from_model: canonicalPrimary.model,
           fallback_index: f.fallbackIndex,
-          auth_type: authType ?? null,
+          auth_type: recordedAuth,
           caller_attribution: callerAttribution ?? null,
           request_headers: requestHeaders ?? null,
           header_tier_id: headerTierId ?? null,

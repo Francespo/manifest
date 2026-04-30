@@ -301,6 +301,9 @@ export class ProviderService {
         override_provider: null,
         override_auth_type: null,
         fallback_models: null,
+        override_route: null,
+        auto_assigned_route: null,
+        fallback_routes: null,
         updated_at: new Date().toISOString(),
       },
     );
@@ -379,6 +382,11 @@ export class ProviderService {
     };
 
     const invalidated: { tier: string; modelName: string }[] = [];
+    const routeBelongs = (route: { provider: string; model: string } | null): boolean => {
+      if (!route) return false;
+      if (providerNames.has(route.provider.toLowerCase())) return true;
+      return modelBelongs(route.model);
+    };
 
     const tierOverrides = await this.tierRepo.find({
       where: { agent_id: agentId, override_model: Not(IsNull()) },
@@ -388,12 +396,14 @@ export class ProviderService {
       const overrideProvider = tier.override_provider?.toLowerCase();
       if (
         (overrideProvider && providerNames.has(overrideProvider)) ||
+        routeBelongs(tier.override_route) ||
         modelBelongs(tier.override_model!)
       ) {
         invalidated.push({ tier: tier.tier, modelName: tier.override_model! });
         tier.override_model = null;
         tier.override_provider = null;
         tier.override_auth_type = null;
+        tier.override_route = null;
         tier.updated_at = new Date().toISOString();
         tiersToSave.push(tier);
       }
@@ -403,10 +413,28 @@ export class ProviderService {
     const hadTierAssignments = allTiers.length > 0;
     const savedTierIds = new Set(tiersToSave.map((tier) => tier.id));
     for (const tier of allTiers) {
-      if (!tier.fallback_models || tier.fallback_models.length === 0) continue;
-      const filtered = tier.fallback_models.filter((model) => !modelBelongs(model));
-      if (filtered.length !== tier.fallback_models.length) {
-        tier.fallback_models = filtered.length > 0 ? filtered : null;
+      let mutated = false;
+      // Catch override_route on rows where override_model was already null
+      // but the route was populated by a later mutation.
+      if (tier.override_route && routeBelongs(tier.override_route)) {
+        tier.override_route = null;
+        mutated = true;
+      }
+      if (tier.fallback_models && tier.fallback_models.length > 0) {
+        const filtered = tier.fallback_models.filter((model) => !modelBelongs(model));
+        if (filtered.length !== tier.fallback_models.length) {
+          tier.fallback_models = filtered.length > 0 ? filtered : null;
+          mutated = true;
+        }
+      }
+      if (tier.fallback_routes && tier.fallback_routes.length > 0) {
+        const filteredRoutes = tier.fallback_routes.filter((route) => !routeBelongs(route));
+        if (filteredRoutes.length !== tier.fallback_routes.length) {
+          tier.fallback_routes = filteredRoutes.length > 0 ? filteredRoutes : null;
+          mutated = true;
+        }
+      }
+      if (mutated) {
         tier.updated_at = new Date().toISOString();
         if (!savedTierIds.has(tier.id)) tiersToSave.push(tier);
       }
@@ -422,17 +450,29 @@ export class ProviderService {
       if (
         row.override_model !== null &&
         ((overrideProvider && providerNames.has(overrideProvider)) ||
+          routeBelongs(row.override_route) ||
           modelBelongs(row.override_model))
       ) {
         row.override_model = null;
         row.override_provider = null;
         row.override_auth_type = null;
+        row.override_route = null;
+        changed = true;
+      } else if (row.override_route && routeBelongs(row.override_route)) {
+        row.override_route = null;
         changed = true;
       }
       if (row.fallback_models && row.fallback_models.length > 0) {
         const filtered = row.fallback_models.filter((model) => !modelBelongs(model));
         if (filtered.length !== row.fallback_models.length) {
           row.fallback_models = filtered.length > 0 ? filtered : null;
+          changed = true;
+        }
+      }
+      if (row.fallback_routes && row.fallback_routes.length > 0) {
+        const filteredRoutes = row.fallback_routes.filter((route) => !routeBelongs(route));
+        if (filteredRoutes.length !== row.fallback_routes.length) {
+          row.fallback_routes = filteredRoutes.length > 0 ? filteredRoutes : null;
           changed = true;
         }
       }

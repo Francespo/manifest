@@ -355,8 +355,15 @@ describe('HeaderTierCard', () => {
     setHeaderTierFallbacksMock.mockResolvedValue([]);
     const { getByTestId } = mount();
     fireEvent.click(getByTestId('invoke-persist'));
+    // Closure now also forwards the optional `routes` arg (undefined when the
+    // FallbackList mock didn't pass routes through).
     await waitFor(() =>
-      expect(setHeaderTierFallbacksMock).toHaveBeenCalledWith('my-agent', 'cb-tier', ['m1', 'm2']),
+      expect(setHeaderTierFallbacksMock).toHaveBeenCalledWith(
+        'my-agent',
+        'cb-tier',
+        ['m1', 'm2'],
+        undefined,
+      ),
     );
   });
 

@@ -329,13 +329,14 @@ const HeaderTierCard: Component<Props> = (props) => {
             agentName={props.agentName}
             tier={props.tier.id}
             fallbacks={fallbacks()}
+            fallbackRoutes={props.tier.fallback_routes ?? null}
             models={props.models}
             customProviders={props.customProviders}
             connectedProviders={props.connectedProviders}
             onUpdate={(updated) => props.onFallbacksUpdate(updated)}
             onAddFallback={() => setPickerMode('fallback')}
-            persistFallbacks={(_agent, tierId, models) =>
-              setHeaderTierFallbacks(props.agentName, tierId, models)
+            persistFallbacks={(_agent, tierId, models, routes) =>
+              setHeaderTierFallbacks(props.agentName, tierId, models, routes)
             }
             persistClearFallbacks={(_agent, tierId) =>
               clearHeaderTierFallbacks(props.agentName, tierId)

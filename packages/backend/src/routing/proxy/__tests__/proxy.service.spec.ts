@@ -2225,7 +2225,7 @@ describe('ProxyService', () => {
       expect(result.meta.fallbackIndex).toBe(1);
       expect(providerClient.forward).toHaveBeenCalledTimes(3);
       expect(result.failedFallbacks).toHaveLength(1);
-      expect(result.failedFallbacks![0]).toEqual({
+      expect(result.failedFallbacks![0]).toMatchObject({
         model: 'model-a',
         provider: 'ProvA',
         fallbackIndex: 0,
@@ -2873,7 +2873,7 @@ describe('ProxyService', () => {
       expect(result.forward.response.ok).toBe(false);
       expect(result.forward.response.status).toBe(500);
       expect(result.failedFallbacks).toHaveLength(1);
-      expect(result.failedFallbacks![0]).toEqual({
+      expect(result.failedFallbacks![0]).toMatchObject({
         model: 'deepseek-chat',
         provider: 'DeepSeek',
         fallbackIndex: 0,

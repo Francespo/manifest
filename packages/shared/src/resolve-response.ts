@@ -1,5 +1,6 @@
 import type { Tier } from './tiers';
 import type { AuthType } from './auth-types';
+import type { ModelRoute } from './model-route';
 import type { SpecificityCategory } from './specificity';
 
 export interface ResolveResponse {
@@ -11,4 +12,6 @@ export interface ResolveResponse {
   reason: string;
   auth_type?: AuthType;
   specificity_category?: SpecificityCategory;
+  route?: ModelRoute | null;
+  fallback_routes?: ModelRoute[] | null;
 }

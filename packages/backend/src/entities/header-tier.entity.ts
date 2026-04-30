@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryColumn, Index } from 'typeorm';
 import { timestampType, timestampDefault } from '../common/utils/postgres-sql';
-import type { AuthType, TierColor } from 'manifest-shared';
+import type { AuthType, ModelRoute, TierColor } from 'manifest-shared';
 
 @Entity('header_tiers')
 @Index(['agent_id', 'sort_order'])
@@ -49,6 +49,14 @@ export class HeaderTier {
 
   @Column('simple-json', { nullable: true })
   fallback_models!: string[] | null;
+
+  // Dual-write route columns. Header tiers don't have an auto-assigned slot —
+  // they're always user-configured — so only override_route and fallback_routes.
+  @Column('jsonb', { nullable: true })
+  override_route!: ModelRoute | null;
+
+  @Column('jsonb', { nullable: true })
+  fallback_routes!: ModelRoute[] | null;
 
   @Column(timestampType(), { default: timestampDefault() })
   created_at!: string;

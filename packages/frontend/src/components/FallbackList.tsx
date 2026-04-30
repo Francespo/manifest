@@ -4,6 +4,7 @@ import {
   setFallbacks,
   type AvailableModel,
   type CustomProviderData,
+  type ModelRoute,
   type RoutingProvider,
 } from '../services/api.js';
 import { customProviderColor } from '../services/formatters.js';
@@ -18,17 +19,28 @@ interface FallbackListProps {
   agentName: string;
   tier: string;
   fallbacks: string[];
+  // Optional structured route per fallback. When present (length matches
+  // fallbacks), each row renders provider/auth from the route instead of
+  // re-deriving them from `models`/`connectedProviders` — this fixes the
+  // same-name-different-auth ambiguity reported in issue #1708 without
+  // changing the visible UI for users whose data has been backfilled.
+  fallbackRoutes?: ModelRoute[] | null;
   models: AvailableModel[];
   customProviders: CustomProviderData[];
   connectedProviders: RoutingProvider[];
-  onUpdate: (updatedFallbacks: string[]) => void;
+  onUpdate: (updatedFallbacks: string[], updatedRoutes?: ModelRoute[] | null) => void;
   onAddFallback: () => void;
   adding?: boolean;
   primaryDragging?: boolean;
   onPrimaryDropAtSlot?: (slot: number) => void;
   onFallbackDragStart?: (index: number) => void;
   onFallbackDragEnd?: () => void;
-  persistFallbacks?: (agentName: string, tier: string, models: string[]) => Promise<unknown>;
+  persistFallbacks?: (
+    agentName: string,
+    tier: string,
+    models: string[],
+    routes?: ModelRoute[],
+  ) => Promise<unknown>;
   persistClearFallbacks?: (agentName: string, tier: string) => Promise<unknown>;
 }
 
@@ -48,13 +60,17 @@ const FallbackList: Component<FallbackListProps> = (props) => {
     return stripCustomPrefix(model);
   };
 
-  const providerIdFor = (model: string): string | undefined => {
+  const providerIdFor = (model: string, index: number): string | undefined => {
+    const route = props.fallbackRoutes?.[index];
+    if (route) return resolveProviderId(route.provider);
     const info = props.models.find((m) => m.model_name === model);
     if (info) return resolveProviderId(info.provider);
     return undefined;
   };
 
-  const authTypeFor = (providerId: string | undefined): string | null => {
+  const authTypeFor = (providerId: string | undefined, index: number): string | null => {
+    const route = props.fallbackRoutes?.[index];
+    if (route) return route.authType;
     if (!providerId) return null;
     const provs = props.connectedProviders.filter(
       (p) => p.provider.toLowerCase() === providerId.toLowerCase(),
@@ -75,20 +91,33 @@ const FallbackList: Component<FallbackListProps> = (props) => {
   const persistSet = props.persistFallbacks ?? setFallbacks;
   const persistClear = props.persistClearFallbacks ?? clearFallbacks;
 
+  const reorderRoutes = (
+    routes: ModelRoute[] | null | undefined,
+    transform: (r: ModelRoute[]) => ModelRoute[],
+  ): ModelRoute[] | null => {
+    if (!routes || routes.length === 0) return null;
+    const next = transform([...routes]);
+    return next.length > 0 ? next : null;
+  };
+
   const handleRemove = async (index: number) => {
     setRemovingIndex(index);
     const original = [...props.fallbacks];
+    const originalRoutes = props.fallbackRoutes ? [...props.fallbackRoutes] : null;
     const updated = props.fallbacks.filter((_, i) => i !== index);
-    props.onUpdate(updated);
+    const updatedRoutes = reorderRoutes(props.fallbackRoutes, (rs) =>
+      rs.filter((_, i) => i !== index),
+    );
+    props.onUpdate(updated, updatedRoutes);
     try {
       if (updated.length === 0) {
         await persistClear(props.agentName, props.tier);
       } else {
-        await persistSet(props.agentName, props.tier, updated);
+        await persistSet(props.agentName, props.tier, updated, updatedRoutes ?? undefined);
       }
       toast.success('Fallback removed');
     } catch {
-      props.onUpdate(original);
+      props.onUpdate(original, originalRoutes);
     } finally {
       setRemovingIndex(null);
     }
@@ -168,16 +197,22 @@ const FallbackList: Component<FallbackListProps> = (props) => {
     if (insertAt === fromIndex) return;
 
     const original = [...props.fallbacks];
+    const originalRoutes = props.fallbackRoutes ? [...props.fallbackRoutes] : null;
     const reordered = [...props.fallbacks];
     const moved = reordered.splice(fromIndex, 1)[0]!;
     reordered.splice(insertAt, 0, moved);
+    const reorderedRoutes = reorderRoutes(props.fallbackRoutes, (rs) => {
+      const movedRoute = rs.splice(fromIndex, 1)[0]!;
+      rs.splice(insertAt, 0, movedRoute);
+      return rs;
+    });
 
-    props.onUpdate(reordered);
+    props.onUpdate(reordered, reorderedRoutes);
     try {
-      await persistSet(props.agentName, props.tier, reordered);
+      await persistSet(props.agentName, props.tier, reordered, reorderedRoutes ?? undefined);
       toast.success('Fallback order updated');
     } catch {
-      props.onUpdate(original);
+      props.onUpdate(original, originalRoutes);
     }
   };
 
@@ -200,9 +235,9 @@ const FallbackList: Component<FallbackListProps> = (props) => {
         >
           <For each={props.fallbacks}>
             {(model, i) => {
-              const provId = () => providerIdFor(model);
+              const provId = () => providerIdFor(model, i());
               const isCustom = () => provId()?.startsWith('custom:');
-              const auth = () => authTypeFor(provId());
+              const auth = () => authTypeFor(provId(), i());
               const title = () => providerTitle(provId(), auth());
               return (
                 <>
