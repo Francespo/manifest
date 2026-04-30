@@ -73,6 +73,19 @@ export interface SuccessMessageOpts extends HeaderTierRef {
   requestHeaders?: Record<string, string> | null;
 }
 
+/**
+ * Reasons that mark a `recordSuccessMessage` call as a Manifest-generated
+ * stub instead of a real upstream completion. The HTTP envelope is 200 OK
+ * (so the chat client renders the canned `[🦚 Manifest] …` text), but the
+ * dashboard should classify the row as failed and surface why.
+ */
+const CANNED_RESPONSE_REASONS: Record<string, string> = {
+  no_provider: 'No providers configured for this agent',
+  no_provider_key: 'Provider API key missing',
+  limit_exceeded: 'Usage limit exceeded',
+  friendly_error: 'Manifest internal error',
+};
+
 function buildMessageRow(
   ctx: IngestionContext,
   overrides: Partial<AgentMessage>,
@@ -442,6 +455,10 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
 
     const normalizedSessionKey = this.dedup.normalizeSessionKey(sessionKey);
 
+    const cannedMessage = CANNED_RESPONSE_REASONS[reason];
+    const status = cannedMessage ? 'error' : 'ok';
+    const errorMessage = cannedMessage ?? null;
+
     let wrote = false;
     await this.dedup.withSuccessWriteLock(
       this.dedup.getSuccessWriteLockKey(ctx, canonicalModel, traceId, normalizedSessionKey),
@@ -462,6 +479,8 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
             if (hasRecordedTokens) return;
 
             const updatePayload: Partial<AgentMessage> = {
+              status,
+              error_message: errorMessage,
               model: canonicalModel,
               provider: canonicalProvider,
               routing_tier: tier,
@@ -495,7 +514,8 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
               trace_id: traceId ?? null,
               session_key: normalizedSessionKey,
               timestamp: new Date().toISOString(),
-              status: 'ok',
+              status,
+              error_message: errorMessage,
               model: canonicalModel,
               provider: canonicalProvider,
               routing_tier: tier,
