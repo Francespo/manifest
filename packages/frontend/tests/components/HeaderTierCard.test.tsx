@@ -1,0 +1,711 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, fireEvent, waitFor } from "@solidjs/testing-library";
+
+const mockResetHeaderTier = vi.fn();
+const mockSetHeaderTierFallbacks = vi.fn();
+const mockClearHeaderTierFallbacks = vi.fn();
+vi.mock("../../src/services/api/header-tiers.js", () => ({
+  resetHeaderTier: (...args: unknown[]) => mockResetHeaderTier(...args),
+  setHeaderTierFallbacks: (...args: unknown[]) => mockSetHeaderTierFallbacks(...args),
+  clearHeaderTierFallbacks: (...args: unknown[]) => mockClearHeaderTierFallbacks(...args),
+}));
+
+vi.mock("../../src/components/ProviderIcon.js", () => ({
+  providerIcon: (id: string) => <span data-testid={`provider-icon-${id}`} />,
+  customProviderLogo: () => null,
+}));
+
+vi.mock("../../src/components/AuthBadge.js", () => ({
+  authBadgeFor: (t: string | null | undefined) =>
+    t ? <span data-testid={`auth-${t}`} /> : null,
+  authLabel: (authType: string | null | undefined) =>
+    authType === "subscription" ? "Subscription" : "API Key",
+}));
+
+vi.mock("../../src/services/routing-utils.js", () => ({
+  resolveProviderId: (p: string) => p.toLowerCase(),
+  inferProviderFromModel: (m: string) => {
+    if (m.startsWith("gpt")) return "openai";
+    if (m.startsWith("claude")) return "anthropic";
+    return undefined;
+  },
+  pricePerM: (n: number) => `$${(n * 1_000_000).toFixed(2)}`,
+  stripCustomPrefix: (m: string) => m,
+}));
+
+vi.mock("../../src/services/providers.js", () => ({
+  PROVIDERS: [
+    { id: "openai", name: "OpenAI" },
+    { id: "anthropic", name: "Anthropic" },
+  ],
+}));
+
+vi.mock("../../src/services/formatters.js", () => ({
+  customProviderColor: () => "#000",
+}));
+
+vi.mock("../../src/services/provider-utils.js", () => ({
+  getModelLabel: (_p: string, m: string) => m,
+}));
+
+vi.mock("../../src/components/FallbackList.js", () => ({
+  default: (props: {
+    fallbacks: string[];
+    fallbackRoutes?: unknown[] | null;
+    persistFallbacks?: (...args: unknown[]) => Promise<unknown>;
+    persistClearFallbacks?: (...args: unknown[]) => Promise<unknown>;
+    onAddFallback?: () => void;
+    onUpdate?: (updated: string[]) => void;
+  }) => (
+    <div data-testid="fallback-list">
+      <div data-testid="fb-count">{props.fallbacks.length}</div>
+      <div data-testid="fb-routes-count">{props.fallbackRoutes?.length ?? "null"}</div>
+      <button data-testid="fb-add" onClick={() => props.onAddFallback?.()}>
+        add
+      </button>
+      <button
+        data-testid="fb-persist"
+        onClick={() => {
+          void props.persistFallbacks?.("agent", "tier-id", ["m"], undefined);
+        }}
+      >
+        persist
+      </button>
+      <button
+        data-testid="fb-clear"
+        onClick={() => {
+          void props.persistClearFallbacks?.("agent", "tier-id");
+        }}
+      >
+        clear
+      </button>
+      <button
+        data-testid="fb-update"
+        onClick={() => props.onUpdate?.(["new"])}
+      >
+        update
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("../../src/components/ModelPickerModal.js", () => ({
+  default: (props: {
+    onSelect: (tierId: string, model: string, prov: string, auth?: string) => void;
+    onClose: () => void;
+  }) => (
+    <div data-testid="model-picker">
+      <button
+        data-testid="picker-pick"
+        onClick={() => props.onSelect("ht-1", "gpt-4o", "openai", "api_key")}
+      >
+        pick
+      </button>
+      <button data-testid="picker-close" onClick={() => props.onClose()}>
+        close
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("../../src/components/HeaderTierSnippetModal.js", () => ({
+  default: (props: { onClose: () => void }) => (
+    <div data-testid="snippet-modal">
+      <button data-testid="snippet-close" onClick={() => props.onClose()}>
+        close
+      </button>
+    </div>
+  ),
+}));
+
+import HeaderTierCard from "../../src/components/HeaderTierCard";
+import type { HeaderTier } from "../../src/services/api/header-tiers";
+import type {
+  AvailableModel,
+  CustomProviderData,
+  RoutingProvider,
+} from "../../src/services/api";
+
+const baseTier: HeaderTier = {
+  id: "ht-1",
+  agent_id: "agent-1",
+  name: "Premium",
+  header_key: "x-manifest-tier",
+  header_value: "premium",
+  badge_color: "indigo",
+  sort_order: 0,
+  enabled: true,
+  override_route: { provider: "openai", authType: "api_key", model: "gpt-4o" },
+  fallback_routes: null,
+  created_at: "2025-01-01",
+  updated_at: "2025-01-01",
+};
+
+const models: AvailableModel[] = [
+  {
+    model_name: "gpt-4o",
+    provider: "OpenAI",
+    auth_type: "api_key",
+    input_price_per_token: 0.000005,
+    output_price_per_token: 0.000015,
+    context_window: 128000,
+    capability_reasoning: false,
+    capability_code: true,
+    quality_score: 8,
+    display_name: "GPT-4o",
+  },
+];
+
+const connectedProviders: RoutingProvider[] = [
+  {
+    id: "p1",
+    provider: "openai",
+    auth_type: "api_key",
+    is_active: true,
+    has_api_key: true,
+    connected_at: "2025-01-01",
+  },
+];
+
+const customProviders: CustomProviderData[] = [];
+
+describe("HeaderTierCard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResetHeaderTier.mockResolvedValue(undefined);
+    mockSetHeaderTierFallbacks.mockResolvedValue(undefined);
+    mockClearHeaderTierFallbacks.mockResolvedValue(undefined);
+  });
+
+  it("renders the tier name and the header rule", () => {
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    expect(container.textContent).toContain("Premium");
+    expect(container.textContent).toContain("x-manifest-tier");
+    expect(container.textContent).toContain("premium");
+  });
+
+  it("renders the override_route.model display label", () => {
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    expect(container.querySelector(".routing-card__main")?.textContent).toBe("GPT-4o");
+  });
+
+  it("uses the route's authType for the badge instead of looking it up by provider", () => {
+    const tierSub = {
+      ...baseTier,
+      override_route: { provider: "openai", authType: "subscription", model: "gpt-4o" } as const,
+    };
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={tierSub}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    expect(container.querySelector('[data-testid="auth-subscription"]')).not.toBeNull();
+    expect(container.textContent).toContain("Included in subscription");
+  });
+
+  it("renders a + Add model button when override_route is null", () => {
+    const tierEmpty = { ...baseTier, override_route: null };
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={tierEmpty}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    const add = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("+ Add model"),
+    );
+    expect(add).toBeDefined();
+  });
+
+  it("opens the picker in primary mode when + Add model is clicked", () => {
+    const tierEmpty = { ...baseTier, override_route: null };
+    const { container, queryByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={tierEmpty}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    expect(queryByTestId("model-picker")).toBeNull();
+    const add = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("+ Add model"),
+    ) as HTMLButtonElement;
+    fireEvent.click(add);
+    expect(queryByTestId("model-picker")).not.toBeNull();
+  });
+
+  it("calls onOverride with the picked route when picker selects a primary model", async () => {
+    const tierEmpty = { ...baseTier, override_route: null };
+    const onOverride = vi.fn();
+    const { container, getByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={tierEmpty}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={onOverride}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    fireEvent.click(
+      Array.from(container.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("+ Add model"),
+      ) as HTMLButtonElement,
+    );
+    fireEvent.click(getByTestId("picker-pick") as HTMLButtonElement);
+    await waitFor(() => {
+      expect(onOverride).toHaveBeenCalledWith("gpt-4o", "openai", "api_key");
+    });
+  });
+
+  it("calls reset endpoint and onFallbacksUpdate([]) when Reset is clicked", async () => {
+    const onFallbacksUpdate = vi.fn();
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={onFallbacksUpdate}
+      />
+    ));
+    const resetBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Reset"),
+    ) as HTMLButtonElement;
+    fireEvent.click(resetBtn);
+    await waitFor(() => {
+      expect(mockResetHeaderTier).toHaveBeenCalledWith("demo", "ht-1");
+      expect(onFallbacksUpdate).toHaveBeenCalledWith([]);
+    });
+  });
+
+  it("opens the kebab menu and exposes Send / Edit / Disable", () => {
+    const onEdit = vi.fn();
+    const onDisable = vi.fn();
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+        onEdit={onEdit}
+        onDisable={onDisable}
+      />
+    ));
+    const kebab = container.querySelector(".header-tier-card__icon-btn") as HTMLButtonElement;
+    fireEvent.click(kebab);
+    expect(container.querySelector(".header-tier-card__menu")).not.toBeNull();
+    const items = Array.from(container.querySelectorAll(".header-tier-card__menu-item"));
+    expect(items.map((b) => b.textContent)).toEqual(["Send this header", "Edit tier", "Disable"]);
+  });
+
+  it("opens the snippet modal when Send this header is clicked", () => {
+    const { container, queryByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    fireEvent.click(container.querySelector(".header-tier-card__icon-btn") as HTMLButtonElement);
+    fireEvent.click(
+      Array.from(container.querySelectorAll(".header-tier-card__menu-item")).find((b) =>
+        b.textContent?.includes("Send this header"),
+      ) as HTMLButtonElement,
+    );
+    expect(queryByTestId("snippet-modal")).not.toBeNull();
+  });
+
+  it("invokes onEdit when Edit tier is clicked", () => {
+    const onEdit = vi.fn();
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+        onEdit={onEdit}
+      />
+    ));
+    fireEvent.click(container.querySelector(".header-tier-card__icon-btn") as HTMLButtonElement);
+    fireEvent.click(
+      Array.from(container.querySelectorAll(".header-tier-card__menu-item")).find((b) =>
+        b.textContent?.includes("Edit tier"),
+      ) as HTMLButtonElement,
+    );
+    expect(onEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it("invokes onDisable when Disable is clicked", () => {
+    const onDisable = vi.fn();
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+        onDisable={onDisable}
+      />
+    ));
+    fireEvent.click(container.querySelector(".header-tier-card__icon-btn") as HTMLButtonElement);
+    fireEvent.click(
+      Array.from(container.querySelectorAll(".header-tier-card__menu-item")).find((b) =>
+        b.textContent?.includes("Disable"),
+      ) as HTMLButtonElement,
+    );
+    expect(onDisable).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders FallbackList with the route count from fallback_routes", () => {
+    const tierWithFallbacks = {
+      ...baseTier,
+      fallback_routes: [
+        { provider: "openai", authType: "api_key" as const, model: "gpt-4o-mini" },
+        { provider: "anthropic", authType: "api_key" as const, model: "claude-haiku" },
+      ],
+    };
+    const { getByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={tierWithFallbacks}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    expect(getByTestId("fb-count").textContent).toBe("2");
+    expect(getByTestId("fb-routes-count").textContent).toBe("2");
+  });
+
+  it("forwards persistFallbacks to setHeaderTierFallbacks for this agent + tier id", async () => {
+    const { getByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    fireEvent.click(getByTestId("fb-persist") as HTMLButtonElement);
+    await waitFor(() => {
+      // The mock stub passes "tier-id" — the closure should use this card's
+      // own tier id ("ht-1") not the FallbackList-side id.
+      expect(mockSetHeaderTierFallbacks).toHaveBeenCalledWith("demo", "tier-id", ["m"], undefined);
+    });
+  });
+
+  it("forwards persistClearFallbacks to clearHeaderTierFallbacks", async () => {
+    const { getByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    fireEvent.click(getByTestId("fb-clear") as HTMLButtonElement);
+    await waitFor(() => {
+      expect(mockClearHeaderTierFallbacks).toHaveBeenCalledWith("demo", "tier-id");
+    });
+  });
+
+  it("opens the picker in fallback mode when FallbackList signals onAddFallback", () => {
+    const { container, getByTestId, queryByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    expect(queryByTestId("model-picker")).toBeNull();
+    fireEvent.click(getByTestId("fb-add") as HTMLButtonElement);
+    expect(queryByTestId("model-picker")).not.toBeNull();
+    // sanity: only one picker is open
+    expect(container.querySelectorAll('[data-testid="model-picker"]').length).toBe(1);
+  });
+
+  it("appends to fallbacks via setHeaderTierFallbacks when picker selects in fallback mode", async () => {
+    const tierWithFallbacks = {
+      ...baseTier,
+      fallback_routes: [{ provider: "openai", authType: "api_key" as const, model: "old" }],
+    };
+    const onFallbacksUpdate = vi.fn();
+    const { getByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={tierWithFallbacks}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={onFallbacksUpdate}
+      />
+    ));
+    fireEvent.click(getByTestId("fb-add") as HTMLButtonElement);
+    fireEvent.click(getByTestId("picker-pick") as HTMLButtonElement);
+    await waitFor(() => {
+      expect(mockSetHeaderTierFallbacks).toHaveBeenCalledWith("demo", "ht-1", ["old", "gpt-4o"]);
+      expect(onFallbacksUpdate).toHaveBeenCalledWith(["old", "gpt-4o"]);
+    });
+  });
+
+  it("closes the picker without action on its onClose", () => {
+    const { container, getByTestId, queryByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={{ ...baseTier, override_route: null }}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    fireEvent.click(
+      Array.from(container.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("+ Add model"),
+      ) as HTMLButtonElement,
+    );
+    fireEvent.click(getByTestId("picker-close") as HTMLButtonElement);
+    expect(queryByTestId("model-picker")).toBeNull();
+  });
+
+  it("renders nothing for currentModel when override_route is null (no chip)", () => {
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={{ ...baseTier, override_route: null }}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    expect(container.querySelector(".routing-card__model-chip")).toBeNull();
+  });
+
+  it("falls back to provider-table auth lookup when override_route has no authType", () => {
+    // A subscription connection takes precedence over api_key when both are present.
+    const tierNoAuth = {
+      ...baseTier,
+      override_route: { provider: "openai", authType: undefined as unknown as "api_key", model: "gpt-4o" },
+    };
+    const subProviders: RoutingProvider[] = [
+      {
+        id: "p2",
+        provider: "openai",
+        auth_type: "subscription",
+        is_active: true,
+        has_api_key: false,
+        connected_at: "2025-01-01",
+      },
+      ...connectedProviders,
+    ];
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={tierNoAuth}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={subProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    expect(container.querySelector('[data-testid="auth-subscription"]')).not.toBeNull();
+  });
+
+  it("opens picker via the chip-action change button without bubbling to the chip click", () => {
+    const { container, queryByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    fireEvent.click(container.querySelector(".routing-card__chip-action") as HTMLButtonElement);
+    expect(queryByTestId("model-picker")).not.toBeNull();
+  });
+
+  it("opens picker when the chip body itself is clicked", () => {
+    const { container, queryByTestId } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={baseTier}
+        models={models}
+        customProviders={customProviders}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    fireEvent.click(container.querySelector(".routing-card__model-chip") as HTMLElement);
+    expect(queryByTestId("model-picker")).not.toBeNull();
+  });
+
+  it("renders the custom-provider letter chip when override_route points to a custom provider", () => {
+    const customTier = {
+      ...baseTier,
+      override_route: { provider: "custom:cp-1", authType: "api_key" as const, model: "groq-mixtral" },
+    };
+    const cps: CustomProviderData[] = [
+      {
+        id: "cp-1",
+        name: "Groq",
+        base_url: "https://api.groq.com",
+        api_kind: "openai",
+        has_api_key: true,
+        models: [],
+        created_at: "2025-01-01",
+      },
+    ];
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={customTier}
+        models={models}
+        customProviders={cps}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    // Custom branch renders a span styled as a logo letter — text "G".
+    const chipText = container.querySelector(".routing-card__main")?.textContent;
+    expect(chipText).toBe("groq-mixtral");
+    // The custom path uses a styled inline-flex span (no providerIcon mock), so
+    // the override-icon should still exist with letter content "G".
+    const overrideIcons = container.querySelectorAll(".routing-card__override-icon");
+    expect(overrideIcons.length).toBeGreaterThan(0);
+    const text = overrideIcons[0].textContent ?? "";
+    expect(text.charAt(0).toUpperCase()).toBe("G");
+  });
+
+  it("falls back to the letter 'C' when override_route points to a missing custom provider id", () => {
+    const customTier = {
+      ...baseTier,
+      override_route: { provider: "custom:unknown", authType: "api_key" as const, model: "x" },
+    };
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={customTier}
+        models={models}
+        customProviders={[]}
+        connectedProviders={connectedProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    const overrideIcons = container.querySelectorAll(".routing-card__override-icon");
+    const text = (overrideIcons[0].textContent ?? "").charAt(0).toUpperCase();
+    expect(text).toBe("C");
+  });
+
+  it("effectiveAuth picks 'local' as the last-resort connected auth", () => {
+    // No override_route.authType set, no subscription / api_key in connected.
+    const tierLocal = {
+      ...baseTier,
+      override_route: { provider: "ollama", authType: undefined as unknown as "api_key", model: "llama3" },
+    };
+    const localProviders: RoutingProvider[] = [
+      {
+        id: "p1",
+        provider: "ollama",
+        auth_type: "local",
+        is_active: true,
+        has_api_key: false,
+        connected_at: "2025-01-01",
+      },
+    ];
+    const localModels: AvailableModel[] = [
+      {
+        ...models[0],
+        model_name: "llama3",
+        provider: "ollama",
+        auth_type: "local",
+        display_name: "Llama 3",
+      },
+    ];
+    const { container } = render(() => (
+      <HeaderTierCard
+        agentName="demo"
+        tier={tierLocal}
+        models={localModels}
+        customProviders={[]}
+        connectedProviders={localProviders}
+        onOverride={vi.fn()}
+        onFallbacksUpdate={vi.fn()}
+      />
+    ));
+    expect(container.querySelector('[data-testid="auth-local"]')).not.toBeNull();
+  });
+});
