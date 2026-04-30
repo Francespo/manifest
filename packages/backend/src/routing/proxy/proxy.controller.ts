@@ -31,6 +31,7 @@ import {
 } from './proxy-response-handler';
 import { ProxyExceptionFilter, isChatRenderingClient } from './proxy-exception.filter';
 import { sendFriendlyResponse } from './proxy-friendly-response';
+import { formatManifestError } from '../../common/errors/error-codes';
 import type { ProxyApiMode } from './proxy-types';
 
 const MAX_SEEN_USERS = 10_000;
@@ -244,10 +245,7 @@ export class ProxyController {
 
     const isStream = (req.body as Record<string, unknown>)?.stream === true;
     if (isChatRenderingClient(req)) {
-      const clientMessage =
-        status >= 500
-          ? '[🦚 Manifest] Something broke on our end. Try again in a moment.'
-          : message;
+      const clientMessage = status >= 500 ? formatManifestError('M500') : message;
       sendFriendlyResponse(res, clientMessage, isStream);
       return;
     }
