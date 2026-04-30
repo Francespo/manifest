@@ -34,10 +34,18 @@ export class AddAgentSoftDelete1782200000000 implements MigrationInterface {
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX IF EXISTS "UQ_agents_tenant_name_live"`);
 
-    // Drop soft-deleted rows before restoring the full unique index. After
-    // recreate flows, multiple rows can share (tenant_id, name) — only the
-    // live row should survive a rollback.
-    await queryRunner.query(`DELETE FROM "agents" WHERE "deleted_at" IS NOT NULL`);
+    // After recreate flows, multiple rows can share (tenant_id, name). The
+    // full unique index can't be restored as-is. Mangle the soft-deleted
+    // slugs with the row id so the rows survive (FKs in agent_messages,
+    // tier_assignments, etc. stay intact) without colliding with the live
+    // slug. Anyone re-applying the migration can pick the rows up by
+    // deleted_at; since the column is being dropped, that means no one — but
+    // the audit data is preserved if someone restores the schema later.
+    await queryRunner.query(
+      `UPDATE "agents"
+          SET "name" = "name" || '__deleted_' || "id"
+        WHERE "deleted_at" IS NOT NULL`,
+    );
 
     await queryRunner.query(
       `CREATE UNIQUE INDEX "IDX_agents_tenant_name" ON "agents" ("tenant_id", "name")`,
