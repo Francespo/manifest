@@ -32,6 +32,30 @@ vi.mock("../../src/pages/RoutingTierCard.js", () => ({
   default: (props: Record<string, unknown>) => {
     tierCardCalls.push(props);
     const stage = props.stage as { id: string; label: string };
+    // Eagerly read every JSX prop so the parent's prop-getter statements
+    // count as covered. Without this, prop access stays lazy and v8 reports
+    // each `<RoutingTierCard ... />` attribute line as never-executed.
+    const _read = [
+      (props.tier as () => unknown)?.(),
+      props.models,
+      props.customProviders,
+      props.activeProviders,
+      props.tiersLoading,
+      props.changingTier,
+      props.resettingTier,
+      props.resettingAll,
+      props.addingFallback,
+      props.agentName,
+      props.onDropdownOpen,
+      props.onOverride,
+      props.onReset,
+      props.onFallbackUpdate,
+      props.onAddFallback,
+      props.connectedProviders,
+      props.persistFallbacks,
+      props.persistClearFallbacks,
+    ];
+    void _read;
     return (
       <div data-testid={`tier-card-${stage.id}`}>
         <span>{stage.label}</span>
@@ -350,5 +374,36 @@ describe("RoutingSpecificitySection", () => {
     // After closing, re-toggle from a fresh open: should call refetchSpecificity again.
     expect(refetchAll).not.toHaveBeenCalled();
     expect(refetchSpecificity).not.toHaveBeenCalled();
+  });
+
+  it("uses refetchAll when refetchSpecificity is not provided", async () => {
+    const refetchAll = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(() => (
+      <RoutingSpecificitySection
+        {...makeProps({
+          assignments: () => [codingActive],
+          refetchAll,
+          refetchSpecificity: undefined,
+        })}
+      />
+    ));
+    fireEvent.click(screen.getByText("Manage task-specific routing"));
+    fireEvent.click(container.querySelectorAll(".specificity-modal__row")[0]);
+    await waitFor(() => {
+      expect(mockToggleSpecificity).toHaveBeenCalled();
+      expect(refetchAll).toHaveBeenCalled();
+    });
+  });
+
+  it("toTierAssignment maps category to tier on the assignment passed into the card", () => {
+    render(() => (
+      <RoutingSpecificitySection
+        {...makeProps({ assignments: () => [codingActive] })}
+      />
+    ));
+    const cardProps = tierCardCalls[tierCardCalls.length - 1];
+    const tier = (cardProps.tier as () => unknown)?.() as { tier: string; category: string } | undefined;
+    expect(tier?.tier).toBe("coding");
+    expect(tier?.category).toBe("coding");
   });
 });

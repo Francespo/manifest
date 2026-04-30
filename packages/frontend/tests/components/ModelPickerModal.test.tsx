@@ -501,4 +501,318 @@ describe("ModelPickerModal", () => {
     const groups = container.querySelectorAll(".routing-modal__group-name");
     expect(Array.from(groups).some((g) => g.textContent?.toLowerCase().includes("openai"))).toBe(true);
   });
+
+  it("falls back to labelForModel when display_name is missing (vendor prefix path)", () => {
+    // A model name "anthropic/claude" with no display_name should resolve to
+    // the bare label via the slash-stripping branch of labelForModel.
+    const noDisplay: AvailableModel[] = [
+      {
+        ...baseModels[0],
+        model_name: "anthropic/claude-opus",
+        provider: "Anthropic",
+        display_name: undefined as unknown as string,
+      },
+    ];
+    const apiAnthropic: RoutingProvider[] = [
+      {
+        id: "p9",
+        provider: "anthropic",
+        auth_type: "api_key",
+        is_active: true,
+        has_api_key: true,
+        connected_at: "2025-01-01",
+      },
+    ];
+    const { container } = render(() => (
+      <ModelPickerModal
+        tierId="simple"
+        models={noDisplay}
+        tiers={[]}
+        connectedProviders={apiAnthropic}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    // The slash branch strips "anthropic/" and looks up the bare name in
+    // the labels map → "Claude Opus" hits via PROVIDERS mock.
+    expect(container.textContent).toContain("Claude Opus");
+  });
+
+  it("returns the bare name when the slash-stripped key is also unknown", () => {
+    const noDisplay: AvailableModel[] = [
+      {
+        ...baseModels[0],
+        model_name: "anthropic/unknown-model",
+        provider: "Anthropic",
+        display_name: undefined as unknown as string,
+      },
+    ];
+    const apiAnthropic: RoutingProvider[] = [
+      {
+        id: "p9",
+        provider: "anthropic",
+        auth_type: "api_key",
+        is_active: true,
+        has_api_key: true,
+        connected_at: "2025-01-01",
+      },
+    ];
+    const { container } = render(() => (
+      <ModelPickerModal
+        tierId="simple"
+        models={noDisplay}
+        tiers={[]}
+        connectedProviders={apiAnthropic}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    expect(container.textContent).toContain("unknown-model");
+  });
+
+  it("uses a direct label-map hit when the bare name matches PROVIDERS catalog", () => {
+    const bareName: AvailableModel[] = [
+      {
+        ...baseModels[0],
+        model_name: "gpt-4o",
+        display_name: undefined as unknown as string,
+      },
+    ];
+    const { container } = render(() => (
+      <ModelPickerModal
+        tierId="simple"
+        models={bareName}
+        tiers={[]}
+        connectedProviders={apiKeyOnly}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    // The direct labels.get("gpt-4o") hit returns "GPT-4o" from the PROVIDERS mock.
+    expect(container.textContent).toContain("GPT-4o");
+  });
+
+  it("renders a custom-provider group with logo letter and exposes its name", () => {
+    const customProviders: CustomProviderData[] = [
+      {
+        id: "cp-1",
+        name: "Groq",
+        base_url: "https://api.groq.com",
+        api_kind: "openai",
+        has_api_key: true,
+        models: [],
+        created_at: "2025-01-01",
+      },
+    ];
+    const customModels: AvailableModel[] = [
+      {
+        ...baseModels[0],
+        model_name: "llama-3-8b",
+        provider: "custom:cp-1",
+        provider_display_name: "Groq",
+        display_name: "Llama 3 8B",
+      },
+    ];
+    const customConnected: RoutingProvider[] = [
+      {
+        id: "p10",
+        provider: "custom:cp-1",
+        auth_type: "api_key",
+        is_active: true,
+        has_api_key: true,
+        connected_at: "2025-01-01",
+      },
+    ];
+    const { container } = render(() => (
+      <ModelPickerModal
+        tierId="simple"
+        models={customModels}
+        tiers={[]}
+        customProviders={customProviders}
+        connectedProviders={customConnected}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    // Custom-provider header shows the provider name "Groq" (rendered through
+    // customProviderNameMap + the cpNames fallback).
+    const groupNames = Array.from(container.querySelectorAll(".routing-modal__group-name")).map(
+      (e) => e.textContent,
+    );
+    expect(groupNames).toContain("Groq");
+    // The icon falls back to a styled letter span ("G").
+    const letter = container.querySelector(".provider-card__logo-letter");
+    expect(letter?.textContent).toBe("G");
+  });
+
+  it("renders the no-search empty state when search is non-empty and matches nothing", () => {
+    const { container } = render(() => (
+      <ModelPickerModal
+        tierId="simple"
+        models={[
+          ...baseModels,
+          { ...baseModels[0], model_name: "extra-1", display_name: "Extra 1" },
+          { ...baseModels[0], model_name: "extra-2", display_name: "Extra 2" },
+          { ...baseModels[0], model_name: "extra-3", display_name: "Extra 3" },
+          { ...baseModels[0], model_name: "extra-4", display_name: "Extra 4" },
+        ]}
+        tiers={tiers}
+        connectedProviders={apiKeyOnly}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    const search = container.querySelector(".routing-modal__search") as HTMLInputElement;
+    fireEvent.input(search, { target: { value: "zzznopnoresult" } });
+    expect(container.textContent).toContain("No models match your search");
+  });
+
+  it("renders the no-free-models empty state when the Free filter has no matches", () => {
+    // baseModels[0] has nonzero pricing — filter to free-only with only that
+    // model leaves an empty list and triggers the dedicated empty-state copy.
+    const { container } = render(() => (
+      <ModelPickerModal
+        tierId="simple"
+        models={[baseModels[0]]}
+        tiers={tiers}
+        connectedProviders={apiKeyOnly}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    const pill = container.querySelector(".routing-modal__filter-pill") as HTMLButtonElement;
+    fireEvent.click(pill);
+    expect(container.textContent).toContain("No free models available from your connected providers");
+  });
+
+  it("renders the no-subscription empty state on the subscription tab when nothing is connected", () => {
+    const subOnly: RoutingProvider[] = [
+      {
+        id: "p11",
+        provider: "anthropic",
+        auth_type: "subscription",
+        is_active: true,
+        has_api_key: false,
+        connected_at: "2025-01-01",
+      },
+      {
+        id: "p12",
+        provider: "openai",
+        auth_type: "api_key",
+        is_active: true,
+        has_api_key: true,
+        connected_at: "2025-01-01",
+      },
+    ];
+    // Both tabs are present, but subscription tab has zero models in the list.
+    const { container } = render(() => (
+      <ModelPickerModal
+        tierId="simple"
+        models={[]}
+        tiers={tiers}
+        connectedProviders={subOnly}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    expect(container.textContent).toContain("No subscription providers connected");
+  });
+
+  it("renders the no-local empty state on the Local tab when no local models exist", () => {
+    const localOnly: RoutingProvider[] = [
+      {
+        id: "p13",
+        provider: "ollama",
+        auth_type: "local",
+        is_active: true,
+        has_api_key: false,
+        connected_at: "2025-01-01",
+      },
+    ];
+    const { container } = render(() => (
+      <ModelPickerModal
+        tierId="simple"
+        models={[]}
+        tiers={tiers}
+        connectedProviders={localOnly}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    expect(container.textContent).toContain("No local providers connected");
+  });
+
+  it("clicks the Subscription tab and resets the free-only filter", () => {
+    const both: RoutingProvider[] = [
+      {
+        id: "p14",
+        provider: "anthropic",
+        auth_type: "subscription",
+        is_active: true,
+        has_api_key: false,
+        connected_at: "2025-01-01",
+      },
+      {
+        id: "p15",
+        provider: "openai",
+        auth_type: "api_key",
+        is_active: true,
+        has_api_key: true,
+        connected_at: "2025-01-01",
+      },
+    ];
+    const { container } = render(() => (
+      <ModelPickerModal
+        tierId="simple"
+        models={baseModels}
+        tiers={tiers}
+        connectedProviders={both}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    // Switch to API Keys, toggle free-only on
+    const apiTab = Array.from(container.querySelectorAll('[role="tab"]')).find((t) =>
+      t.textContent?.includes("API Keys"),
+    ) as HTMLButtonElement;
+    fireEvent.click(apiTab);
+    const pill = container.querySelector(".routing-modal__filter-pill") as HTMLButtonElement;
+    fireEvent.click(pill);
+    expect(pill.classList.contains("routing-modal__filter-pill--active")).toBe(true);
+    // Click Subscription tab — the click handler sets activeTab + resets free-only.
+    const subTab = Array.from(container.querySelectorAll('[role="tab"]')).find((t) =>
+      t.textContent?.includes("Subscription"),
+    ) as HTMLButtonElement;
+    fireEvent.click(subTab);
+    expect(subTab.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("clicks the Local tab when local + api_key are both connected", () => {
+    const localAndApi: RoutingProvider[] = [
+      ...apiKeyOnly,
+      {
+        id: "p16",
+        provider: "ollama",
+        auth_type: "local",
+        is_active: true,
+        has_api_key: false,
+        connected_at: "2025-01-01",
+      },
+    ];
+    const { container } = render(() => (
+      <ModelPickerModal
+        tierId="simple"
+        models={baseModels}
+        tiers={tiers}
+        connectedProviders={localAndApi}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />
+    ));
+    const localTab = Array.from(container.querySelectorAll('[role="tab"]')).find((t) =>
+      t.textContent?.includes("Local"),
+    ) as HTMLButtonElement;
+    fireEvent.click(localTab);
+    expect(localTab.getAttribute("aria-selected")).toBe("true");
+  });
 });

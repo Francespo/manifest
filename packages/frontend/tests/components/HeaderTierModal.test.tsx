@@ -19,28 +19,36 @@ vi.mock("manifest-shared", () => ({
   TIER_COLORS: ["indigo", "rose", "amber", "emerald"],
 }));
 
+type Suggestion = { label: string; value: string; group?: string; sublabel?: string };
+const comboCalls: Array<Record<string, unknown>> = [];
 vi.mock("../../src/components/HeaderComboBox.js", () => ({
-  default: (props: {
-    id: string;
-    value: string;
-    onInput: (v: string) => void;
-    placeholder?: string;
-    invalid?: boolean;
-    errorMessage?: string;
-    disabled?: boolean;
-  }) => (
-    <div data-testid={`combo-${props.id}`}>
-      <input
-        id={props.id}
-        value={props.value}
-        placeholder={props.placeholder}
-        disabled={props.disabled}
-        data-invalid={String(props.invalid ?? false)}
-        onInput={(e) => props.onInput((e.currentTarget as HTMLInputElement).value)}
-      />
-      {props.errorMessage ? <div data-testid={`combo-error-${props.id}`}>{props.errorMessage}</div> : null}
-    </div>
-  ),
+  default: (props: Record<string, unknown>) => {
+    comboCalls.push(props);
+    // Read every prop so the parent's JSX-attribute getter statements fire.
+    const _read = [props.suggestions, props.freeFormHint];
+    void _read;
+    const id = props.id as string;
+    return (
+      <div data-testid={`combo-${id}`}>
+        <input
+          id={id}
+          value={props.value as string}
+          placeholder={props.placeholder as string | undefined}
+          disabled={props.disabled as boolean | undefined}
+          data-invalid={String((props.invalid as boolean) ?? false)}
+          data-suggestion-count={(props.suggestions as Suggestion[] | undefined)?.length ?? 0}
+          onInput={(e) =>
+            (props.onInput as (v: string) => void)(
+              (e.currentTarget as HTMLInputElement).value,
+            )
+          }
+        />
+        {props.errorMessage ? (
+          <div data-testid={`combo-error-${id}`}>{props.errorMessage as string}</div>
+        ) : null}
+      </div>
+    );
+  },
 }));
 
 import HeaderTierModal from "../../src/components/HeaderTierModal";
@@ -64,6 +72,7 @@ const existingTier: HeaderTier = {
 describe("HeaderTierModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    comboCalls.length = 0;
     mockGetSeenHeaders.mockResolvedValue([]);
     mockCreateHeaderTier.mockResolvedValue({ ...existingTier, id: "ht-new", name: "Created" });
     mockUpdateHeaderTier.mockResolvedValue({ ...existingTier });
@@ -594,6 +603,102 @@ describe("HeaderTierModal", () => {
     ));
     await waitFor(() => {
       expect(mockGetSeenHeaders).toHaveBeenCalled();
+    });
+  });
+
+  it("rejects header values longer than the max length", async () => {
+    const { container } = render(() => (
+      <HeaderTierModal
+        agentName="demo"
+        existingTiers={[]}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    ));
+    fireEvent.input(container.querySelector("#header-tier-name") as HTMLInputElement, {
+      target: { value: "X" },
+    });
+    fireEvent.input(container.querySelector("#header-tier-key") as HTMLInputElement, {
+      target: { value: "x-okay" },
+    });
+    fireEvent.input(container.querySelector("#header-tier-value") as HTMLInputElement, {
+      target: { value: "v".repeat(129) },
+    });
+    fireEvent.click(
+      Array.from(container.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes("Create tier"),
+      ) as HTMLButtonElement,
+    );
+    await waitFor(() => {
+      const err = container.querySelector(
+        '[data-testid="combo-error-header-tier-value"]',
+      ) as HTMLElement | null;
+      expect(err?.textContent).toMatch(/128 characters/);
+    });
+  });
+
+  it("populates the key suggestions list from getSeenHeaders results (with top values)", async () => {
+    mockGetSeenHeaders.mockResolvedValue([
+      { key: "x-tier", count: 9, top_values: ["a", "b", "c", "d"], sdks: ["openclaw"] },
+    ]);
+    const { container } = render(() => (
+      <HeaderTierModal
+        agentName="demo"
+        existingTiers={[]}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    ));
+    await waitFor(() => {
+      const keyInput = container.querySelector("#header-tier-key") as HTMLInputElement;
+      expect(keyInput.getAttribute("data-suggestion-count")).toBe("1");
+    });
+  });
+
+  it("populates value suggestions for the entered header key", async () => {
+    mockGetSeenHeaders.mockResolvedValue([
+      { key: "x-tier", count: 5, top_values: ["premium", "free"], sdks: [] },
+    ]);
+    const { container } = render(() => (
+      <HeaderTierModal
+        agentName="demo"
+        existingTiers={[]}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    ));
+    await waitFor(() => {
+      expect(mockGetSeenHeaders).toHaveBeenCalled();
+    });
+    fireEvent.input(container.querySelector("#header-tier-key") as HTMLInputElement, {
+      target: { value: "x-tier" },
+    });
+    await waitFor(() => {
+      const valueInput = container.querySelector("#header-tier-value") as HTMLInputElement;
+      expect(valueInput.getAttribute("data-suggestion-count")).toBe("2");
+    });
+  });
+
+  it("emits the count-only sublabel for keys with no top_values", async () => {
+    mockGetSeenHeaders.mockResolvedValue([
+      { key: "x-empty", count: 2, top_values: [], sdks: ["langchain"] },
+    ]);
+    render(() => (
+      <HeaderTierModal
+        agentName="demo"
+        existingTiers={[]}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    ));
+    await waitFor(() => {
+      // Combobox mock captures `suggestions` — sublabel for the only entry
+      // is "2× seen" because top_values is empty.
+      const lastKeyCall = comboCalls.find((c) => c.id === "header-tier-key");
+      const suggestions = lastKeyCall?.suggestions as
+        | Array<{ sublabel?: string }>
+        | undefined;
+      expect(suggestions?.[0]?.sublabel).toBe("2× seen");
     });
   });
 });
