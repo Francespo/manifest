@@ -28,10 +28,11 @@ interface FallbackListProps {
   models: AvailableModel[];
   customProviders: CustomProviderData[];
   connectedProviders: RoutingProvider[];
-  // FallbackList ALWAYS passes both arguments. Parents may ignore
-  // updatedRoutes when their state model doesn't track fallback_routes
-  // separately (the next list refresh from the server includes them).
-  onUpdate: (updatedFallbacks: string[], updatedRoutes: ModelRoute[] | null) => void;
+  // FallbackList always passes both arguments. The second is optional in the
+  // signature so parents whose optimistic-state model doesn't track
+  // fallback_routes separately can omit it and still type-check; the next
+  // list refresh from the server fills routes back in.
+  onUpdate: (updatedFallbacks: string[], updatedRoutes?: ModelRoute[] | null) => void;
   onAddFallback: () => void;
   adding?: boolean;
   primaryDragging?: boolean;

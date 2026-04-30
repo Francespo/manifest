@@ -10,6 +10,15 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * No legacy columns are dropped here — this migration is purely additive.
  * A follow-up release will drop the legacy columns once the dual-write
  * cycle has soaked.
+ *
+ * NOTE on the `up.cached_models::jsonb` and `t2.fallback_models::jsonb`
+ * casts in the SQL below: TypeORM's `simple-json` column type maps to
+ * Postgres TEXT, not JSONB, so jsonb_array_elements / jsonb_typeof can't
+ * be called directly on those columns. The `::jsonb` cast parses the
+ * stored JSON text into a jsonb value at query time. If a future TypeORM
+ * upgrade changes the simple-json mapping to native JSONB the cast
+ * becomes a redundant identity, not a regression — but the cast still
+ * documents the intent so leave it in place.
  */
 export class AddModelRouteColumns1783000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
