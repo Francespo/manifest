@@ -912,6 +912,78 @@ describe('ProxyMessageRecorder', () => {
         duration_ms: 1500,
       });
     });
+
+    describe('canned Manifest responses (no_provider / no_provider_key / limit_exceeded / friendly_error)', () => {
+      const cases: Array<{ reason: string; errorMessage: string }> = [
+        { reason: 'no_provider', errorMessage: 'No providers configured for this agent' },
+        { reason: 'no_provider_key', errorMessage: 'Provider API key missing' },
+        { reason: 'limit_exceeded', errorMessage: 'Usage limit exceeded' },
+        { reason: 'friendly_error', errorMessage: 'Manifest internal error' },
+      ];
+
+      it.each(cases)(
+        'inserts status=error and error_message="$errorMessage" when reason=$reason',
+        async ({ reason, errorMessage }) => {
+          await recorder.recordSuccessMessage(ctx, 'manifest', 'simple', reason, {
+            prompt_tokens: 0,
+            completion_tokens: 0,
+          });
+          expect(insertMock).toHaveBeenCalledTimes(1);
+          expect(insertMock.mock.calls[0][0]).toMatchObject({
+            status: 'error',
+            error_message: errorMessage,
+            routing_reason: reason,
+            model: 'manifest',
+          });
+        },
+      );
+
+      it('keeps status=ok and error_message=null for non-canned reasons (e.g. "scored")', async () => {
+        await recorder.recordSuccessMessage(ctx, 'gpt-4o', 'standard', 'scored', {
+          prompt_tokens: 1,
+          completion_tokens: 1,
+        });
+        expect(insertMock).toHaveBeenCalledTimes(1);
+        expect(insertMock.mock.calls[0][0]).toMatchObject({
+          status: 'ok',
+          error_message: null,
+          routing_reason: 'scored',
+        });
+      });
+
+      it('flips status to error and populates error_message on the dedup-update path', async () => {
+        const updateMock = jest.fn();
+        (dedupWithLock.withAgentMessageTransaction as jest.Mock).mockImplementation(
+          (_repo: unknown, _ctx: unknown, fn: (r: unknown) => Promise<void>) =>
+            fn({ insert: insertMock, update: updateMock }),
+        );
+        // Pre-existing zero-token row from an earlier write — recordSuccessMessage
+        // takes the update branch and must overwrite both status and error_message.
+        (dedupWithLock.findExistingSuccessMessage as jest.Mock).mockResolvedValue({
+          id: 'existing-canned',
+          timestamp: new Date().toISOString(),
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_read_tokens: 0,
+          cache_creation_tokens: 0,
+          duration_ms: null,
+        });
+
+        await recorder.recordSuccessMessage(ctx, 'manifest', 'simple', 'no_provider', {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+        });
+
+        expect(updateMock).toHaveBeenCalledTimes(1);
+        expect(updateMock.mock.calls[0][0]).toEqual({ id: 'existing-canned' });
+        expect(updateMock.mock.calls[0][1]).toMatchObject({
+          status: 'error',
+          error_message: 'No providers configured for this agent',
+          routing_reason: 'no_provider',
+        });
+        expect(insertMock).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('request_headers persistence', () => {
