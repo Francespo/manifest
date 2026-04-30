@@ -21,6 +21,10 @@ FROM deps AS build
 COPY packages/shared packages/shared
 COPY packages/frontend packages/frontend
 COPY packages/backend packages/backend
+COPY packages/manifest packages/manifest
+# Marks this bundle as a self-hosted build so the frontend reveals the
+# version badge baked in at build time. Cloud CI builds never set this.
+ENV VITE_MANIFEST_SELFHOSTED=true
 RUN npx turbo build --filter=manifest-backend --filter=manifest-frontend --filter=manifest-shared
 
 # Stage 3: Production dependencies only. npm ci runs with --ignore-scripts
