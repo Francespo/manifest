@@ -164,7 +164,7 @@ describe('ProxyService', () => {
         body: { messages },
         sessionKey: 'default',
       }),
-    ).rejects.toThrow('messages array exceeds maximum length of 1000');
+    ).rejects.toThrow(/M301.*exceeds maximum length of 1000/);
   });
 
   it('sanitizes null content fields before forwarding', async () => {

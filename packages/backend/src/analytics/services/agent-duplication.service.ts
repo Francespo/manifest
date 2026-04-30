@@ -57,6 +57,7 @@ export class AgentDuplicationService {
       .leftJoin('a.tenant', 't')
       .where('t.name = :userId', { userId })
       .andWhere('a.name = :agentName', { agentName })
+      .andWhere('a.deleted_at IS NULL')
       .getOne();
   }
 
@@ -86,6 +87,7 @@ export class AgentDuplicationService {
       .createQueryBuilder('a')
       .leftJoin('a.tenant', 't')
       .where('t.name = :userId', { userId })
+      .andWhere('a.deleted_at IS NULL')
       .select('a.name', 'name')
       .getRawMany<{ name: string }>();
     const taken = new Set(existingNames.map((r) => r.name));

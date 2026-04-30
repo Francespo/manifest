@@ -2,6 +2,9 @@ import { Injectable, ConflictException, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Agent } from '../../entities/agent.entity';
+import { ResolveAgentService } from '../../routing/routing-core/resolve-agent.service';
+import { RoutingCacheService } from '../../routing/routing-core/routing-cache.service';
+import { AgentKeyAuthGuard } from '../../otlp/guards/agent-key-auth.guard';
 
 @Injectable()
 export class AgentLifecycleService {
@@ -9,6 +12,9 @@ export class AgentLifecycleService {
     @InjectRepository(Agent)
     private readonly agentRepo: Repository<Agent>,
     private readonly dataSource: DataSource,
+    private readonly resolveAgent: ResolveAgentService,
+    private readonly routingCache: RoutingCacheService,
+    private readonly otlpAuthGuard: AgentKeyAuthGuard,
   ) {}
 
   async findAgentInfo(
@@ -31,17 +37,35 @@ export class AgentLifecycleService {
   }
 
   async deleteAgent(userId: string, agentName: string): Promise<void> {
-    const agent = await this.agentRepo
-      .createQueryBuilder('a')
-      .leftJoin('a.tenant', 't')
-      .where('t.name = :userId', { userId })
-      .andWhere('a.name = :agentName', { agentName })
-      .getOne();
+    const agent = await this.findAgentByUser(userId, agentName);
 
     if (!agent) {
       throw new NotFoundException(`Agent "${agentName}" not found`);
     }
-    await this.agentRepo.delete(agent.id);
+
+    const { id: agentId, tenant_id: tenantId } = agent;
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager
+        .createQueryBuilder()
+        .update('agents')
+        .set({ deleted_at: () => 'NOW()', is_active: false })
+        .where('id = :id', { id: agentId })
+        .execute();
+
+      // Disable the OTLP key so old credentials stop ingesting against the
+      // soft-deleted agent (decision: reject 401 on deleted-agent keys).
+      await manager
+        .createQueryBuilder()
+        .update('agent_api_keys')
+        .set({ is_active: false })
+        .where('agent_id = :id', { id: agentId })
+        .execute();
+    });
+
+    this.resolveAgent.invalidate(tenantId, agentName);
+    this.routingCache.invalidateAgent(agentId);
+    this.otlpAuthGuard.clearCache();
   }
 
   private async findAgentByUser(userId: string, agentName: string) {
@@ -50,6 +74,7 @@ export class AgentLifecycleService {
       .leftJoin('a.tenant', 't')
       .where('t.name = :userId', { userId })
       .andWhere('a.name = :agentName', { agentName })
+      .andWhere('a.deleted_at IS NULL')
       .getOne();
   }
 
@@ -85,6 +110,7 @@ export class AgentLifecycleService {
       .leftJoin('a.tenant', 't')
       .where('t.name = :userId', { userId })
       .andWhere('a.name = :currentName', { currentName })
+      .andWhere('a.deleted_at IS NULL')
       .getOne();
 
     if (!agent) {
@@ -109,6 +135,7 @@ export class AgentLifecycleService {
       .leftJoin('a.tenant', 't')
       .where('t.name = :userId', { userId })
       .andWhere('a.name = :newName', { newName })
+      .andWhere('a.deleted_at IS NULL')
       .getOne();
 
     if (duplicate) {

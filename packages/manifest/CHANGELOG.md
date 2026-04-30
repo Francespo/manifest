@@ -1,5 +1,16 @@
 # manifest
 
+## 5.58.0
+
+### Minor Changes
+
+- 992ae47: Add saved cost metric to the Overview dashboard showing how much money routing saves compared to using a single model
+
+### Patch Changes
+
+- 7394235: Mark Manifest's canned setup-prompt and limit responses as Failed in the Messages list. Requests that hit `no_provider`, `no_provider_key`, `limit_exceeded`, or `friendly_error` (the `[🦚 Manifest] …` stubs) now show a red Failed badge with a tooltip explaining why, instead of an ambiguous green Success.
+- 4bd4039: Fix two routing regressions caused by agent-wrapped user messages. Strip leading metadata envelopes (e.g. `Sender (untrusted metadata):` blocks emitted by OpenClaw, NanoBot, Hermes) before scoring so simple greetings like "say hello" no longer route to standard/complex (#1766). Tighten coding specificity signals so generic agent tools (`read`, `write`, `edit`, `bash`, etc.) and tiny envelope code fences no longer hijack every prompt to the coding tier (#1767).
+
 ## 5.57.0
 
 ### Minor Changes
