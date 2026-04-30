@@ -174,17 +174,18 @@ export class TimeseriesQueriesService {
     } else {
       agentQb.leftJoin('a.tenant', 't').where('t.name = :userId', { userId });
     }
+    agentQb.andWhere('a.deleted_at IS NULL');
 
     const statsCutoff = computeCutoff('30 days');
     const sparkCutoff = computeCutoff('7 days');
     const costExpr = sqlCastFloat(sqlSanitizeCost('at.cost_usd'));
     const dateExpr = sqlDateBucket('at.timestamp');
-    // Single per-(agent, day) bucket query covers the full 30-day stats window
-    // and the 7-day sparkline window. Buckets older than sparkCutoff have
-    // zeroed spark_tokens via a FILTER clause; JS aggregates the rest.
+    // Single per-(agent, day) bucket query keyed by agent_id so soft-deleted
+    // agents that share a slug with a live one don't pool their stats.
+    // Buckets older than sparkCutoff have zeroed spark_tokens via FILTER.
     const bucketsQb = this.turnRepo
       .createQueryBuilder('at')
-      .select('at.agent_name', 'agent_name')
+      .select('at.agent_id', 'agent_id')
       .addSelect(dateExpr, 'date')
       .addSelect(
         `COUNT(*) FILTER (WHERE at.status IS NULL OR at.status NOT IN ('error', 'fallback_error'))`,
@@ -197,7 +198,7 @@ export class TimeseriesQueriesService {
         'spark_tokens',
       )
       .addSelect('MAX(at.timestamp)', 'last_active')
-      .where('at.agent_name IS NOT NULL')
+      .where('at.agent_id IS NOT NULL')
       .andWhere('at.timestamp >= :statsCutoff', { statsCutoff })
       .setParameter('sparkCutoff', sparkCutoff);
     addTenantFilter(bucketsQb, userId, undefined, resolved);
@@ -205,9 +206,9 @@ export class TimeseriesQueriesService {
     const [agents, bucketRows] = await Promise.all([
       agentQb.andWhere('a.is_active = true').orderBy('a.created_at', 'DESC').getMany(),
       bucketsQb
-        .groupBy('at.agent_name')
+        .groupBy('at.agent_id')
         .addGroupBy('date')
-        .orderBy('at.agent_name', 'ASC')
+        .orderBy('at.agent_id', 'ASC')
         .addOrderBy('date', 'ASC')
         .getRawMany(),
     ]);
@@ -219,7 +220,7 @@ export class TimeseriesQueriesService {
     >();
     const sparkMap = new Map<string, number[]>();
     for (const r of bucketRows) {
-      const name = String(r['agent_name']);
+      const id = String(r['agent_id']);
       const messageCount = Number(r['message_count'] ?? 0);
       const cost = Number(r['cost'] ?? 0);
       const tokens = Number(r['tokens'] ?? 0);
@@ -228,14 +229,14 @@ export class TimeseriesQueriesService {
       const lastActive =
         rawLastActive instanceof Date ? rawLastActive.toISOString() : String(rawLastActive ?? '');
 
-      const existing = statsMap.get(name);
+      const existing = statsMap.get(id);
       if (existing) {
         existing.message_count += messageCount;
         existing.total_cost += cost;
         existing.total_tokens += tokens;
         if (lastActive > existing.last_active) existing.last_active = lastActive;
       } else {
-        statsMap.set(name, {
+        statsMap.set(id, {
           message_count: messageCount,
           total_cost: cost,
           total_tokens: tokens,
@@ -246,24 +247,23 @@ export class TimeseriesQueriesService {
       // Sparkline: one entry per day-bucket within the 7-day window. Bucket
       // membership is detected via lastActive (= MAX(timestamp) for that day).
       if (lastActive >= sparkCutoffIso) {
-        if (!sparkMap.has(name)) sparkMap.set(name, []);
-        sparkMap.get(name)!.push(sparkTokens);
+        if (!sparkMap.has(id)) sparkMap.set(id, []);
+        sparkMap.get(id)!.push(sparkTokens);
       }
     }
 
     return agents.map((a) => {
-      const name = a.name;
-      const stats = statsMap.get(name);
+      const stats = statsMap.get(a.id);
       return {
-        agent_name: name,
-        display_name: a.display_name ?? name,
+        agent_name: a.name,
+        display_name: a.display_name ?? a.name,
         agent_category: a.agent_category ?? null,
         agent_platform: a.agent_platform ?? null,
         message_count: stats?.message_count ?? 0,
         last_active: stats?.last_active || String(a.created_at ?? ''),
         total_cost: stats?.total_cost ?? 0,
         total_tokens: stats?.total_tokens ?? 0,
-        sparkline: sparkMap.get(name) ?? [],
+        sparkline: sparkMap.get(a.id) ?? [],
       };
     });
   }

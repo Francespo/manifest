@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { AgentMessage } from '../../entities/agent-message.entity';
 import { Agent } from '../../entities/agent.entity';
 import { UserProvider } from '../../entities/user-provider.entity';
@@ -94,7 +94,9 @@ export class SavingsQueryService {
     }
 
     const agent = await this.agentRepo.findOne({
-      where: tenantId ? { tenant_id: tenantId, name: agentName } : { name: agentName },
+      where: tenantId
+        ? { tenant_id: tenantId, name: agentName, deleted_at: IsNull() }
+        : { name: agentName, deleted_at: IsNull() },
     });
 
     if (!agent) return this.emptySavings();
@@ -495,7 +497,9 @@ export class SavingsQueryService {
   ): Promise<{ input: number; output: number } | null> {
     try {
       const agent = await this.agentRepo.findOne({
-        where: tenantId ? { tenant_id: tenantId, name: agentName } : { name: agentName },
+        where: tenantId
+          ? { tenant_id: tenantId, name: agentName, deleted_at: IsNull() }
+          : { name: agentName, deleted_at: IsNull() },
       });
       if (!agent) return null;
       const [providers, tiers, specificityAssignments, headerTiers] = await Promise.all([

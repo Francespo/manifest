@@ -142,6 +142,7 @@ export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
       .leftJoin('k.tenant', 't')
       .where('k.key_prefix = :prefix', { prefix })
       .andWhere('k.is_active = true')
+      .andWhere('a.deleted_at IS NULL')
       .getMany();
 
     const keyRecord = candidates.find((c) => verifyKey(token, c.key_hash));
