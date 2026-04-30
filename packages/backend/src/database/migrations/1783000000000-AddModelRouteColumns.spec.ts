@@ -113,14 +113,16 @@ describe('AddModelRouteColumns1783000000000', () => {
     it('gates auto_assigned_route backfill on a single unambiguous (provider, auth_type) match', async () => {
       await migration.up(queryRunner as unknown as QueryRunner);
 
-      // The HAVING COUNT(*) OVER (...) = 1 clause is what guarantees we
-      // only set auto_assigned_route when exactly one user_provider offers
-      // the model. Without it, backfill could pick an arbitrary provider
-      // for ambiguous models.
+      // The match_count = 1 filter on COUNT(*) OVER (PARTITION BY t2.id) is
+      // what guarantees we only set auto_assigned_route when exactly one
+      // user_provider offers the model. Postgres disallows window functions
+      // in HAVING, so the filter lives in an outer SELECT/UPDATE WHERE.
       expect(
         queryRunner.query.mock.calls.some(
           ([sql]: [string, unknown[]?]) =>
-            sql.includes('auto_assigned_route') && /HAVING\s+COUNT\(\*\)/.test(sql),
+            sql.includes('auto_assigned_route') &&
+            /COUNT\(\*\)\s+OVER\s*\(\s*PARTITION BY\s+t2\.id\s*\)/.test(sql) &&
+            /match_count\s*=\s*1/.test(sql),
         ),
       ).toBe(true);
     });
@@ -152,18 +154,18 @@ describe('AddModelRouteColumns1783000000000', () => {
       await migration.up(queryRunner as unknown as QueryRunner);
 
       // bool_and(...) over the resolved.unambiguous flag, joined back through
-      // the subq's all_unambiguous, ensures we leave fallback_routes null when
-      // any single fallback model is ambiguous.
+      // the aggregated CTE's all_unambiguous, ensures we leave fallback_routes
+      // null when any single fallback model is ambiguous.
       expect(
         queryRunner.query.mock.calls.some(
           ([sql]: [string, unknown[]?]) =>
-            sql.includes('fallback_routes') && /bool_and\(\s*resolved\.unambiguous/.test(sql),
+            sql.includes('fallback_routes') && /bool_and\(\s*r\.unambiguous\s*\)/.test(sql),
         ),
       ).toBe(true);
       expect(
         queryRunner.query.mock.calls.some(
           ([sql]: [string, unknown[]?]) =>
-            sql.includes('fallback_routes') && /subq\.all_unambiguous\s*=\s*true/.test(sql),
+            sql.includes('fallback_routes') && /a\.all_unambiguous\s*=\s*true/.test(sql),
         ),
       ).toBe(true);
     });
@@ -173,13 +175,14 @@ describe('AddModelRouteColumns1783000000000', () => {
 
       // Without ORDINALITY the backfilled fallback_routes wouldn't line up
       // with the legacy fallback_models string[] — that would break the
-      // proxy's "tries fallbacks in order" invariant.
+      // proxy's "tries fallbacks in order" invariant. The ORDER BY r.idx in
+      // jsonb_agg threads the ordinal through the resolved CTE.
       expect(
         queryRunner.query.mock.calls.some(
           ([sql]: [string, unknown[]?]) =>
             sql.includes('fallback_routes') &&
             /WITH ORDINALITY/.test(sql) &&
-            /ORDER BY\s+resolved\.idx/.test(sql),
+            /ORDER BY\s+r\.idx/.test(sql),
         ),
       ).toBe(true);
     });

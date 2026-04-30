@@ -63,19 +63,18 @@ export class AddModelRouteColumns1783000000000 implements MigrationInterface {
     // user_providers.cached_models by model name and only succeeds when
     // exactly one (provider, auth_type) pair matches. Ambiguous rows stay
     // null and are repopulated on next provider mutation by
-    // TierAutoAssignService.recalculate().
+    // TierAutoAssignService.recalculate(). Postgres disallows window
+    // functions in HAVING, so the unambiguous filter lives in an outer
+    // SELECT instead.
     for (const table of ['tier_assignments', 'specificity_assignments']) {
       await queryRunner.query(`
-        UPDATE "${table}" t
-        SET "auto_assigned_route" = subq.route
-        FROM (
+        WITH matches AS (
           SELECT
             t2.id AS row_id,
-            jsonb_build_object(
-              'provider', up.provider,
-              'authType', up.auth_type,
-              'model', t2.auto_assigned_model
-            ) AS route
+            up.provider,
+            up.auth_type,
+            t2.auto_assigned_model AS model_name,
+            COUNT(*) OVER (PARTITION BY t2.id) AS match_count
           FROM "${table}" t2
           JOIN "user_providers" up ON up.agent_id = t2.agent_id AND up.is_active = true
           WHERE t2.auto_assigned_model IS NOT NULL
@@ -83,102 +82,112 @@ export class AddModelRouteColumns1783000000000 implements MigrationInterface {
             AND up.cached_models IS NOT NULL
             AND EXISTS (
               SELECT 1
-              FROM jsonb_array_elements(up.cached_models) m
+              FROM jsonb_array_elements(up.cached_models::jsonb) m
               WHERE m->>'id' = t2.auto_assigned_model
             )
-          GROUP BY t2.id, up.provider, up.auth_type, t2.auto_assigned_model
-          HAVING COUNT(*) OVER (PARTITION BY t2.id) = 1
-        ) subq
-        WHERE t.id = subq.row_id
+        )
+        UPDATE "${table}" t
+        SET "auto_assigned_route" = jsonb_build_object(
+          'provider', matches.provider,
+          'authType', matches.auth_type,
+          'model', matches.model_name
+        )
+        FROM matches
+        WHERE t.id = matches.row_id
+          AND matches.match_count = 1
       `);
     }
 
     // 4. Best-effort fallback_routes backfill ------------------------------
     // For each fallback model name in the legacy string[], try to resolve
     // it to exactly one (provider, auth_type) via cached_models. Models that
-    // resolve unambiguously are written into fallback_routes preserving order;
-    // ambiguous fallbacks fall back to inferring at proxy-time from the legacy
-    // fallback_models column (existing behavior, unchanged).
-    //
-    // We do this in a single pass per row using a CTE that aggregates per
-    // fallback name. Rows where every fallback resolves get a complete
-    // fallback_routes; rows with any ambiguous fallback leave fallback_routes
-    // null so the existing legacy path stays authoritative.
+    // resolve unambiguously are written into fallback_routes preserving
+    // order; rows with any ambiguous fallback leave fallback_routes null so
+    // the existing legacy path stays authoritative. Implementation is three
+    // CTEs: expand the array with ordinality, resolve each entry to a
+    // (provider, auth_type) pair plus an unambiguity flag, then aggregate
+    // per row with bool_and to detect rows where every entry resolved.
     for (const table of ['tier_assignments', 'specificity_assignments', 'header_tiers']) {
       await queryRunner.query(`
-        UPDATE "${table}" t
-        SET "fallback_routes" = subq.routes
-        FROM (
+        WITH expanded AS (
           SELECT
             t2.id AS row_id,
-            jsonb_agg(
-              jsonb_build_object(
-                'provider', resolved.provider,
-                'authType', resolved.auth_type,
-                'model', resolved.model_name
-              )
-              ORDER BY resolved.idx
-            ) AS routes,
-            bool_and(resolved.unambiguous) AS all_unambiguous
+            t2.agent_id,
+            fm.value AS model_name,
+            fm.ordinality AS idx
           FROM "${table}" t2
-          CROSS JOIN LATERAL (
-            SELECT
-              fm.value::text AS model_name,
-              fm.ordinality AS idx,
-              (
-                SELECT up.provider
-                FROM "user_providers" up
-                WHERE up.agent_id = t2.agent_id
-                  AND up.is_active = true
-                  AND up.cached_models IS NOT NULL
-                  AND EXISTS (
-                    SELECT 1
-                    FROM jsonb_array_elements(up.cached_models) m
-                    WHERE m->>'id' = trim(both '"' from fm.value::text)
-                  )
-                LIMIT 1
-              ) AS provider,
-              (
-                SELECT up.auth_type
-                FROM "user_providers" up
-                WHERE up.agent_id = t2.agent_id
-                  AND up.is_active = true
-                  AND up.cached_models IS NOT NULL
-                  AND EXISTS (
-                    SELECT 1
-                    FROM jsonb_array_elements(up.cached_models) m
-                    WHERE m->>'id' = trim(both '"' from fm.value::text)
-                  )
-                LIMIT 1
-              ) AS auth_type,
-              (
-                SELECT COUNT(*) = 1
-                FROM "user_providers" up
-                WHERE up.agent_id = t2.agent_id
-                  AND up.is_active = true
-                  AND up.cached_models IS NOT NULL
-                  AND EXISTS (
-                    SELECT 1
-                    FROM jsonb_array_elements(up.cached_models) m
-                    WHERE m->>'id' = trim(both '"' from fm.value::text)
-                  )
-              ) AS unambiguous
-          ) resolved
-          CROSS JOIN LATERAL jsonb_array_elements_text(
-            CASE
-              WHEN jsonb_typeof(t2.fallback_models::jsonb) = 'array'
-                THEN t2.fallback_models::jsonb
-              ELSE '[]'::jsonb
-            END
-          ) WITH ORDINALITY AS fm(value, ordinality)
+          CROSS JOIN LATERAL jsonb_array_elements_text(t2.fallback_models::jsonb)
+            WITH ORDINALITY AS fm(value, ordinality)
           WHERE t2.fallback_models IS NOT NULL
             AND t2.fallback_routes IS NULL
             AND jsonb_typeof(t2.fallback_models::jsonb) = 'array'
             AND jsonb_array_length(t2.fallback_models::jsonb) > 0
-          GROUP BY t2.id
-        ) subq
-        WHERE t.id = subq.row_id
-          AND subq.all_unambiguous = true
+        ),
+        resolved AS (
+          SELECT
+            e.row_id,
+            e.idx,
+            e.model_name,
+            (
+              SELECT up.provider
+              FROM "user_providers" up
+              WHERE up.agent_id = e.agent_id
+                AND up.is_active = true
+                AND up.cached_models IS NOT NULL
+                AND EXISTS (
+                  SELECT 1
+                  FROM jsonb_array_elements(up.cached_models::jsonb) m
+                  WHERE m->>'id' = e.model_name
+                )
+              LIMIT 1
+            ) AS provider,
+            (
+              SELECT up.auth_type
+              FROM "user_providers" up
+              WHERE up.agent_id = e.agent_id
+                AND up.is_active = true
+                AND up.cached_models IS NOT NULL
+                AND EXISTS (
+                  SELECT 1
+                  FROM jsonb_array_elements(up.cached_models::jsonb) m
+                  WHERE m->>'id' = e.model_name
+                )
+              LIMIT 1
+            ) AS auth_type,
+            (
+              SELECT COUNT(*) = 1
+              FROM "user_providers" up
+              WHERE up.agent_id = e.agent_id
+                AND up.is_active = true
+                AND up.cached_models IS NOT NULL
+                AND EXISTS (
+                  SELECT 1
+                  FROM jsonb_array_elements(up.cached_models::jsonb) m
+                  WHERE m->>'id' = e.model_name
+                )
+            ) AS unambiguous
+          FROM expanded e
+        ),
+        aggregated AS (
+          SELECT
+            r.row_id,
+            jsonb_agg(
+              jsonb_build_object(
+                'provider', r.provider,
+                'authType', r.auth_type,
+                'model', r.model_name
+              )
+              ORDER BY r.idx
+            ) AS routes,
+            bool_and(r.unambiguous) AS all_unambiguous
+          FROM resolved r
+          GROUP BY r.row_id
+        )
+        UPDATE "${table}" t
+        SET "fallback_routes" = a.routes
+        FROM aggregated a
+        WHERE t.id = a.row_id
+          AND a.all_unambiguous = true
       `);
     }
 
