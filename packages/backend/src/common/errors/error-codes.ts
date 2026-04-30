@@ -1,4 +1,4 @@
-export const MANIFEST_ERRORS_DOCS_BASE = 'https://manifest.build/errors';
+export const MANIFEST_ERRORS_DOCS_BASE = 'https://manifest.build/docs/errors';
 
 const PEACOCK = '🦚';
 

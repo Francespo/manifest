@@ -7,7 +7,7 @@ import {
 
 describe('MANIFEST_ERRORS registry', () => {
   it('exposes the public docs base URL', () => {
-    expect(MANIFEST_ERRORS_DOCS_BASE).toBe('https://manifest.build/errors');
+    expect(MANIFEST_ERRORS_DOCS_BASE).toBe('https://manifest.build/docs/errors');
   });
 
   it('every code has a non-empty title and template', () => {
@@ -29,7 +29,7 @@ describe('formatManifestError', () => {
     const out = formatManifestError('M001');
     expect(out).toContain('[🦚 Manifest M001]');
     expect(out).toContain('Missing the Authorization header');
-    expect(out).toContain('https://manifest.build/errors/M001');
+    expect(out).toContain('https://manifest.build/docs/errors/M001');
   });
 
   it('interpolates {var} placeholders from the vars object', () => {
@@ -56,7 +56,7 @@ describe('formatManifestError', () => {
 
   it('appends the docs URL exactly once', () => {
     const out = formatManifestError('M500');
-    const matches = out.match(/https:\/\/manifest\.build\/errors\/M500/g) ?? [];
+    const matches = out.match(/https:\/\/manifest\.build\/docs\/errors\/M500/g) ?? [];
     expect(matches).toHaveLength(1);
   });
 
