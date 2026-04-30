@@ -46,12 +46,14 @@ export class RoutingInvalidationService {
       agentIds.add(tier.agent_id);
     }
 
-    // Also clean fallback models referencing removed models.
-    // Scope to affected agents first; if none found, scan all tiers with fallbacks.
-    const fallbackTiers =
-      agentIds.size > 0
-        ? await this.tierRepo.find({ where: { agent_id: In([...agentIds]) } })
-        : await this.tierRepo.find();
+    // Also clean fallback models referencing removed models, and catch tiers
+    // whose only stale state is on override_route (route-set, legacy-null).
+    // Today's writers always write both shapes so route-only-stale rows are
+    // unreachable in production; this matters once the legacy columns get
+    // dropped in the follow-up cleanup. Scanning all tiers unconditionally
+    // is the safe choice — the loop body filters fast and the table is per
+    // user, not global.
+    const fallbackTiers = await this.tierRepo.find();
     const savedIds = new Set(tiersToSave.map((t) => t.id));
     for (const tier of fallbackTiers) {
       const hasLegacyFallbacks = tier.fallback_models && tier.fallback_models.length > 0;
