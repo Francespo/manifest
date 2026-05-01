@@ -2188,4 +2188,59 @@ describe('ProviderClient', () => {
       ).rejects.toThrow('key=***');
     });
   });
+
+  describe('PROVIDER_TIMEOUT_MS env override', () => {
+    const originalEnv = process.env.PROVIDER_TIMEOUT_MS;
+
+    afterEach(() => {
+      if (originalEnv === undefined) delete process.env.PROVIDER_TIMEOUT_MS;
+      else process.env.PROVIDER_TIMEOUT_MS = originalEnv;
+    });
+
+    async function captureTimeoutMs(envValue: string | undefined): Promise<number> {
+      if (envValue === undefined) delete process.env.PROVIDER_TIMEOUT_MS;
+      else process.env.PROVIDER_TIMEOUT_MS = envValue;
+
+      const timeoutSpy = jest.spyOn(AbortSignal, 'timeout');
+      timeoutSpy.mockClear();
+
+      let observed = -1;
+      await jest.isolateModulesAsync(async () => {
+        const { ProviderClient: FreshClient } = await import('../provider-client');
+        const fresh = new FreshClient();
+        mockFetch.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+        await fresh.forward({
+          provider: 'openai',
+          apiKey: 'sk-test',
+          model: 'gpt-4',
+          body,
+          stream: false,
+        });
+        observed = timeoutSpy.mock.calls[0]?.[0] ?? -1;
+      });
+
+      timeoutSpy.mockRestore();
+      return observed;
+    }
+
+    it('defaults to 180000 ms when env var is unset', async () => {
+      expect(await captureTimeoutMs(undefined)).toBe(180_000);
+    });
+
+    it('uses the configured value when env var is a positive integer', async () => {
+      expect(await captureTimeoutMs('45000')).toBe(45_000);
+    });
+
+    it('falls back to 180000 ms when env var is non-numeric', async () => {
+      expect(await captureTimeoutMs('abc')).toBe(180_000);
+    });
+
+    it('falls back to 180000 ms when env var is negative', async () => {
+      expect(await captureTimeoutMs('-1')).toBe(180_000);
+    });
+
+    it('falls back to 180000 ms when env var is zero', async () => {
+      expect(await captureTimeoutMs('0')).toBe(180_000);
+    });
+  });
 });

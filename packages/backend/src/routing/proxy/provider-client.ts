@@ -34,7 +34,11 @@ export interface ForwardResult {
   isResponses?: boolean;
 }
 
-const PROVIDER_TIMEOUT_MS = 180_000;
+const parsedProviderTimeout = Number.parseInt(process.env.PROVIDER_TIMEOUT_MS ?? '', 10);
+const PROVIDER_TIMEOUT_MS =
+  Number.isFinite(parsedProviderTimeout) && parsedProviderTimeout > 0
+    ? parsedProviderTimeout
+    : 180_000;
 
 /**
  * Endpoint keys (OpenAI-compatible format) whose streaming responses support
