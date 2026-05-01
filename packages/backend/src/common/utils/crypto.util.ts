@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, scryptSync } from 'crypto';
 import { Logger as NestLogger } from '@nestjs/common';
 
 const ALGORITHM = 'aes-256-gcm';
@@ -20,7 +20,10 @@ const keyCache = new Map<string, Buffer>();
 const KEY_CACHE_MAX = 1024;
 
 function deriveKey(secret: string, salt: Buffer): Buffer {
-  const cacheKey = `${secret.length}:${secret}:${salt.toString('base64')}`;
+  // Index the cache by HMAC(secret, salt) so the raw secret never lives as a
+  // Map key string. A heap dump of the Node.js process previously exposed
+  // the encryption secret directly via the cache key; HMAC removes that path.
+  const cacheKey = createHmac('sha256', secret).update(salt).digest('hex');
   const cached = keyCache.get(cacheKey);
   if (cached) return cached;
   const derived = scryptSync(secret, salt, KEY_LENGTH);

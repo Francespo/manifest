@@ -155,7 +155,13 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
   },
   google: {
     baseUrl: 'https://generativelanguage.googleapis.com',
-    buildHeaders: () => ({ 'Content-Type': 'application/json' }),
+    // Google accepts the API key via the `x-goog-api-key` header as well as
+    // the `?key=` query parameter. Header is preferable: query strings show
+    // up in upstream proxy / load-balancer access logs, header values do not.
+    buildHeaders: (apiKey: string) => ({
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    }),
     buildPath: (model: string) => `/v1beta/models/${model}:generateContent`,
     format: 'google',
   },

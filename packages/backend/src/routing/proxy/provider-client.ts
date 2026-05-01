@@ -201,10 +201,11 @@ export class ProviderClient {
     const requestSource = ctx.apiMode === 'responses' ? (chatBody ?? body) : body;
 
     if (endpoint.format === 'google') {
-      // Google Gemini API requires the key as a URL parameter (not a header).
-      // It may be visible to intermediate proxies between Manifest and Google's API.
-      let url = `${endpoint.baseUrl}${endpoint.buildPath(bareModel)}?key=${apiKey}`;
-      if (stream) url += '&alt=sse';
+      // Google accepts the API key via header (set by buildHeaders below) so
+      // we no longer need to embed it in the URL. Keeping the key out of the
+      // URL avoids leaking it into upstream proxy / LB access logs.
+      let url = `${endpoint.baseUrl}${endpoint.buildPath(bareModel)}`;
+      if (stream) url += '?alt=sse';
       return {
         url,
         headers: endpoint.buildHeaders(apiKey, authType),

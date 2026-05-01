@@ -424,7 +424,7 @@ describe('ProviderClient', () => {
   });
 
   describe('Google provider', () => {
-    it('uses query param auth and Gemini path', async () => {
+    it('uses x-goog-api-key header and keeps key out of URL', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       const result = await client.forward({
@@ -436,10 +436,12 @@ describe('ProviderClient', () => {
       });
 
       const url = mockFetch.mock.calls[0][0] as string;
+      const init = mockFetch.mock.calls[0][1] as { headers: Record<string, string> };
       expect(url).toContain('generativelanguage.googleapis.com');
       expect(url).toContain('gemini-2.0-flash:generateContent');
-      expect(url).toContain('key=AIza-test');
+      expect(url).not.toContain('key=AIza-test');
       expect(url).not.toContain('alt=sse');
+      expect(init.headers['x-goog-api-key']).toBe('AIza-test');
       expect(result.isGoogle).toBe(true);
       expect(result.isAnthropic).toBe(false);
     });
@@ -1240,10 +1242,10 @@ describe('ProviderClient', () => {
   });
 
   describe('URL masking', () => {
-    it('masks API key in Google URL for debug logging', async () => {
+    it('keeps the Google API key out of the debug log entirely', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
-      // Spy on the logger to verify the masked URL
+      // Spy on the logger to verify the URL has no key in it
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const debugSpy = jest.spyOn((client as any).logger, 'debug');
 
@@ -1255,8 +1257,9 @@ describe('ProviderClient', () => {
         stream: false,
       });
 
-      expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('key=***'));
+      // Key is now sent in the x-goog-api-key header, never in the URL.
       expect(debugSpy).toHaveBeenCalledWith(expect.not.stringContaining('AIzaSyABCDEF12345'));
+      expect(debugSpy).toHaveBeenCalledWith(expect.not.stringContaining('key='));
 
       debugSpy.mockRestore();
     });
