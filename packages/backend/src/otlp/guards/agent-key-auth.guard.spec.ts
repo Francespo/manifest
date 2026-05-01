@@ -49,7 +49,11 @@ describe('AgentKeyAuthGuard', () => {
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(0),
       getMany: mockGetMany,
+      // resolveDevContext seeds-tenant lookup; default to no row so it falls
+      // back to repo.findOne — preserves existing test scenarios.
+      getOne: jest.fn().mockResolvedValue(null),
     };
     mockExecute = jest.fn().mockResolvedValue({});
     const mockUpdateQb = {

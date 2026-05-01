@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   OnModuleDestroy,
+  OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -31,7 +32,7 @@ interface CachedKey {
 }
 
 @Injectable()
-export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
+export class AgentKeyAuthGuard implements CanActivate, OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AgentKeyAuthGuard.name);
   private cache = new Map<string, CachedKey>();
   private devContext: { context: IngestionContext; expiresAt: number } | null = null;
@@ -50,6 +51,31 @@ export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
     this.cleanupTimer = setInterval(() => this.evictExpired(), 60_000);
     if (typeof this.cleanupTimer === 'object' && 'unref' in this.cleanupTimer) {
       this.cleanupTimer.unref();
+    }
+  }
+
+  async onModuleInit(): Promise<void> {
+    // Pre-migration API keys were hashed with a static salt
+    // ("manifest-api-key-salt"). The verifyKey path still accepts them for
+    // backward compatibility, but a leaked DB backup gives an attacker a
+    // rainbow-table head start. Surface a one-shot warning so operators
+    // know to rotate them via the dashboard.
+    try {
+      const legacyCount = await this.keyRepo
+        .createQueryBuilder('k')
+        .where("k.key_hash NOT LIKE '%:%'")
+        .andWhere('k.is_active = true')
+        .getCount();
+      if (legacyCount > 0) {
+        this.logger.warn(
+          `${legacyCount} active agent API key(s) still use the legacy static-salt hash. ` +
+            'Rotate them in the dashboard (Agent → Rotate Key) when convenient.',
+        );
+      }
+    } catch (err) {
+      // Don't block boot on this informational check (e.g. fresh DB before
+      // migrations run on the very first boot of an old install).
+      this.logger.debug(`Legacy hash audit skipped: ${(err as Error).message}`);
     }
   }
 
@@ -148,7 +174,10 @@ export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
     const keyRecord = candidates.find((c) => verifyKey(token, c.key_hash));
 
     if (!keyRecord) {
-      this.logger.warn(`Rejected unknown agent key: ${token.substring(0, 8)}...`);
+      // Log only the fixed prefix — even leaking the next character or two
+      // narrows the search space if these warnings end up in a SIEM that
+      // retains them indefinitely.
+      this.logger.warn(`Rejected unknown agent key (prefix: ${API_KEY_PREFIX}...)`);
       throw new UnauthorizedException('Invalid API key');
     }
 
@@ -194,10 +223,23 @@ export class AgentKeyAuthGuard implements CanActivate, OnModuleDestroy {
       return this.devContext.context;
     }
 
-    const keyRecord = await this.keyRepo.findOne({
-      where: { is_active: true },
-      relations: ['agent', 'tenant'],
-    });
+    // Prefer the seed tenant when present so a shared dev DB doesn't
+    // accidentally route loopback traffic into another developer's data
+    // simply because their key was inserted first.
+    const seedKey = await this.keyRepo
+      .createQueryBuilder('k')
+      .leftJoinAndSelect('k.agent', 'a')
+      .leftJoinAndSelect('k.tenant', 't')
+      .where('k.is_active = true')
+      .andWhere('k.tenant_id = :tid', { tid: 'seed-tenant-001' })
+      .getOne();
+
+    const keyRecord =
+      seedKey ??
+      (await this.keyRepo.findOne({
+        where: { is_active: true },
+        relations: ['agent', 'tenant'],
+      }));
 
     if (!keyRecord) return null;
 

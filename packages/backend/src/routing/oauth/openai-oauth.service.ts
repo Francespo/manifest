@@ -4,6 +4,7 @@ import { randomBytes, createHash } from 'crypto';
 import { createServer, IncomingMessage, ServerResponse, Server } from 'http';
 import { ProviderService } from '../routing-core/provider.service';
 import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
+import { scrubSecrets } from '../../common/utils/secret-scrub';
 import { PendingOAuth, OAuthTokenBlob, oauthDoneHtml } from './openai-oauth.types';
 
 export { PendingOAuth, OAuthTokenBlob, oauthDoneHtml };
@@ -96,7 +97,7 @@ export class OpenaiOauthService {
     });
     if (!response.ok) {
       const text = await response.text();
-      this.logger.error(`OpenAI token exchange failed: ${text}`);
+      this.logger.error(`OpenAI token exchange failed: ${scrubSecrets(text)}`);
       throw new Error('Token exchange failed');
     }
     const data = (await response.json()) as {
@@ -138,7 +139,7 @@ export class OpenaiOauthService {
     });
     if (!response.ok) {
       const text = await response.text();
-      this.logger.error(`OpenAI token refresh failed: ${text}`);
+      this.logger.error(`OpenAI token refresh failed: ${scrubSecrets(text)}`);
       throw new Error('Token refresh failed');
     }
     const data = (await response.json()) as {
@@ -190,7 +191,7 @@ export class OpenaiOauthService {
       });
       if (!response.ok) {
         const text = await response.text();
-        this.logger.warn(`OpenAI token revocation failed: ${text}`);
+        this.logger.warn(`OpenAI token revocation failed: ${scrubSecrets(text)}`);
       } else {
         this.logger.log('OpenAI OAuth token revoked');
       }

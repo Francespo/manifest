@@ -1,0 +1,5 @@
+---
+"manifest": patch
+---
+
+Security hardening across the build pipeline and runtime: every GitHub Action is now pinned by commit SHA, the awesome-free-llm-apis data feed is pinned to an immutable commit and validated for HTTPS shape before render, the encryption-key cache no longer keeps the raw secret as a Map key, the Google Gemini API key moves from `?key=` query param to the `x-goog-api-key` header (so it stays out of upstream proxy/LB access logs), OpenAI OAuth error logs run through `scrubSecrets`, the OAuth `backendUrl` now prefers `BETTER_AUTH_URL` over the request `Host` header, the dev-loopback agent fallback prefers the seeded tenant over picking the first active key, rejected agent keys log only the fixed `mnfst_` prefix, and migrations log via the TypeORM logger instead of `console.log`. `npm audit fix` resolved vite + postcss CVEs. A boot-time check counts active legacy static-salt API-key hashes and warns if any remain (no forced rotation). `MANIFEST_ENCRYPTION_KEY` is now documented and threaded through `docker-compose.yml`; if unset the runtime still falls back to `BETTER_AUTH_SECRET`.
