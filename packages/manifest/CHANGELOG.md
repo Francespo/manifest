@@ -1,5 +1,14 @@
 # manifest
 
+## 6.0.1
+
+### Patch Changes
+
+- e8162c3: Security hardening across the build pipeline and runtime: every GitHub Action is now pinned by commit SHA, the awesome-free-llm-apis data feed is pinned to an immutable commit and validated for HTTPS shape before render, the encryption-key cache no longer keeps the raw secret as a Map key, the Google Gemini API key moves from `?key=` query param to the `x-goog-api-key` header (so it stays out of upstream proxy/LB access logs), OpenAI OAuth error logs run through `scrubSecrets`, the OAuth `backendUrl` now prefers `BETTER_AUTH_URL` over the request `Host` header, the dev-loopback agent fallback prefers the seeded tenant over picking the first active key, rejected agent keys log only the fixed `mnfst_` prefix, and migrations log via the TypeORM logger instead of `console.log`. `npm audit fix` resolved vite + postcss CVEs. A boot-time check counts active legacy static-salt API-key hashes and warns if any remain (no forced rotation). `MANIFEST_ENCRYPTION_KEY` is now documented and threaded through `docker-compose.yml`; if unset the runtime still falls back to `BETTER_AUTH_SECRET`.
+- f0082d5: Fix: detect Podman and Kubernetes as self-hosted runtimes. Manifest now reads `/run/.containerenv` (Podman) and `KUBERNETES_SERVICE_HOST` in addition to `/.dockerenv`, so rootless Podman and Kubernetes installs no longer fall back to cloud-mode SSRF rules and reject `http://` URLs to local LLM servers.
+
+  Also narrows the cloud-metadata SSRF block to the actual IMDS addresses (`169.254.169.254`, `169.254.169.253`, `100.100.100.200`, `fd00:ec2::254`) instead of the entire `169.254.0.0/16` link-local range, so self-hosted users can reach `host.containers.internal` (which Podman maps to `169.254.x.y` under pasta/slirp4netns). Cloud mode is unchanged: link-local space is still rejected via the private-IP guard.
+
 ## 6.0.0
 
 ### Major Changes
