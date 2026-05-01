@@ -322,9 +322,9 @@ const CustomProviderForm: Component<Props> = (props) => {
               class="provider-detail__hint"
               style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground)); margin-top: 4px;"
             >
-              For local servers use <code>http://host.docker.internal:&lt;port&gt;</code> (Docker)
-              or <code>http://localhost:&lt;port&gt;</code> (native). HTTPS required for public
-              URLs.
+              For local servers use <code>http://host.docker.internal:&lt;port&gt;</code> (Docker),{' '}
+              <code>http://host.containers.internal:&lt;port&gt;</code> (Podman), or{' '}
+              <code>http://localhost:&lt;port&gt;</code> (native). HTTPS required for public URLs.
             </div>
           </Show>
           <Show when={probeError()}>
