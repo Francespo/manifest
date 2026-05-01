@@ -29,7 +29,11 @@ export interface ForwardResult {
   isChatGpt: boolean;
 }
 
-const PROVIDER_TIMEOUT_MS = parseInt(process.env.PROVIDER_TIMEOUT_MS ?? '', 10) || 180_000;
+const parsedProviderTimeout = Number.parseInt(process.env.PROVIDER_TIMEOUT_MS ?? '', 10);
+const PROVIDER_TIMEOUT_MS =
+  Number.isFinite(parsedProviderTimeout) && parsedProviderTimeout > 0
+    ? parsedProviderTimeout
+    : 180_000;
 
 /**
  * Strip vendor prefix from model name (e.g. "anthropic/claude-sonnet-4" → "claude-sonnet-4").
