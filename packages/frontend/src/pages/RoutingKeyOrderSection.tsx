@@ -725,9 +725,10 @@ const RoutingKeyOrderSection: Component<RoutingKeyOrderSectionProps> = (props) =
     if (saving()) return;
     const editing = modalState() !== 'new' ? (modalState() as KeyRotationRule | null) : null;
     const prev = rules();
-    // agentId is never sent: the backend resolves the agent from the URL and
-    // upserts by (agent_id, model) / (agent_id, provider), honoring our id
-    // when present.
+    // agentId and id are never sent: the backend resolves the agent from the
+    // URL, upserts by (agent_id, model) / (agent_id, provider), and generates
+    // fresh ids. `id` here is only a local handle for optimistic updates
+    // (saveKeyRules strips it from the wire payload).
     const rule: KeyRotationRuleInput = {
       id: editing?.id ?? browserUuid(),
       model: draft.model,

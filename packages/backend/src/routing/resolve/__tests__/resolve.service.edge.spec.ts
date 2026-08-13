@@ -13,6 +13,7 @@ import type { SpecificityPenaltyService } from '../../routing-core/specificity-p
 import type { HeaderTierService } from '../../header-tiers/header-tier.service';
 import type { ModelPricingCacheService } from '../../../model-prices/model-pricing-cache.service';
 import type { ModelDiscoveryService } from '../../../model-discovery/model-discovery.service';
+import type { KeyRotationRuleService } from '../../routing-core/key-rotation-rule.service';
 
 /**
  * Edge-case tests for ResolveService. Mirrors resolve.service.spec.ts mocking.
@@ -138,6 +139,10 @@ describe('ResolveService — edge cases', () => {
       headerTierService as unknown as HeaderTierService,
       agentRepo as unknown as Repository<Agent>,
       { addInvalidationListener: jest.fn() } as unknown as RoutingCacheService,
+      {
+        getRule: jest.fn().mockResolvedValue(null),
+        list: jest.fn().mockResolvedValue([]),
+      } as unknown as KeyRotationRuleService,
     );
   });
 

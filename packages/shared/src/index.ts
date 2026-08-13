@@ -70,6 +70,7 @@ export {
   isModelRouteArray,
   legacyToRoute,
   routeToLegacy,
+  KEY_LABEL_ROTATION,
 } from './model-route';
 export type { ModelRoute, LegacyOverrideTriple } from './model-route';
 export { isKeyRotationRule, isKeyRotationRuleArray } from './key-rotation-rule';

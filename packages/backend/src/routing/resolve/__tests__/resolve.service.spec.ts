@@ -1,5 +1,5 @@
 import type { Repository } from 'typeorm';
-import type { ModelRoute } from 'manifest-shared';
+import type { KeyRotationRule, ModelRoute } from 'manifest-shared';
 import { ResolveService } from '../resolve.service';
 import { Agent } from '../../../entities/agent.entity';
 import type { TierAssignment } from '../../../entities/tier-assignment.entity';
@@ -13,6 +13,7 @@ import type { SpecificityPenaltyService } from '../../routing-core/specificity-p
 import type { HeaderTierService } from '../../header-tiers/header-tier.service';
 import type { ModelPricingCacheService } from '../../../model-prices/model-pricing-cache.service';
 import type { ModelDiscoveryService } from '../../../model-discovery/model-discovery.service';
+import type { KeyRotationRuleService } from '../../routing-core/key-rotation-rule.service';
 
 /**
  * Mock the scoring module so each test can drive scoreRequest / scanMessages
@@ -66,6 +67,7 @@ describe('ResolveService', () => {
   let headerTierService: jest.Mocked<Pick<HeaderTierService, 'list'>>;
   let agentRepo: { findOne: jest.Mock };
   let routingCache: { addInvalidationListener: jest.Mock };
+  let keyRotationRules: { getRule: jest.Mock; list: jest.Mock };
   let svc: ResolveService;
 
   beforeEach(() => {
@@ -95,6 +97,10 @@ describe('ResolveService', () => {
       findOne: jest.fn().mockResolvedValue({ id: 'agent-1', complexity_routing_enabled: true }),
     };
     routingCache = { addInvalidationListener: jest.fn() };
+    keyRotationRules = {
+      getRule: jest.fn().mockResolvedValue(null),
+      list: jest.fn().mockResolvedValue([]),
+    };
 
     // Defaults — each test overrides as needed.
     mockedScore.mockReturnValue({
@@ -116,6 +122,7 @@ describe('ResolveService', () => {
       headerTierService as unknown as HeaderTierService,
       agentRepo as unknown as Repository<Agent>,
       routingCache as unknown as RoutingCacheService,
+      keyRotationRules as unknown as KeyRotationRuleService,
     );
   });
 
@@ -1072,6 +1079,94 @@ describe('ResolveService', () => {
       ]);
       const result = await svc.resolveForTier('agent-1', 'user-1', 'default', 'default');
       expect(result.reason).toBe('default');
+    });
+  });
+
+  describe('enrichRouteKeyLabel', () => {
+    const rotationRule = (): KeyRotationRule => ({
+      id: 'rule-1',
+      agentId: 'agent-1',
+      model: 'gpt-4o',
+      provider: 'openai',
+      scope: 'model',
+      keyOrder: ['Work', 'Personal'],
+    });
+
+    const tierWithOverride = (overrideRoute: ModelRoute) =>
+      ({
+        tier: 'simple',
+        override_route: overrideRoute,
+        auto_assigned_route: null,
+        fallback_routes: null,
+      }) as unknown as TierAssignment;
+
+    it('leaves keyLabel absent when a rotation rule covers the model', async () => {
+      keyRotationRules.getRule.mockResolvedValue(rotationRule());
+      providerKeyService.getDefaultKeyLabel.mockResolvedValue('Default');
+      tierService.getTiers.mockResolvedValue([
+        tierWithOverride(route('openai', 'api_key', 'gpt-4o')),
+      ]);
+
+      const result = await svc.resolveForTier('agent-1', 'user-1', 'simple');
+
+      // The rule means the proxy will rotate — no default label filled in.
+      expect(keyRotationRules.getRule).toHaveBeenCalledWith('gpt-4o', 'agent-1', 'openai');
+      expect(providerKeyService.getDefaultKeyLabel).not.toHaveBeenCalled();
+      expect(result.route).toEqual(route('openai', 'api_key', 'gpt-4o'));
+      expect(result.route!.keyLabel).toBeUndefined();
+    });
+
+    it('fills the default label only when no rule covers the model', async () => {
+      keyRotationRules.getRule.mockResolvedValue(null);
+      providerKeyService.getDefaultKeyLabel.mockResolvedValue('Default');
+      tierService.getTiers.mockResolvedValue([
+        tierWithOverride(route('openai', 'api_key', 'gpt-4o')),
+      ]);
+
+      const result = await svc.resolveForTier('agent-1', 'user-1', 'simple');
+
+      expect(keyRotationRules.getRule).toHaveBeenCalledWith('gpt-4o', 'agent-1', 'openai');
+      expect(providerKeyService.getDefaultKeyLabel).toHaveBeenCalledWith(
+        'user-1',
+        'openai',
+        'api_key',
+        'agent-1',
+      );
+      expect(result.route).toEqual({
+        ...route('openai', 'api_key', 'gpt-4o'),
+        keyLabel: 'Default',
+      });
+    });
+
+    it('leaves a pinned real keyLabel untouched and never queries the rule', async () => {
+      keyRotationRules.getRule.mockResolvedValue(rotationRule());
+      providerKeyService.getDefaultKeyLabel.mockResolvedValue('Default');
+      tierService.getTiers.mockResolvedValue([
+        tierWithOverride({ ...route('openai', 'api_key', 'gpt-4o'), keyLabel: 'Work' }),
+      ]);
+
+      const result = await svc.resolveForTier('agent-1', 'user-1', 'simple');
+
+      expect(keyRotationRules.getRule).not.toHaveBeenCalled();
+      expect(providerKeyService.getDefaultKeyLabel).not.toHaveBeenCalled();
+      expect(result.route).toEqual({ ...route('openai', 'api_key', 'gpt-4o'), keyLabel: 'Work' });
+    });
+
+    it("leaves the 'rotation' sentinel untouched and never queries the rule", async () => {
+      keyRotationRules.getRule.mockResolvedValue(rotationRule());
+      providerKeyService.getDefaultKeyLabel.mockResolvedValue('Default');
+      tierService.getTiers.mockResolvedValue([
+        tierWithOverride({ ...route('openai', 'api_key', 'gpt-4o'), keyLabel: 'rotation' }),
+      ]);
+
+      const result = await svc.resolveForTier('agent-1', 'user-1', 'simple');
+
+      expect(keyRotationRules.getRule).not.toHaveBeenCalled();
+      expect(providerKeyService.getDefaultKeyLabel).not.toHaveBeenCalled();
+      expect(result.route).toEqual({
+        ...route('openai', 'api_key', 'gpt-4o'),
+        keyLabel: 'rotation',
+      });
     });
   });
 });
