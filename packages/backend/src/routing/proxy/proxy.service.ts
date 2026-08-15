@@ -57,6 +57,7 @@ import {
   usedLabelCount,
   type KeyRotationState,
 } from './key-rotation';
+import { KeyQuotaService } from './key-quota.service';
 import { buildFriendlyResponse, getDashboardUrl } from './proxy-friendly-response';
 import { formatManifestError, type ManifestErrorCode } from '../../common/errors/error-codes';
 import { ManifestError } from '../../common/errors/manifest-error';
@@ -264,6 +265,7 @@ export class ProxyService {
     private readonly autofixService: AutofixService,
     private readonly keyRotationRules: KeyRotationRuleService,
     private readonly reasoningCache: ReasoningContentCache,
+    private readonly quota: KeyQuotaService,
   ) {}
 
   async proxyRequest(opts: ProxyRequestOptions): Promise<ProxyResult> {
@@ -553,32 +555,68 @@ export class ProxyService {
       );
     }
 
-    let forward = await this.fallbackService.tryForwardToProvider({
-      provider: route.provider,
-      apiKey: credentials.apiKey,
-      model: primaryModel,
-      body,
-      resolveChatBody,
-      stream,
-      sessionKey,
-      providerCacheKey,
-      signal,
-      agentId,
-      tenantId,
-      rawApiKey: credentials.rawApiKey,
-      // Always the selected row's label (see resolveRouteCredentials), so the
-      // forwarded connection and the recorded one can never diverge.
-      providerKeyLabel: credentials.keyLabel,
-      authType: route.authType,
-      apiMode,
-      resourceUrl: credentials.resourceUrl,
-      providerRegion: credentials.providerRegion,
-      signatureLookup,
-      thinkingLookup,
-      paramMergeContext,
-      tenantProviderId: credentials.tenantProviderId,
-      startProviderAttempt,
-    });
+    // Quota-aware primary skip: when the primary key's free quota is confirmed
+    // exhausted for the day/week, skip the upstream call entirely (avoids
+    // burning a 10s+ timeout per request against a dead key) and hand the flow
+    // a synthetic 429 forward. With a rotation rule, the entry is synthetic
+    // and the loop skips every other exhausted label; without a rule, the
+    // request advances straight to the fallback chain.
+    const primaryQuota = credentials.ok
+      ? this.quota.isKeyQuotaExhausted(
+          agentId,
+          route.provider,
+          route.authType,
+          credentials.keyLabel ?? route.keyLabel ?? undefined,
+        )
+      : null;
+
+    let forward: ForwardResult;
+    if (primaryQuota) {
+      this.logger.warn(
+        `[quota-freeze] SKIPPED primary key: provider=${route.provider} label=` +
+          `${credentials.keyLabel ?? route.keyLabel ?? 'default'} model=${primaryModel} ` +
+          `freeze=${primaryQuota.reason} remaining=${this.quota.remainingLabel(primaryQuota.exhaustedUntil)} ` +
+          `until=${new Date(primaryQuota.exhaustedUntil).toISOString()} (no upstream call, no retry before then)`,
+      );
+      forward = this.fallbackService.buildQuotaSkippedForward(
+        route.provider,
+        primaryModel,
+        primaryQuota,
+        {
+          authType: route.authType,
+          tenantProviderId: credentials.tenantProviderId,
+          keyLabel: credentials.keyLabel ?? route.keyLabel ?? undefined,
+          startProviderAttempt,
+        },
+      );
+    } else {
+      forward = await this.fallbackService.tryForwardToProvider({
+        provider: route.provider,
+        apiKey: credentials.apiKey,
+        model: primaryModel,
+        body,
+        resolveChatBody,
+        stream,
+        sessionKey,
+        providerCacheKey,
+        signal,
+        agentId,
+        tenantId,
+        rawApiKey: credentials.rawApiKey,
+        // Always the selected row's label (see resolveRouteCredentials), so the
+        // forwarded connection and the recorded one can never diverge.
+        providerKeyLabel: credentials.keyLabel,
+        authType: route.authType,
+        apiMode,
+        resourceUrl: credentials.resourceUrl,
+        providerRegion: credentials.providerRegion,
+        signatureLookup,
+        thinkingLookup,
+        paramMergeContext,
+        tenantProviderId: credentials.tenantProviderId,
+        startProviderAttempt,
+      });
+    }
     const autofixOriginalAttempt = forward.attempt;
     const autofixOriginalProviderCallStarted = forward.providerCallStarted;
 
@@ -1459,6 +1497,20 @@ export class ProxyService {
         `Primary key rotation: model=${model} label=${label} ` +
           `(${usedLabelCount(state, rule, model)}/${rule.keyOrder.length} provider=${provider})`,
       );
+
+      // Quota-exhausted labels are skipped without an upstream call. When every
+      // label is exhausted the loop ends below and the request advances to the
+      // fallback chain with the entry forward (the whole model is effectively
+      // skipped in the rotation).
+      const quotaInfo = this.quota.isKeyQuotaExhausted(agentId, provider, authType, label);
+      if (quotaInfo) {
+        this.logger.log(
+          `[quota-freeze] SKIPPED rotation label: provider=${provider} label=${label} ` +
+            `freeze=${quotaInfo.reason} remaining=${this.quota.remainingLabel(quotaInfo.exhaustedUntil)} ` +
+            `until=${new Date(quotaInfo.exhaustedUntil).toISOString()} (no retry before then)`,
+        );
+        continue;
+      }
 
       const credentials = await this.resolveCredentials(agentId, tenantId, {
         provider,

@@ -2,6 +2,7 @@ import { Repository } from 'typeorm';
 import type { KeyRotationRule, ModelRoute } from 'manifest-shared';
 import { ProxyFallbackService } from '../proxy-fallback.service';
 import { ReasoningContentCache } from '../reasoning-content-cache';
+import { KeyQuotaService } from '../key-quota.service';
 import { ProviderKeyService } from '../../routing-core/provider-key.service';
 import { CustomProvider } from '../../../entities/custom-provider.entity';
 import { OpenaiOauthService } from '../../oauth/openai/openai-oauth.service';
@@ -38,6 +39,7 @@ describe('ProxyFallbackService.tryFallbacks — key rotation', () => {
   let providerKeyService: jest.Mocked<ProviderKeyService>;
   let providerClient: jest.Mocked<ProviderClient>;
   let keyRotationRules: { getRule: jest.Mock; list: jest.Mock };
+  let quota: KeyQuotaService;
 
   const body = { messages: [{ role: 'user', content: 'Hello' }], stream: false };
 
@@ -133,6 +135,8 @@ describe('ProxyFallbackService.tryFallbacks — key rotation', () => {
       list: jest.fn().mockResolvedValue([]),
     };
 
+    quota = new KeyQuotaService();
+
     const customProviderRepo = {
       findOne: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<Repository<CustomProvider>>;
@@ -165,6 +169,7 @@ describe('ProxyFallbackService.tryFallbacks — key rotation', () => {
       } as unknown as ProviderParamSpecService,
       new ReasoningContentCache(),
       keyRotationRules as unknown as KeyRotationRuleService,
+      quota,
     );
   });
 
@@ -370,6 +375,91 @@ describe('ProxyFallbackService.tryFallbacks — key rotation', () => {
 
     expect(result.success!.keyLabel).toBe('Personal');
     expect(result.success!.recoveredByKeyRotation).toBe(false);
+  });
+
+  describe('quota-exhausted key skipping', () => {
+    it('skips exhausted labels and succeeds on a live one without an upstream call on the dead key', async () => {
+      keyRotationRules.getRule.mockResolvedValue(rule('gpt-4o', ['Work', 'Personal']));
+      providerClient.forward.mockResolvedValueOnce(forward(200));
+      // Mark 'Work' exhausted for the day (quota language, single explicit signal).
+      quota.recordAttemptResult({
+        agentId: 'agent-1',
+        provider: 'openai',
+        authType: 'api_key',
+        providerKeyLabel: 'Work',
+        status: 429,
+        errorBody: 'You have exceeded your current daily quota',
+      });
+
+      const result = await runFallbacks(
+        ['gpt-4o'],
+        [{ provider: 'openai', authType: 'api_key', model: 'gpt-4o' }],
+        createKeyRotationState(),
+      );
+
+      // Only the live key was forwarded — the dead 'Work' key cost zero calls.
+      expect(providerClient.forward).toHaveBeenCalledTimes(1);
+      expect(result.success).not.toBeNull();
+      expect(result.success!.keyLabel).toBe('Personal');
+    });
+
+    it('skips the whole model when every key in the rule is quota-exhausted', async () => {
+      keyRotationRules.getRule.mockResolvedValue(rule('gpt-4o', ['Work', 'Personal']));
+      quota.recordAttemptResult({
+        agentId: 'agent-1',
+        provider: 'openai',
+        authType: 'api_key',
+        providerKeyLabel: 'Work',
+        status: 429,
+        errorBody: 'You have exceeded your current daily quota',
+      });
+      quota.recordAttemptResult({
+        agentId: 'agent-1',
+        provider: 'openai',
+        authType: 'api_key',
+        providerKeyLabel: 'Personal',
+        status: 429,
+        errorBody: 'You have exceeded your current daily quota',
+      });
+
+      const result = await runFallbacks(
+        ['gpt-4o'],
+        [{ provider: 'openai', authType: 'api_key', model: 'gpt-4o' }],
+        createKeyRotationState(),
+      );
+
+      // No upstream call at all — the entire model drops out of the chain.
+      expect(providerClient.forward).not.toHaveBeenCalled();
+      expect(result.success).toBeNull();
+      expect(result.failures).toHaveLength(0);
+    });
+
+    it('skips a model whose default key is exhausted (no rotation rule)', async () => {
+      // No rule: the slot's candidate is the route's default (undefined) label.
+      keyRotationRules.getRule.mockResolvedValue(null);
+      providerClient.forward.mockResolvedValue(forward(200));
+      quota.recordAttemptResult({
+        agentId: 'agent-1',
+        provider: 'openai',
+        authType: 'api_key',
+        status: 429,
+        errorBody: 'You have exceeded your current daily quota',
+      });
+
+      const result = await runFallbacks(
+        ['gpt-4o', 'claude-haiku-3.5'],
+        [
+          { provider: 'openai', authType: 'api_key', model: 'gpt-4o' },
+          { provider: 'anthropic', authType: 'api_key', model: 'claude-haiku-3.5' },
+        ],
+        createKeyRotationState(),
+      );
+
+      // openai's exhausted default key is skipped; anthropic is still attempted.
+      expect(providerClient.forward).toHaveBeenCalledTimes(1);
+      expect(result.failures.map((f) => f.provider)).toEqual([]);
+      expect(result.success?.provider).toBe('anthropic');
+    });
   });
 
   describe('nextUnusedKeyLabel', () => {

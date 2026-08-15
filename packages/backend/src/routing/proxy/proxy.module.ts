@@ -29,6 +29,7 @@ import { ModelsDevReasoningCatalog } from './reasoning-model-catalog';
 import { CodexSessionAffinity } from './codex-session-affinity';
 import { ProxyExceptionFilter } from './proxy-exception.filter';
 import { AttemptRecordingService } from './attempt-recording.service';
+import { KeyQuotaService } from './key-quota.service';
 
 @Module({
   imports: [
@@ -61,7 +62,8 @@ import { AttemptRecordingService } from './attempt-recording.service';
     CodexSessionAffinity,
     ProxyExceptionFilter,
     AttemptRecordingService,
+    KeyQuotaService,
   ],
-  exports: [ProviderClient],
+  exports: [ProviderClient, KeyQuotaService],
 })
 export class ProxyModule {}

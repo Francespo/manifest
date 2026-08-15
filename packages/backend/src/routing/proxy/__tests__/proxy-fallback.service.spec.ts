@@ -16,6 +16,7 @@ import { ModelPricingCacheService } from '../../../model-prices/model-pricing-ca
 import { AgentModelParamsService } from '../../routing-core/agent-model-params.service';
 import { ProviderParamSpecService } from '../../routing-core/provider-param-spec.service';
 import { KeyRotationRuleService } from '../../routing-core/key-rotation-rule.service';
+import { KeyQuotaService } from '../key-quota.service';
 import { getProviderParamSpecs, type ProviderParamSpecCatalog } from 'manifest-shared';
 
 const specCatalog: ProviderParamSpecCatalog = [
@@ -191,10 +192,39 @@ describe('ProxyFallbackService', () => {
         getRule: jest.fn().mockResolvedValue(null),
         list: jest.fn().mockResolvedValue([]),
       } as unknown as KeyRotationRuleService,
+      new KeyQuotaService(),
     );
   });
 
   const body = { messages: [{ role: 'user', content: 'Hello' }], stream: false };
+
+  describe('buildQuotaSkippedForward', () => {
+    it('returns a synthetic 429 forward carrying the retry-after until the quoted instant', () => {
+      const exhaustedUntil = Date.now() + 6 * 60 * 60 * 1000;
+      const result = service.buildQuotaSkippedForward('openai', 'gpt-4o', {
+        reason: 'day',
+        exhaustedUntil,
+      });
+      expect(result.response.status).toBe(429);
+      expect(result.providerCallStarted).toBe(false);
+      const retryAfter = Number(result.response.headers.get('retry-after'));
+      expect(retryAfter).toBeGreaterThan(0);
+      expect(retryAfter).toBeLessThanOrEqual(6 * 60 * 60);
+    });
+
+    it('marks the synthetic forward with the quota-freeze header and an explicit freeze message', async () => {
+      const exhaustedUntil = Date.now() + 6 * 60 * 60 * 1000;
+      const result = service.buildQuotaSkippedForward('openai', 'gpt-4o', {
+        reason: 'day',
+        exhaustedUntil,
+      });
+      expect(result.response.headers.get('x-manifest-quota-freeze')).toBe('day');
+      const body = await result.response.text();
+      expect(body).toContain('Manifest quota freeze');
+      expect(body).toContain('not a provider error');
+      expect(body).toContain(new Date(exhaustedUntil).toISOString());
+    });
+  });
 
   describe('tryForwardToProvider', () => {
     it('returns forward result on success', async () => {

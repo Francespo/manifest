@@ -27,6 +27,7 @@ import type { ProviderParamSpecService } from '../../routing-core/provider-param
 import type { KeyRotationRuleService } from '../../routing-core/key-rotation-rule.service';
 import type { AutofixService } from '../../autofix/autofix.service';
 import { ReasoningContentCache } from '../reasoning-content-cache';
+import { KeyQuotaService } from '../key-quota.service';
 import type { ModelDiscoveryService } from '../../../model-discovery/model-discovery.service';
 import type { DiscoveredModel } from '../../../model-discovery/model-fetcher';
 
@@ -117,7 +118,10 @@ describe('ProxyService — orchestration', () => {
   >;
   let limitCheck: jest.Mocked<Pick<LimitCheckService, 'checkLimits'>>;
   let fallbackService: jest.Mocked<
-    Pick<ProxyFallbackService, 'tryForwardToProvider' | 'retryWireBody' | 'tryFallbacks'>
+    Pick<
+      ProxyFallbackService,
+      'tryForwardToProvider' | 'retryWireBody' | 'tryFallbacks' | 'buildQuotaSkippedForward'
+    >
   >;
   let configService: ConfigService;
   let signatureCache: ThoughtSignatureCache;
@@ -127,6 +131,7 @@ describe('ProxyService — orchestration', () => {
   let autofixService: { maybeHeal: jest.Mock };
   let keyRotationRules: { getRule: jest.Mock; list: jest.Mock };
   let reasoningCache: { reasoningContentForHeal: jest.Mock };
+  let quota: KeyQuotaService;
   let svc: ProxyService;
   let modelDiscovery: jest.Mocked<Pick<ModelDiscoveryService, 'getModelsForAgent'>>;
 
@@ -189,6 +194,36 @@ describe('ProxyService — orchestration', () => {
       tryForwardToProvider: jest.fn(),
       retryWireBody: jest.fn(),
       tryFallbacks: jest.fn(),
+      buildQuotaSkippedForward: jest.fn(
+        (
+          provider: string,
+          model: string,
+          _info: { reason: 'day' | 'week' | 'hour'; exhaustedUntil: number },
+          attemptOpts?: {
+            authType?: string;
+            tenantProviderId?: string | null;
+            keyLabel?: string;
+            startProviderAttempt?: (input: any) => any;
+          },
+        ) => {
+          const attempt = attemptOpts?.startProviderAttempt?.({
+            provider,
+            model,
+            authType: attemptOpts.authType,
+            tenantProviderId: attemptOpts.tenantProviderId ?? undefined,
+            keyLabel: attemptOpts.keyLabel,
+            providerCallStarted: false,
+          });
+          return {
+            response: new Response('{"error":{"message":"quota exhausted"}}', { status: 429 }),
+            isGoogle: false,
+            isAnthropic: false,
+            isChatGpt: false,
+            providerCallStarted: false,
+            attempt,
+          };
+        },
+      ),
     };
     configService = { get: jest.fn().mockReturnValue(undefined) } as unknown as ConfigService;
     signatureCache = {
@@ -215,6 +250,7 @@ describe('ProxyService — orchestration', () => {
     reasoningCache = {
       reasoningContentForHeal: jest.fn().mockResolvedValue({}),
     };
+    quota = new KeyQuotaService();
 
     svc = new ProxyService(
       resolveService as unknown as ResolveService,
@@ -237,6 +273,7 @@ describe('ProxyService — orchestration', () => {
       autofixService as unknown as AutofixService,
       keyRotationRules as unknown as KeyRotationRuleService,
       reasoningCache as unknown as ReasoningContentCache,
+      quota,
     );
   });
 
@@ -3223,6 +3260,62 @@ describe('ProxyService — orchestration', () => {
       // Rule label beats any route keyLabel / default key.
       expect(fallbackService.tryForwardToProvider.mock.calls[0][0].providerKeyLabel).toBe('Work');
       expect(result.forward.response.status).toBe(200);
+    });
+
+    it('skips an exhausted primary key with no rule and advances straight to the chain', async () => {
+      keyRotationRules.getRule.mockResolvedValue(null);
+      labelAwareKeys();
+      // Exhaust the primary's resolved default label for the day.
+      quota.recordAttemptResult({
+        agentId: 'agent-1',
+        provider: 'openai',
+        authType: 'api_key',
+        status: 429,
+        errorBody: 'You have exceeded your current daily quota',
+      });
+      fallbackService.tryFallbacks.mockResolvedValue({
+        success: null,
+        failures: [],
+      });
+      resolveService.resolve.mockResolvedValue({
+        ...resolvedRoute,
+        fallback_routes: [route('anthropic', 'api_key', 'claude-haiku-3.5')],
+      });
+
+      const result = await svc.proxyRequest(baseOpts());
+
+      // The exhausted primary key costs zero upstream calls; the request goes
+      // straight to the fallback chain with a synthetic 429 entry forward.
+      expect(fallbackService.tryForwardToProvider).not.toHaveBeenCalled();
+      expect(fallbackService.tryFallbacks).toHaveBeenCalledTimes(1);
+      expect(result.forward.response.status).toBe(429);
+    });
+
+    it('skips the exhausted first rule label and rotates directly to a live label', async () => {
+      keyRotationRules.getRule.mockResolvedValue(rotationRule());
+      labelAwareKeys();
+      // Exhaust the rule's first label ('Work') for the day.
+      quota.recordAttemptResult({
+        agentId: 'agent-1',
+        provider: 'openai',
+        authType: 'api_key',
+        providerKeyLabel: 'Work',
+        status: 429,
+        errorBody: 'You have exceeded your current daily quota',
+      });
+      fallbackService.tryForwardToProvider.mockResolvedValueOnce(forward(200));
+
+      const result = await svc.proxyRequest(baseOpts());
+
+      // Exactly ONE upstream call — for 'Personal' — the dead 'Work' label
+      // never touches the wire.
+      expect(fallbackService.tryForwardToProvider).toHaveBeenCalledTimes(1);
+      expect(fallbackService.tryForwardToProvider.mock.calls[0][0].providerKeyLabel).toBe(
+        'Personal',
+      );
+      expect(result.forward.response.status).toBe(200);
+      expect(result.meta.provider_key_label).toBe('Personal');
+      expect(fallbackService.tryFallbacks).not.toHaveBeenCalled();
     });
 
     it('a provider-scope rule drives the primary key when no model rule exists', async () => {

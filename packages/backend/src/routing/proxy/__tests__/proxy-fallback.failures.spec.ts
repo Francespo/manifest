@@ -2,6 +2,7 @@ import { Repository } from 'typeorm';
 import type { ModelRoute } from 'manifest-shared';
 import { ProxyFallbackService } from '../proxy-fallback.service';
 import { ReasoningContentCache } from '../reasoning-content-cache';
+import { KeyQuotaService } from '../key-quota.service';
 import { ProviderKeyService } from '../../routing-core/provider-key.service';
 import { CustomProvider } from '../../../entities/custom-provider.entity';
 import { OpenaiOauthService } from '../../oauth/openai/openai-oauth.service';
@@ -31,6 +32,7 @@ describe('ProxyFallbackService.tryFallbacks — failure chain by status code', (
   let service: ProxyFallbackService;
   let providerKeyService: jest.Mocked<ProviderKeyService>;
   let providerClient: jest.Mocked<ProviderClient>;
+  let quota: KeyQuotaService;
 
   const body = { messages: [{ role: 'user', content: 'Hello' }], stream: false };
 
@@ -113,6 +115,8 @@ describe('ProxyFallbackService.tryFallbacks — failure chain by status code', (
       forward: jest.fn(),
     } as unknown as jest.Mocked<ProviderClient>;
 
+    quota = new KeyQuotaService();
+
     const customProviderRepo = {
       findOne: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<Repository<CustomProvider>>;
@@ -148,6 +152,7 @@ describe('ProxyFallbackService.tryFallbacks — failure chain by status code', (
         getRule: jest.fn().mockResolvedValue(null),
         list: jest.fn().mockResolvedValue([]),
       } as unknown as KeyRotationRuleService,
+      quota,
     );
   });
 

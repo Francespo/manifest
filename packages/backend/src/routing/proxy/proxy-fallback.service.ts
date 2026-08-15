@@ -6,6 +6,7 @@ import { applyRequestParamDefaults } from 'manifest-shared';
 import { AgentModelParamsService } from '../routing-core/agent-model-params.service';
 import { ProviderParamSpecService } from '../routing-core/provider-param-spec.service';
 import { KeyRotationRuleService } from '../routing-core/key-rotation-rule.service';
+import { KeyQuotaService } from './key-quota.service';
 import {
   KeyRotationState,
   keyRotationStateKey,
@@ -154,6 +155,7 @@ export class ProxyFallbackService {
     private readonly providerParamSpecs: ProviderParamSpecService,
     private readonly reasoningCache: ReasoningContentCache,
     private readonly keyRotationRules: KeyRotationRuleService,
+    private readonly quota: KeyQuotaService,
   ) {}
 
   /**
@@ -306,8 +308,40 @@ export class ProxyFallbackService {
         continue;
       }
 
+      // Quota-aware skipping: keys whose free quota is confirmed exhausted for
+      // the day/week are removed from this slot's candidate list, so the chain
+      // never wastes a 10s+ upstream call on a dead key. When EVERY candidate
+      // key for the model is exhausted, the whole model is skipped — this
+      // applies to the first key as well as to a rotation rule whose labels
+      // are all burnt (an entire model drops out of the chain).
+      const labelsFiltered = labels.filter(
+        (label) => !this.quota.isKeyQuotaExhausted(agentId, provider, authType, label),
+      );
+      if (labelsFiltered.length === 0) {
+        const firstInfo = this.quota.isKeyQuotaExhausted(agentId, provider, authType, labels[0]);
+        this.logger.warn(
+          `[quota-freeze] SKIPPED model: fallback=${i} model=${model} provider=${provider} ` +
+            `(all ${labels.length} key(s) frozen)` +
+            (firstInfo
+              ? ` freeze=${firstInfo.reason} remaining=${this.quota.remainingLabel(firstInfo.exhaustedUntil)} ` +
+                `until=${new Date(firstInfo.exhaustedUntil).toISOString()} (no retry before then)`
+              : ''),
+        );
+        continue;
+      }
+      if (labelsFiltered.length < labels.length) {
+        const frozen = labels.filter((label) =>
+          this.quota.isKeyQuotaExhausted(agentId, provider, authType, label),
+        );
+        this.logger.log(
+          `[quota-freeze] SKIPPED ${frozen.length}/${labels.length} key(s) ` +
+            `provider=${provider} model=${model} labels=[${frozen.join(', ')}] ` +
+            `(trying remaining live key(s))`,
+        );
+      }
+
       let breakChain = false;
-      for (const [labelIndex, label] of labels.entries()) {
+      for (const [labelIndex, label] of labelsFiltered.entries()) {
         if (applyRule) {
           markKeyLabelUsed(state!, rule!, model, label);
           this.logger.debug(
@@ -470,6 +504,7 @@ export class ProxyFallbackService {
       const forward = await this.forwardToProvider(opts);
       const result = await this.retryOAuthSubscriptionAfterRejectedToken(opts, forward);
       this.recordRateLimitCooldown(opts, result.response);
+      void this.recordQuotaAttempt(opts, result.response);
       return result;
     } catch (error) {
       if (opts.signal?.aborted) throw error;
@@ -590,6 +625,60 @@ export class ProxyFallbackService {
     };
   }
 
+  /**
+   * Synthetic 429 forward for a key whose free quota is confirmed exhausted
+   * for the day/week. Lets the primary flow skip the upstream call entirely
+   * (no 10s+ wasted timeout per request) while still handing the fallback
+   * chain a real failed forward to react to. No provider attempt is started.
+   *
+   * The 429 status is required so the fallback chain triggers — but the
+   * response is clearly NOT a provider 429: the body names the freeze and the
+   * `x-manifest-quota-freeze` header marks it as Manifest-internal, so logs
+   * and clients can tell a real provider rejection from a quota skip.
+   */
+  buildQuotaSkippedForward(
+    provider: string,
+    model: string,
+    info: { reason: 'day' | 'week' | 'hour'; exhaustedUntil: number },
+    attemptOpts?: {
+      authType?: string;
+      tenantProviderId?: string | null;
+      keyLabel?: string;
+      startProviderAttempt?: StartProviderAttempt;
+    },
+  ): ForwardResult {
+    const attempt = attemptOpts?.startProviderAttempt?.({
+      provider,
+      model,
+      authType: attemptOpts.authType,
+      tenantProviderId: attemptOpts.tenantProviderId ?? undefined,
+      keyLabel: attemptOpts.keyLabel,
+      providerCallStarted: false,
+    });
+    if (attempt) attempt.completedAtMs = Date.now();
+    const retryAfterSeconds = Math.max(1, Math.ceil((info.exhaustedUntil - Date.now()) / 1000));
+    const period = info.reason === 'week' ? 'week' : info.reason === 'hour' ? 'hour' : 'day';
+    const message =
+      `Manifest quota freeze: provider key free quota exhausted for the ${period}; ` +
+      `skipping ${provider}/${model} until ${new Date(info.exhaustedUntil).toISOString()}` +
+      ` (retry-after ${retryAfterSeconds}s). This is not a provider error.`;
+    return {
+      response: new Response(JSON.stringify({ error: { message } }), {
+        status: 429,
+        headers: {
+          'content-type': 'application/json',
+          'retry-after': String(retryAfterSeconds),
+          'x-manifest-quota-freeze': info.reason,
+        },
+      }),
+      isGoogle: false,
+      isAnthropic: false,
+      isChatGpt: false,
+      providerCallStarted: false,
+      attempt,
+    };
+  }
+
   private recordRateLimitCooldown(opts: ForwardProviderOptions, response: Response): void {
     if (response.status !== 429) return;
     const key = this.rateLimitCooldownKey(opts);
@@ -602,6 +691,34 @@ export class ProxyFallbackService {
     }
     const ttlMs = this.parseRetryAfterMs(response.headers.get('retry-after'));
     this.rateLimitCooldowns.set(key, Date.now() + ttlMs);
+  }
+
+  /**
+   * Feed quota-relevant responses (429/402/403) into the key-quota tracker so
+   * a confirmed daily/weekly free-quota exhaustion marks the key as skipped
+   * for the rest of the period. Runs for every provider attempt (primary
+   * rotation + fallback chain alike) since both funnel through
+   * tryForwardToProvider. The body is only cloned on quota-relevant statuses,
+   * so the hot path stays stream-preserving and clone-free.
+   */
+  private async recordQuotaAttempt(
+    opts: ForwardProviderOptions,
+    response: Response,
+  ): Promise<void> {
+    if (response.status !== 429 && response.status !== 402 && response.status !== 403) return;
+    const errorBody = await response
+      .clone()
+      .text()
+      .catch(() => '');
+    this.quota.recordAttemptResult({
+      agentId: opts.agentId,
+      provider: opts.provider,
+      authType: opts.authType,
+      providerKeyLabel: opts.providerKeyLabel,
+      status: response.status,
+      headers: response.headers,
+      errorBody,
+    });
   }
 
   private evictExpiredRateLimitCooldowns(now = Date.now()): void {

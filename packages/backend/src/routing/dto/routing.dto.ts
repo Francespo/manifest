@@ -48,6 +48,21 @@ export class AgentNameParamDto {
   agentName!: string;
 }
 
+/** Body for resuming a quota-frozen provider key. */
+export class ResumeQuotaFreezeDto {
+  @IsString()
+  @IsNotEmpty()
+  provider!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  authType!: string;
+
+  @IsOptional()
+  @IsString()
+  providerKeyLabel?: string;
+}
+
 export class TierParamDto {
   @IsIn(TIER_SLOTS)
   tier!: string;

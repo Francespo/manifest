@@ -2,6 +2,7 @@ import { Repository } from 'typeorm';
 import type { ModelRoute } from 'manifest-shared';
 import { ProxyFallbackService } from '../proxy-fallback.service';
 import { ReasoningContentCache } from '../reasoning-content-cache';
+import { KeyQuotaService } from '../key-quota.service';
 import { ProviderKeyService } from '../../routing-core/provider-key.service';
 import { CustomProvider } from '../../../entities/custom-provider.entity';
 import { OpenaiOauthService } from '../../oauth/openai/openai-oauth.service';
@@ -163,6 +164,7 @@ describe('ProxyFallbackService.tryFallbacks — route-aware path', () => {
         getRule: jest.fn().mockResolvedValue(null),
         list: jest.fn().mockResolvedValue([]),
       } as unknown as KeyRotationRuleService,
+      new KeyQuotaService(),
     );
   });
 
