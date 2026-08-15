@@ -69,6 +69,12 @@ interface RoutingModalsProps {
   onProviderUpdate: () => Promise<void>;
   onProviderPoll?: () => Promise<void>;
   onOpenProviderModal?: () => void;
+  /**
+   * True when a key rotation rule applies to (model, provider) — model-scope
+   * rules win over provider-scope. When set, adding a multi-key model as a
+   * fallback auto-selects Rotation (no key pin, picker skipped).
+   */
+  hasRotationRule?: (modelName: string, providerId: string) => boolean;
 }
 
 interface PendingOverride {
@@ -78,6 +84,7 @@ interface PendingOverride {
   authType?: AuthType;
   keys: RoutingProvider[];
   isFallback?: boolean;
+  rotationAvailable?: boolean;
 }
 
 function providerDisplayName(providerId: string, customProviders: CustomProviderData[]): string {
@@ -233,7 +240,12 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => {
                     r.authType === authType,
                 );
               }
-              // Multi-key model: hide only if ALL keys are already used
+              // Multi-key model: hide only if ALL keys are already used.
+              // A rotation rule keeps the model addable regardless — the rule
+              // (not a specific key) controls the slot at runtime.
+              if (props.hasRotationRule?.(m.model_name, providerId)) {
+                return true;
+              }
               return (
                 availableRouteKeysForModel(
                   props.connectedProviders(),
@@ -267,9 +279,18 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => {
               providerId,
               authType: effectiveAuth,
               slot: 'fallback',
+              hasRotationRule: props.hasRotationRule,
             });
             if (selection.exhausted) {
               // All keys exhausted — shouldn't happen since filteredModels hides it
+              return;
+            }
+            if (selection.autoRotation) {
+              // A rotation rule exists for this model → Rotation is the
+              // default: add without a key pin (the rule controls the key at
+              // runtime) and skip the picker.
+              props.onFallbackPickerClose();
+              props.onAddFallback(tid, modelName, providerId, authType);
               return;
             }
             if (selection.autoLabel) {
@@ -278,7 +299,7 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => {
               props.onAddFallback(tid, modelName, providerId, authType, selection.autoLabel);
               return;
             }
-            // 2+ keys available → ask which one
+            // 2+ keys available → ask which one (Rotation offered alongside)
             setPendingOverride({
               tierId: tid,
               modelName,
@@ -286,6 +307,7 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => {
               authType,
               keys: selection.keys,
               isFallback: true,
+              rotationAvailable: selection.rotationAvailable,
             });
           };
           return (
@@ -317,6 +339,7 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => {
             providerName={providerDisplayName(p().providerId, props.customProviders())}
             modelName={p().modelName}
             keys={p().keys}
+            rotationAvailable={p().rotationAvailable}
             onPick={resolvePending}
             onClose={() => setPendingOverride(null)}
           />
