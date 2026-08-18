@@ -3,26 +3,38 @@
     "status": {
       "command": "./scripts/switch-manifest.sh status"
     },
-    "snapshot": {
-      "command": "./scripts/switch-manifest.sh snapshot"
+    "route-prod": {
+      "command": "./scripts/switch-manifest.sh prod"
+    },
+    "route-staging": {
+      "command": "./scripts/switch-manifest.sh staging"
     },
     "restart-prod": {
       "command": "./scripts/switch-manifest.sh restart-prod"
     },
-    "restart-dev": {
-      "command": "./scripts/switch-manifest.sh restart-staging"
-    },
     "restart-staging": {
       "command": "./scripts/switch-manifest.sh restart-staging"
+    },
+    "restart-router": {
+      "command": "./scripts/switch-manifest.sh restart-router"
+    },
+    "snapshot-prod-to-staging": {
+      "command": "./scripts/switch-manifest.sh snapshot prod-to-staging"
+    },
+    "snapshot-staging-to-prod": {
+      "command": "./scripts/switch-manifest.sh snapshot staging-to-prod"
+    },
+    "worktree-status": {
+      "command": "./scripts/worktree-stack.sh status"
+    },
+    "worktree-build": {
+      "command": "./scripts/worktree-stack.sh rebuild"
     },
     "worktree-up": {
       "command": "./scripts/worktree-stack.sh up"
     },
     "worktree-down": {
       "command": "./scripts/worktree-stack.sh down"
-    },
-    "worktree-status": {
-      "command": "./scripts/worktree-stack.sh status"
     }
   }
 }
