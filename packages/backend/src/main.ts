@@ -18,7 +18,6 @@ import {
   createProxyBodyBudgetMiddleware,
 } from './common/middleware/body-parser-limits';
 import {
-  PIVOT_CLAIM_CLOUD_ORIGIN,
   applyPivotClaimCors,
   applyPrivateNetworkAllow,
   buildCorsOptions,
@@ -62,9 +61,7 @@ export async function bootstrap() {
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:'],
-          // The pivot waiting-list claim is posted cross-origin to the cloud
-          // from self-hosted dashboards; the CSP must allow that connection.
-          connectSrc: ["'self'", PIVOT_CLAIM_CLOUD_ORIGIN],
+          connectSrc: ["'self'"],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
           frameSrc,
