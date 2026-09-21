@@ -15,11 +15,11 @@
   <a href="https://discord.gg/FepAked3W7"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
 </p>
 
-> ### 🦚 Meet Manifest Gateway
+> ### 🦚 Meet Manifest, the self-healing layer for APIs
 >
-> Complete control over LLM routing. Custom rules, fallbacks, self-healing with Autofix, and cost control — all in one gateway.
+> Manifest fixes failed API requests in real time, before they break your app. This open-source LLM gateway is a Manifest product and stays maintained.
 >
-> **[Try Manifest Gateway](https://dashboard.manifest.build/signup)**
+> **[Try Manifest](https://dashboard.manifest.build/signup)**
 
 ## What is Manifest Gateway?
 
