@@ -33,6 +33,18 @@ Manifest Gateway is an open-source LLM gateway for agents and apps. It sits betw
 
 ![manifest-gh](https://raw.githubusercontent.com/mnfst/llm-gateway/HEAD/.github/assets/manifest-screenshot.png)
 
+---
+
+<p align="center">
+  <strong>🦚 Keep your apps up with self-healing APIs</strong><br/>
+  <br/>
+  Manifest fixes API errors in real time, so your apps, workflows and agents keep running instead of breaking on failed requests.<br/>
+  <br/>
+  <a href="https://dashboard.manifest.build/signup" style="display: inline-block; padding: 10px 24px; background-color: #0066cc; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Get started</a>
+</p>
+
+---
+
 ## Table of contents
 
 - [Supported providers](#supported-providers)
