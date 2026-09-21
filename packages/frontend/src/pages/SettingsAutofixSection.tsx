@@ -86,6 +86,12 @@ const SettingsAutofixSection: Component<{ agentName: () => string }> = (props) =
           </div>
         </div>
       </div>
+      <div class="settings-card settings-card--info settings-card--flush">
+        <div class="info-card__content">
+          <p class="info-card__text">Ready to heal all your APIs, not just LLM calls?</p>
+          <a href="https://manifest.build/docs/autofix" target="_blank" rel="noopener noreferrer" class="btn btn--primary btn--sm">Try it</a>
+        </div>
+      </div>
       <p class="autofix-consent__legal settings-card__legal">
         By enabling Autofix, you agree to Manifest&apos;s{' '}
         <a href="https://manifest.build/terms" target="_blank" rel="noopener noreferrer">
