@@ -413,18 +413,17 @@ describe("Sidebar — usage card", () => {
   });
 });
 
-describe("Sidebar — Manifest card", () => {
-  it("always renders the Manifest card in place of the retired Autofix card", async () => {
+describe("Sidebar — Autofix announcement card", () => {
+  it("always renders the Autofix announcement card", async () => {
     const { container } = render(() => <Sidebar />);
-    await screen.findByText("Manifest, the self-healing layer for APIs");
-    expect(container.querySelector(".sidebar-pivot")).not.toBeNull();
-    expect(container.querySelector(".sidebar-autofix")).toBeNull();
+    await screen.findByText("Make sure your APIs no longer crash");
+    expect(container.querySelector(".sidebar-autofix")).not.toBeNull();
   });
 
-  it("renders the Manifest card in cloud too", async () => {
+  it("renders the Autofix announcement card in cloud too", async () => {
     mockIsSelfHosted = false;
     const { container } = render(() => <Sidebar />);
-    await screen.findByText("Manifest, the self-healing layer for APIs");
-    expect(container.querySelector(".sidebar-pivot")).not.toBeNull();
+    await screen.findByText("Make sure your APIs no longer crash");
+    expect(container.querySelector(".sidebar-autofix")).not.toBeNull();
   });
 });
