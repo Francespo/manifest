@@ -87,7 +87,7 @@
   display: block;
   width: calc(100% - 28px);
   padding: 8px 14px;
-  margin: 8px 14px 0;
+  margin: 8px 14px 14px;
   font-size: var(--font-size-xs);
   font-weight: 600;
   font-family: var(--font-family);
