@@ -1,5 +1,5 @@
-import { render, screen } from 'solid-testing-library';
 import { describe, it, expect, beforeEach } from 'vitest';
+import { fireEvent, render, screen } from '@solidjs/testing-library';
 import AutofixAnnouncement from '../../src/components/AutofixAnnouncement';
 
 describe('AutofixAnnouncement', () => {
@@ -16,31 +16,30 @@ describe('AutofixAnnouncement', () => {
     expect(container.querySelector('.sidebar-autofix')).not.toBeNull();
   });
 
-  it('renders the Get started button', () => {
+  it('renders the Use it now button', () => {
     render(() => <AutofixAnnouncement />);
-    const btn = screen.getByRole('link', { name: /Get started/i });
+    const btn = screen.getByRole('link', { name: /Use it now/i });
     expect(btn).toBeTruthy();
     expect(btn.getAttribute('href')).toBe('https://dashboard.manifest.build');
     expect(btn.getAttribute('target')).toBe('_blank');
   });
 
-  it('hides the card when dismiss button is clicked', async () => {
+  it('hides the card when dismiss button is clicked', () => {
     const { container } = render(() => <AutofixAnnouncement />);
-    const dismissBtn = container.querySelector('.sidebar-autofix__dismiss');
-    dismissBtn?.dispatchEvent(new Event('click'));
-    await new Promise(resolve => setTimeout(resolve, 0));
+    const dismissBtn = container.querySelector('.sidebar-autofix__dismiss')!;
+    fireEvent.click(dismissBtn);
     expect(container.querySelector('.sidebar-autofix')).toBeNull();
   });
 
   it('persists dismissal in sessionStorage', () => {
     const { container } = render(() => <AutofixAnnouncement />);
-    const dismissBtn = container.querySelector('.sidebar-autofix__dismiss');
-    dismissBtn?.dispatchEvent(new Event('click'));
-    expect(sessionStorage.getItem('autofix-announcement-dismissed')).toBe('true');
+    const dismissBtn = container.querySelector('.sidebar-autofix__dismiss')!;
+    fireEvent.click(dismissBtn);
+    expect(sessionStorage.getItem('autofix-card-dismissed')).toBe('1');
   });
 
   it('does not render if already dismissed', () => {
-    sessionStorage.setItem('autofix-announcement-dismissed', 'true');
+    sessionStorage.setItem('autofix-card-dismissed', '1');
     const { container } = render(() => <AutofixAnnouncement />);
     expect(container.querySelector('.sidebar-autofix')).toBeNull();
   });
