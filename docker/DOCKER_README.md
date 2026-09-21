@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/mnfst/llm-gateway/HEAD/.github/assets/logo-white.svg" />
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/mnfst/llm-gateway/HEAD/.github/assets/logo-dark.svg" />
-    <img src="https://raw.githubusercontent.com/mnfst/llm-gateway/HEAD/.github/assets/logo-dark.svg" alt="Manifest LLM Gateway" height="53" title="Manifest LLM Gateway"/>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/mnfst/llm-gateway/HEAD/.github/assets/logo-light-new.png" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/mnfst/llm-gateway/HEAD/.github/assets/logo-dark-new.png" />
+    <img src="https://raw.githubusercontent.com/mnfst/llm-gateway/HEAD/.github/assets/logo-dark-new.png" alt="Manifest Gateway" height="53" title="Manifest Gateway"/>
   </picture>
 </p>
 <p align="center">
@@ -15,20 +15,21 @@
   <a href="https://discord.gg/FepAked3W7"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
 </p>
 
-> ### 🦚 Meet Manifest, the self-healing layer for APIs
+> ### 🦚 Meet Manifest Gateway
 >
-> Manifest fixes failed API requests in real time, before they break your app. This open-source LLM gateway is a Manifest product and stays maintained.
+> Complete control over LLM routing. Custom rules, fallbacks, self-healing with Autofix, and cost control — all in one gateway.
 >
-> **[Try Manifest](https://dashboard.manifest.build/signup)**
+> **[Try Manifest Gateway](https://dashboard.manifest.build/signup)**
 
-## What is Manifest LLM Gateway?
+## What is Manifest Gateway?
 
-Manifest LLM Gateway is a smart model router for **AI agents** like OpenClaw, Hermes, or anything speaking the OpenAI-compatible HTTP API. It sits between your agents and your providers (API keys, subscriptions, or local models) and sends each request to the right one. Simple questions go to fast, cheap models. Hard problems go to the powerful ones. One endpoint for every provider, and a smaller bill as a bonus.
+Manifest Gateway is an open-source LLM gateway for agents and apps. It sits between your agents and your LLM providers (OpenAI, Anthropic, Gemini, local models, and 300+ more) and gives you complete control over routing decisions. Define custom routing rules, set fallbacks when models fail, enable self-healing with Autofix, and track everything from one dashboard.
 
-- One endpoint, every provider: send each request to the right model
-- Automatic fallbacks: if a model fails, the next one picks up
-- Set limits: don't exceed your budget
-- Self-hosted: your requests, your providers, your data
+- **Custom routing rules**: route by model, header, complexity, or task type
+- **Automatic fallbacks**: if a model fails, the next one picks up instantly
+- **Self-healing with Autofix**: failed requests are repaired in real time before they break your app
+- **Cost control**: set limits and track spending across all providers
+- **Self-hosted**: your requests, your providers, your data — complete privacy
 
 ![manifest-gh](https://raw.githubusercontent.com/mnfst/llm-gateway/HEAD/.github/assets/manifest-screenshot.png)
 
