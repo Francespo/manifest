@@ -9,7 +9,7 @@ describe('AutofixBanner', () => {
 
   it('renders the banner with text and button', () => {
     const { container } = render(() => <AutofixBanner />);
-    expect(screen.getByText(/Reduce your API errors with Autofix/i)).toBeTruthy();
+    expect(screen.getByText(/Keep your apps up with self-healing APIs/i)).toBeTruthy();
     expect(screen.getByRole('link', { name: /Get started/i })).toBeTruthy();
     expect(container.querySelector('.autofix-banner')).not.toBeNull();
   });
