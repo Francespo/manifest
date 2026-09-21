@@ -11,6 +11,18 @@ AI Agents that don't break
 
 ![manifest-gh](https://github.com/user-attachments/assets/7dd74fc2-f7d6-4558-a95a-014ed754a125)
 
+---
+
+<p align="center">
+  <strong>🦚 Keep your apps up with self-healing APIs</strong><br/>
+  <br/>
+  Manifest fixes API errors in real time, so your apps, workflows and agents keep running instead of breaking on failed requests.<br/>
+  <br/>
+  <a href="https://dashboard.manifest.build/signup" style="display: inline-block; padding: 10px 24px; background-color: #0066cc; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Get started</a>
+</p>
+
+---
+
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/mnfst/llm-gateway" target="_blank" rel="nofollow"><img src="https://img.shields.io/badge/Deploy%20on-Render-46E3B7?style=for-the-badge&amp;logo=render&amp;logoColor=white" alt="Deploy on Render" /></a>
   <a href="https://railway.com/deploy/wild-wild" target="_blank" rel="nofollow"><img src="https://img.shields.io/badge/Deploy%20on-Railway-0B0D0E?style=for-the-badge&amp;logo=railway&amp;logoColor=white" alt="Deploy on Railway" /></a>

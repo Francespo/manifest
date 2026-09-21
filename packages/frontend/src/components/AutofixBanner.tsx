@@ -21,7 +21,7 @@ const AutofixBanner: Component = () => {
     <Show when={!dismissed()}>
       <div class="autofix-banner">
         <div class="autofix-banner__content">
-          <span class="autofix-banner__text">Reduce your API errors with Autofix's self-healing</span>
+          <span class="autofix-banner__text">Keep your apps up with self-healing APIs</span>
           <a
             href={AUTOFIX_DASHBOARD_URL}
             target="_blank"
