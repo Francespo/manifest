@@ -5,7 +5,7 @@ import CodeBlock from '../../components/CodeBlock.jsx';
 import { mcpEndpoint } from '../../services/install-endpoints.js';
 import { checkMcpEnabled } from '../../services/setup-status.js';
 
-const DOCS_URL = 'https://manifest.build/docs/integrations/mcp/';
+const DOCS_URL = 'https://manifest.build/llm-gateway/docs/integrations/mcp/';
 
 interface ClientSetup {
   id: string;

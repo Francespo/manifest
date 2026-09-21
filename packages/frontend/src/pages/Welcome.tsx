@@ -64,6 +64,7 @@ import {
   PLATFORM_ICONS,
   PLATFORM_LABELS,
   PLATFORMS_BY_CATEGORY,
+  manifestErrorDocsUrl,
 } from 'manifest-shared';
 import '../styles/routing.css';
 import '../styles/routing-providers.css';
@@ -1384,7 +1385,7 @@ const Welcome: Component = () => {
                           <Show when={errorDocCode()}>
                             <a
                               class="welcome__text-link"
-                              href={`https://manifest.build/docs/errors/${errorDocCode()}`}
+                              href={manifestErrorDocsUrl(errorDocCode()!)}
                               target="_blank"
                               rel="noreferrer"
                             >

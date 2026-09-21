@@ -250,7 +250,7 @@ explicit choice and falls back to your routing config if it matches nothing.
 
 Errors from Manifest itself carry an `M###` code, a plain-English cause, and a
 link to the matching page under
-[manifest.build/docs/errors](https://manifest.build/docs/errors) — including
+[manifest.build/llm-gateway/docs/errors](https://manifest.build/llm-gateway/docs/errors/) — including
 `M100` (no provider connected yet) and `M003`/`M005` (bad or unknown key), the
 three you are most likely to hit on a fresh install.
 
@@ -440,7 +440,7 @@ refuses to run under `NODE_ENV=production` regardless of `SEED_DATA`. Use the
 first-run setup wizard to create your admin account.
 
 Full env var reference:
-[manifest.build/docs/reference/environment-variables](https://manifest.build/docs/reference/environment-variables)
+[manifest.build/llm-gateway/docs/reference/environment-variables](https://manifest.build/llm-gateway/docs/reference/environment-variables/)
 
 ## Anonymous usage telemetry
 
@@ -453,7 +453,7 @@ platform, OS, and arch.
 
 To disable, set `MANIFEST_TELEMETRY_DISABLED=1` in your `.env` file and
 restart the container. The full field list is published at
-[manifest.build/docs/self-hosted#telemetry](https://manifest.build/docs/self-hosted#telemetry).
+[manifest.build/llm-gateway/docs/self-hosted#telemetry](https://manifest.build/llm-gateway/docs/self-hosted/#telemetry).
 
 ## Autofix privacy and instance identity
 
@@ -506,7 +506,7 @@ both announce a new one. Your install will look like a new install to both.
 
 - [GitHub](https://github.com/mnfst/llm-gateway)
 - [Website](https://manifest.build)
-- [Docs](https://manifest.build/docs)
+- [Docs](https://manifest.build/llm-gateway/docs/introduction/)
 - [Discord](https://discord.gg/FepAked3W7)
 
 ## License
