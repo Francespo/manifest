@@ -677,6 +677,158 @@ describe('TimeseriesQueriesService', () => {
       expect(clauses).not.toContain('a.is_playground = false');
     });
 
+    it('uses bounded daily rows after the tenant read cutover', async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const oldDay = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const agentQb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([
+          {
+            id: 'agent-1',
+            name: 'bot-1',
+            display_name: 'Bot One',
+            agent_category: 'code',
+            agent_platform: 'codex',
+            created_at: '2026-01-01',
+          },
+        ]),
+      };
+      const turnRepo = { createQueryBuilder: jest.fn() };
+      const daily = {
+        readsEnabledFor: jest.fn().mockReturnValue(true),
+        getRows: jest.fn().mockResolvedValue([
+          {
+            agent_id: 'agent-1',
+            day: today,
+            request_count: '3',
+            input_tokens: '100',
+            output_tokens: '50',
+            cost_usd: '1.25',
+            last_active_at: '2026-09-21T10:00:00.000Z',
+          },
+          {
+            agent_id: 'agent-1',
+            day: oldDay,
+            request_count: '2',
+            input_tokens: '20',
+            output_tokens: '5',
+            cost_usd: '0.25',
+            last_active_at: '2026-09-11T10:00:00.000Z',
+          },
+        ]),
+      };
+      const rollupAware = new TimeseriesQueriesService(
+        turnRepo as never,
+        { createQueryBuilder: jest.fn(() => agentQb) } as never,
+        undefined,
+        undefined,
+        undefined,
+        daily as never,
+      );
+
+      const result = await rollupAware.getAgentList('tenant-1');
+
+      expect(daily.getRows).toHaveBeenCalledWith('tenant-1');
+      expect(turnRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(result).toEqual([
+        {
+          agent_name: 'bot-1',
+          display_name: 'Bot One',
+          agent_category: 'code',
+          agent_platform: 'codex',
+          message_count: 5,
+          last_active: '2026-09-21T10:00:00.000Z',
+          total_cost: 1.5,
+          total_tokens: 175,
+          sparkline: [150],
+        },
+      ]);
+    });
+
+    it('defaults missing daily values and agents without usage', async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const lastActive = new Date('2026-09-21T10:00:00.000Z');
+      const agentQb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([
+          {
+            id: 'agent-1',
+            name: 'bot-1',
+            display_name: 'Bot One',
+            created_at: '2026-01-01',
+          },
+          {
+            id: 'agent-2',
+            name: 'bot-2',
+            display_name: null,
+            agent_category: null,
+            agent_platform: null,
+            created_at: null,
+          },
+        ]),
+      };
+      const daily = {
+        readsEnabledFor: jest.fn().mockReturnValue(true),
+        getRows: jest.fn().mockResolvedValue([
+          {
+            agent_id: 'agent-1',
+            day: today,
+            request_count: null,
+            input_tokens: null,
+            output_tokens: null,
+            cost_usd: null,
+            last_active_at: lastActive,
+          },
+          {
+            agent_id: 'agent-1',
+            day: today,
+            request_count: null,
+            input_tokens: null,
+            output_tokens: null,
+            cost_usd: null,
+            last_active_at: null,
+          },
+        ]),
+      };
+      const rollupAware = new TimeseriesQueriesService(
+        { createQueryBuilder: jest.fn() } as never,
+        { createQueryBuilder: jest.fn(() => agentQb) } as never,
+        undefined,
+        undefined,
+        undefined,
+        daily as never,
+      );
+
+      await expect(rollupAware.getAgentList('tenant-1')).resolves.toEqual([
+        {
+          agent_name: 'bot-1',
+          display_name: 'Bot One',
+          agent_category: null,
+          agent_platform: null,
+          message_count: 0,
+          last_active: lastActive.toISOString(),
+          total_cost: 0,
+          total_tokens: 0,
+          sparkline: [0, 0],
+        },
+        {
+          agent_name: 'bot-2',
+          display_name: 'bot-2',
+          agent_category: null,
+          agent_platform: null,
+          message_count: 0,
+          last_active: '',
+          total_cost: 0,
+          total_tokens: 0,
+          sparkline: [],
+        },
+      ]);
+    });
+
     it('returns agents with sparkline data and display_name', async () => {
       mockGetMany.mockResolvedValueOnce([
         { id: 'agent-1', name: 'bot-1', display_name: 'Bot One', created_at: '2026-02-16' },
