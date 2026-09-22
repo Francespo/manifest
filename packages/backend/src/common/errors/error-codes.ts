@@ -1,4 +1,4 @@
-import { MANIFEST_ERRORS_DOCS_BASE } from 'manifest-shared';
+import { MANIFEST_ERRORS_DOCS_BASE, manifestErrorDocsUrl } from 'manifest-shared';
 
 export { MANIFEST_ERRORS_DOCS_BASE };
 
@@ -100,7 +100,7 @@ export function formatManifestError(
     const value = vars[key];
     return value === undefined ? match : String(value);
   });
-  return `[${PEACOCK} Manifest ${code}] ${interpolated} See ${MANIFEST_ERRORS_DOCS_BASE}/${code}`;
+  return `[${PEACOCK} Manifest ${code}] ${interpolated} See ${manifestErrorDocsUrl(code)}`;
 }
 
 /**

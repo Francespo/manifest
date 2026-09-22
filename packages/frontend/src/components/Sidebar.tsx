@@ -4,7 +4,7 @@ import { getBillingStatus } from '../services/api/billing.js';
 import { FREE_REQUEST_LIMIT_LABEL } from '../services/billing-display.js';
 import { checkIsSelfHosted, checkMcpEnabled } from '../services/setup-status.js';
 import AddAgentModal from './AddAgentModal.jsx';
-import PivotAnnouncement from './PivotAnnouncement.jsx';
+import AutofixAnnouncement from './AutofixAnnouncement.jsx';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -173,10 +173,9 @@ const Sidebar: Component<SidebarProps> = (props) => {
 
       <div class="sidebar__spacer" />
 
-      {/* Pivot announcement: shows for everyone in every deployment mode,
-          with a per-session dismiss. Replaces the retired Autofix card,
-          which duplicated the notifications. */}
-      <PivotAnnouncement />
+      {/* Autofix announcement: shows for everyone in every deployment mode,
+          with a per-session dismiss. Links to the landing page on manifest.build. */}
+      <AutofixAnnouncement />
 
       <Show when={!selfHosted() && showUpgrade()}>
         <div class="sidebar-usage">

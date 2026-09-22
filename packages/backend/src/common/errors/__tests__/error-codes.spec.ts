@@ -8,7 +8,7 @@ import {
 
 describe('MANIFEST_ERRORS registry', () => {
   it('exposes the public docs base URL', () => {
-    expect(MANIFEST_ERRORS_DOCS_BASE).toBe('https://manifest.build/docs/errors');
+    expect(MANIFEST_ERRORS_DOCS_BASE).toBe('https://manifest.build/llm-gateway/docs/errors');
   });
 
   it('every code has a non-empty title and template', () => {
@@ -30,7 +30,7 @@ describe('formatManifestError', () => {
     const out = formatManifestError('M001');
     expect(out).toContain('[🦚 Manifest M001]');
     expect(out).toContain('Missing the Authorization header');
-    expect(out).toContain('https://manifest.build/docs/errors/M001');
+    expect(out).toContain('https://manifest.build/llm-gateway/docs/errors/M001/');
   });
 
   it('interpolates {var} placeholders from the vars object', () => {
@@ -62,7 +62,7 @@ describe('formatManifestError', () => {
 
   it('appends the docs URL exactly once', () => {
     const out = formatManifestError('M500');
-    const matches = out.match(/https:\/\/manifest\.build\/docs\/errors\/M500/g) ?? [];
+    const matches = out.match(/https:\/\/manifest\.build\/llm-gateway\/docs\/errors\/M500\//g) ?? [];
     expect(matches).toHaveLength(1);
   });
 
@@ -70,7 +70,7 @@ describe('formatManifestError', () => {
     for (const code of Object.keys(MANIFEST_ERRORS) as ManifestErrorCode[]) {
       const out = formatManifestError(code);
       expect(out.startsWith(`[🦚 Manifest ${code}]`)).toBe(true);
-      expect(out.endsWith(`See ${MANIFEST_ERRORS_DOCS_BASE}/${code}`)).toBe(true);
+      expect(out.endsWith(`See ${MANIFEST_ERRORS_DOCS_BASE}/${code}/`)).toBe(true);
     }
   });
 });
