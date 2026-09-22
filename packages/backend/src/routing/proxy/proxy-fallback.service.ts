@@ -385,6 +385,7 @@ export class ProxyFallbackService {
           providerKeyLabel,
           signal,
           startProviderAttempt,
+          stream,
         });
       }
       const finalForward = autofixAttempt?.forward ?? forward;
@@ -493,6 +494,7 @@ export class ProxyFallbackService {
     providerKeyLabel?: string;
     signal?: AbortSignal;
     startProviderAttempt?: StartProviderAttempt;
+    stream: boolean;
   }): Promise<AutofixAttempt | null> {
     return this.autofixService.maybeHeal({
       forward: input.forward,
@@ -513,6 +515,7 @@ export class ProxyFallbackService {
           providerKeyLabel: input.providerKeyLabel,
           startProviderAttempt: input.startProviderAttempt,
           signal: input.signal,
+          stream: input.stream,
         }),
     });
   }
@@ -541,7 +544,7 @@ export class ProxyFallbackService {
       const forward = await this.forwardToProvider(opts);
       const result = await this.retryOAuthSubscriptionAfterRejectedToken(opts, forward);
       this.recordRateLimitCooldown(opts, result.response);
-      return result;
+      return await this.bufferNonStreamBody(result, opts);
     } catch (error) {
       if (opts.signal?.aborted) throw error;
       if (!isTransportError(error)) throw error;
@@ -563,6 +566,50 @@ export class ProxyFallbackService {
     }
   }
 
+  /**
+   * Read a successful non-streaming body before the route is committed. The
+   * fallback decision only sees the status line, so a provider that sends 200
+   * headers and then times out or drops the socket mid-body used to fail later
+   * in the response handler, as an M500 with no fallback. Reading it here turns
+   * that failure into the same synthetic 503/504 as a pre-response transport
+   * error, which the fallback chain already handles. Only buffers when the
+   * caller is known to be non-streaming: nothing has reached the client yet, so
+   * another route can still answer.
+   */
+  private async bufferNonStreamBody(
+    forward: ForwardResult,
+    opts: { stream?: boolean; signal?: AbortSignal; provider: string; model: string },
+  ): Promise<ForwardResult> {
+    const { response, attempt } = forward;
+    if (opts.stream !== false || !response.ok || !response.body) return forward;
+    try {
+      const body = await response.arrayBuffer();
+      // The attempt ends when its body does, not when headers arrived.
+      if (attempt) attempt.completedAtMs = Date.now();
+      return {
+        ...forward,
+        response: new Response(body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        }),
+      };
+    } catch (error) {
+      if (attempt) attempt.completedAtMs = Date.now();
+      if (opts.signal?.aborted || !isTransportError(error)) {
+        if (attempt && error instanceof Error) {
+          (error as AttemptTaggedError)[PROVIDER_ATTEMPT_REF] = attempt;
+        }
+        throw error;
+      }
+      const failureResponse = buildTransportErrorResponse(error);
+      this.logger.warn(
+        `Provider body read failure: provider=${opts.provider} model=${opts.model} status=${failureResponse.status} message=${describeTransportError(error)}`,
+      );
+      return { ...forward, response: failureResponse, providerCallStarted: true };
+    }
+  }
+
   /** Re-send a healed body without rebuilding the already-resolved provider request. */
   async retryWireBody(
     forward: ForwardResult,
@@ -577,7 +624,7 @@ export class ProxyFallbackService {
       | 'providerKeyLabel'
       | 'startProviderAttempt'
       | 'signal'
-    >,
+    > & { stream?: boolean },
   ): Promise<ForwardResult> {
     if (!forward.retryWireBody) {
       throw new Error('Provider forward does not support wire-body retry');
@@ -606,7 +653,10 @@ export class ProxyFallbackService {
         }),
         retried.response,
       );
-      return { ...retried, attempt, providerCallStarted: true };
+      return await this.bufferNonStreamBody(
+        { ...retried, attempt, providerCallStarted: true },
+        opts,
+      );
     } catch (error) {
       if (attempt) attempt.completedAtMs = Date.now();
       if (attempt && error instanceof Error) {
