@@ -5,6 +5,11 @@ import { authOrigin } from '../../auth/auth.instance';
 import { McpOperator, MCP_WRITE_SCOPE } from '../mcp-auth';
 import { McpToolDeps } from '../tool-deps';
 import { result } from '../tool-result';
+import {
+  describeUnresolvedModel,
+  matchesModelName,
+  resolveModelRoute,
+} from '../../routing/routing-core/resolve-model-route';
 
 const AUTH_TYPES = ['api_key', 'subscription', 'local'] as const;
 const ROUTE_TEST_TIMEOUT_MS = 120_000;
@@ -443,13 +448,28 @@ export function registerRoutingTools(
               }
               const primary = models[0];
               const fallbacks = models.slice(1);
+              const available = await deps.modelDiscovery.getModelsForAgent(
+                agent.tenant_id,
+                agent.id,
+              );
+              // Resolve the route the way it will be stored: scoped to its
+              // provider, and to its auth type when one was given.
+              const primaryRoute = resolveModelRoute(primary, available, {
+                provider,
+                authType: auth_type,
+              });
               if (!force) {
-                const known = new Set(
-                  (await deps.modelDiscovery.getModelsForAgent(agent.tenant_id, agent.id)).map(
-                    (m) => m.id,
-                  ),
+                if (!primaryRoute.ok) {
+                  throw new Error(
+                    `${describeUnresolvedModel(primary, primaryRoute.reason, available, {
+                      provider,
+                      authType: auth_type,
+                    })} Refresh models or pass force:true.`,
+                  );
+                }
+                const missing = fallbacks.filter(
+                  (name) => !available.some((m) => matchesModelName(m, name)),
                 );
-                const missing = models.filter((m) => !known.has(m));
                 if (missing.length > 0) {
                   throw new Error(
                     `Not in the models discovered for "${agentName}": ${missing.join(', ')}. ` +
@@ -457,7 +477,10 @@ export function registerRoutingTools(
                   );
                 }
               }
-              const authType = auth_type ?? 'api_key';
+              // An omitted auth_type follows discovery, so a subscription model
+              // is never stored as a metered api_key route.
+              const authType =
+                auth_type ?? (primaryRoute.ok ? primaryRoute.route.authType : 'api_key');
               if (tier) {
                 const list = await deps.headerTiers.list(agent.id);
                 const hit = list.find((t) => t.name.toLowerCase() === tier.toLowerCase());
