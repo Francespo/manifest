@@ -13,10 +13,9 @@ const apiMocks = vi.hoisted(() => ({
   getCustomProviders: vi.fn(),
   getGlobalProviders: vi.fn(),
   getGlobalProviderUsage: vi.fn(),
-  getAgentProviders: vi.fn(),
-  disconnectProvider: vi.fn(),
-  renameProviderKey: vi.fn(),
-  refreshModels: vi.fn(),
+  disconnectConnection: vi.fn(),
+  renameConnection: vi.fn(),
+  refreshConnectionModels: vi.fn(),
   fetchMutate: vi.fn(),
   getOverview: vi.fn(),
   getOverviewDetails: vi.fn(),
@@ -66,15 +65,13 @@ vi.mock('../../src/services/api.js', async () => {
     getGlobalProviderUsage: (...args: unknown[]) => apiMocks.getGlobalProviderUsage(...args),
     // Real merge so the page's config+usage join stays under test.
     mergeUsage: providers.mergeUsage,
-    disconnectProvider: (...args: unknown[]) => apiMocks.disconnectProvider(...args),
   };
 });
 
 vi.mock('../../src/services/api/routing.js', () => ({
-  getProviders: (...args: unknown[]) => apiMocks.getAgentProviders(...args),
-  disconnectProvider: (...args: unknown[]) => apiMocks.disconnectProvider(...args),
-  renameProviderKey: (...args: unknown[]) => apiMocks.renameProviderKey(...args),
-  refreshModels: (...args: unknown[]) => apiMocks.refreshModels(...args),
+  disconnectConnection: (...args: unknown[]) => apiMocks.disconnectConnection(...args),
+  renameConnection: (...args: unknown[]) => apiMocks.renameConnection(...args),
+  refreshConnectionModels: (...args: unknown[]) => apiMocks.refreshConnectionModels(...args),
 }));
 
 vi.mock('../../src/services/api/analytics.js', () => ({
@@ -744,10 +741,9 @@ beforeEach(() => {
   ]);
   apiMocks.getGlobalProviders.mockResolvedValue(providersResponse);
   apiMocks.getGlobalProviderUsage.mockResolvedValue(usageFrom(providersResponse));
-  apiMocks.getAgentProviders.mockResolvedValue([]);
-  apiMocks.disconnectProvider.mockResolvedValue({ notifications: [] });
-  apiMocks.renameProviderKey.mockResolvedValue(undefined);
-  apiMocks.refreshModels.mockResolvedValue(undefined);
+  apiMocks.disconnectConnection.mockResolvedValue({ ok: true, notifications: [] });
+  apiMocks.renameConnection.mockResolvedValue(undefined);
+  apiMocks.refreshConnectionModels.mockResolvedValue({ ok: true });
   apiMocks.fetchMutate.mockResolvedValue({});
   apiMocks.getOverview.mockResolvedValue(overviewResponse);
   apiMocks.getOverviewDetails.mockResolvedValue({});
@@ -1256,15 +1252,14 @@ describe('ConnectionDetail (analytics)', () => {
     ) as HTMLInputElement;
     fireEvent.input(confirmInput, { target: { value: 'Wrong' } });
     expect(deleteButton.disabled).toBe(true);
-    expect(apiMocks.disconnectProvider).not.toHaveBeenCalled();
+    expect(apiMocks.disconnectConnection).not.toHaveBeenCalled();
 
     fireEvent.input(confirmInput, { target: { value: 'Default' } });
     expect(deleteButton.disabled).toBe(false);
     fireEvent.click(deleteButton);
 
     await waitFor(() =>
-      expect(apiMocks.disconnectProvider).toHaveBeenCalledWith(
-        'demo-agent',
+      expect(apiMocks.disconnectConnection).toHaveBeenCalledWith(
         'anthropic',
         'subscription',
         'Default',
@@ -1452,19 +1447,6 @@ describe('ConnectionDetail (analytics)', () => {
     fireEvent.click(screen.getByText('Done'));
   });
 
-  it('falls back to an empty provider list when the routing call rejects', async () => {
-    // Harness list loads, but the per-harness provider fetch rejects → the
-    // inline manage modal still opens normally.
-    apiMocks.getAgentProviders.mockRejectedValue(new Error('providers down'));
-
-    render(() => <ConnectionDetail />);
-    await waitFor(() => expect(screen.getAllByText('Default').length).toBeGreaterThan(0));
-
-    fireEvent.click(screen.getByText('Manage'));
-    expect(screen.getByText('Connection name')).toBeDefined();
-    fireEvent.click(screen.getByText('Done'));
-  });
-
   it('swallows storage failures across chart and filter persistence', async () => {
     const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('storage blocked');
@@ -1507,8 +1489,7 @@ describe('ConnectionDetail (analytics)', () => {
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() =>
-      expect(apiMocks.renameProviderKey).toHaveBeenCalledWith(
-        'demo-agent',
+      expect(apiMocks.renameConnection).toHaveBeenCalledWith(
         'openai',
         'Default',
         'Renamed',
@@ -1523,7 +1504,7 @@ describe('ConnectionDetail (analytics)', () => {
   });
 
   it('shows an inline error when renaming a connection fails', async () => {
-    apiMocks.renameProviderKey.mockRejectedValueOnce(new Error('rename boom'));
+    apiMocks.renameConnection.mockRejectedValueOnce(new Error('rename boom'));
     render(() => <ConnectionDetail />);
     const input = await openManageModal();
 
@@ -1538,7 +1519,7 @@ describe('ConnectionDetail (analytics)', () => {
   });
 
   it('falls back to a generic message when the rename error has no message', async () => {
-    apiMocks.renameProviderKey.mockRejectedValueOnce({});
+    apiMocks.renameConnection.mockRejectedValueOnce({});
     render(() => <ConnectionDetail />);
     const input = await openManageModal();
 
@@ -1557,7 +1538,7 @@ describe('ConnectionDetail (analytics)', () => {
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() => expect(screen.getByText('Name cannot be empty')).toBeDefined());
-    expect(apiMocks.renameProviderKey).not.toHaveBeenCalled();
+    expect(apiMocks.renameConnection).not.toHaveBeenCalled();
   });
 
   it('closes the modal without an API call when the name is unchanged', async () => {
@@ -1569,10 +1550,10 @@ describe('ConnectionDetail (analytics)', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     await waitFor(() => expect(screen.queryByText('Connection name')).toBeNull());
-    expect(apiMocks.renameProviderKey).not.toHaveBeenCalled();
+    expect(apiMocks.renameConnection).not.toHaveBeenCalled();
   });
 
-  it('blocks renaming with a toast when there is no harness yet', async () => {
+  it('renames a connection when the workspace has no harness', async () => {
     apiMocks.getAgents.mockResolvedValue({ agents: [] });
     render(() => <ConnectionDetail />);
     const input = await openManageModal();
@@ -1581,9 +1562,14 @@ describe('ConnectionDetail (analytics)', () => {
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() =>
-      expect(toastMock.error).toHaveBeenCalledWith('Create at least one harness first.'),
+      expect(apiMocks.renameConnection).toHaveBeenCalledWith(
+        'openai',
+        'Default',
+        'Renamed',
+        'api_key',
+      ),
     );
-    expect(apiMocks.renameProviderKey).not.toHaveBeenCalled();
+    expect(toastMock.success).toHaveBeenCalledWith('Connection renamed');
   });
 
   it('disconnects a connection and navigates back on success', async () => {
@@ -1593,12 +1579,7 @@ describe('ConnectionDetail (analytics)', () => {
     fireEvent.click(screen.getByText('Disconnect'));
 
     await waitFor(() =>
-      expect(apiMocks.disconnectProvider).toHaveBeenCalledWith(
-        'demo-agent',
-        'openai',
-        'api_key',
-        'Default',
-      ),
+      expect(apiMocks.disconnectConnection).toHaveBeenCalledWith('openai', 'api_key', 'Default'),
     );
     expect(toastMock.success).toHaveBeenCalledWith('Connection removed');
     // BYOK connection → back link is the usage-based providers page.
@@ -1606,7 +1587,7 @@ describe('ConnectionDetail (analytics)', () => {
   });
 
   it('shows an error toast when disconnecting fails', async () => {
-    apiMocks.disconnectProvider.mockRejectedValueOnce(new Error('disconnect boom'));
+    apiMocks.disconnectConnection.mockRejectedValueOnce(new Error('disconnect boom'));
     render(() => <ConnectionDetail />);
     await openManageModal();
 
@@ -1617,7 +1598,7 @@ describe('ConnectionDetail (analytics)', () => {
   });
 
   it('falls back to a generic message when the disconnect error has no message', async () => {
-    apiMocks.disconnectProvider.mockRejectedValueOnce({});
+    apiMocks.disconnectConnection.mockRejectedValueOnce({});
     render(() => <ConnectionDetail />);
     await openManageModal();
 
@@ -1626,7 +1607,7 @@ describe('ConnectionDetail (analytics)', () => {
     await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('Failed to disconnect'));
   });
 
-  it('blocks disconnecting with a toast when there is no harness yet', async () => {
+  it('disconnects a connection when the workspace has no harness', async () => {
     apiMocks.getAgents.mockResolvedValue({ agents: [] });
     render(() => <ConnectionDetail />);
     await openManageModal();
@@ -1634,11 +1615,10 @@ describe('ConnectionDetail (analytics)', () => {
     fireEvent.click(screen.getByText('Disconnect'));
 
     await waitFor(() =>
-      expect(toastMock.error).toHaveBeenCalledWith(
-        'Create at least one harness before disconnecting a provider.',
-      ),
+      expect(apiMocks.disconnectConnection).toHaveBeenCalledWith('openai', 'api_key', 'Default'),
     );
-    expect(apiMocks.disconnectProvider).not.toHaveBeenCalled();
+    expect(toastMock.success).toHaveBeenCalledWith('Connection removed');
+    expect(routerState.navigate).toHaveBeenCalledWith('/providers/usage-based');
   });
 
   it('refreshes models and refetches on success', async () => {
@@ -1647,13 +1627,13 @@ describe('ConnectionDetail (analytics)', () => {
 
     fireEvent.click(screen.getByText('Refresh models'));
 
-    await waitFor(() => expect(apiMocks.refreshModels).toHaveBeenCalledWith('demo-agent'));
+    await waitFor(() => expect(apiMocks.refreshConnectionModels).toHaveBeenCalledWith());
     expect(toastMock.success).toHaveBeenCalledWith('Models refreshed');
     expect(apiMocks.getConnectionDetail.mock.calls.length).toBeGreaterThan(1);
   });
 
   it('shows an error toast when refreshing models fails', async () => {
-    apiMocks.refreshModels.mockRejectedValueOnce(new Error('refresh boom'));
+    apiMocks.refreshConnectionModels.mockRejectedValueOnce(new Error('refresh boom'));
     render(() => <ConnectionDetail />);
     await openManageModal();
 
@@ -1662,17 +1642,32 @@ describe('ConnectionDetail (analytics)', () => {
     await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('Failed to refresh models'));
   });
 
-  it('blocks refreshing models with a toast when there is no harness yet', async () => {
+  it('refreshes models when the workspace has no harness', async () => {
     apiMocks.getAgents.mockResolvedValue({ agents: [] });
     render(() => <ConnectionDetail />);
     await openManageModal();
 
     fireEvent.click(screen.getByText('Refresh models'));
 
-    await waitFor(() =>
-      expect(toastMock.error).toHaveBeenCalledWith('Create at least one harness first.'),
-    );
-    expect(apiMocks.refreshModels).not.toHaveBeenCalled();
+    await waitFor(() => expect(apiMocks.refreshConnectionModels).toHaveBeenCalled());
+    expect(toastMock.success).toHaveBeenCalledWith('Models refreshed');
+  });
+
+  it('hides model refresh for a custom provider in the fallback modal', async () => {
+    // No harness → the custom-provider form can't load, so the generic modal
+    // shows. Discovery skips custom providers, so offering refresh would lie.
+    apiMocks.getAgents.mockResolvedValue({ agents: [] });
+    routerState.params = { connectionId: 'conn-custom' };
+    apiMocks.getConnectionDetail.mockResolvedValue({
+      ...connectionDetail,
+      connection: { ...connectionDetail.connection, id: 'conn-custom', provider: 'custom:cp-1' },
+    });
+    render(() => <ConnectionDetail />);
+    await openManageModal();
+
+    expect(screen.getByText('Connection name')).toBeDefined();
+    expect(screen.queryByText('Refresh models')).toBeNull();
+    expect(screen.getByText('Disconnect')).toBeDefined();
   });
 
   it('closes the manage modal when Escape is pressed on the overlay', async () => {
@@ -1755,7 +1750,7 @@ describe('ConnectionDetail (analytics)', () => {
     fireEvent.click(screen.getByText('Close'));
 
     await waitFor(() => expect(screen.queryByText('Connection name')).toBeNull());
-    expect(apiMocks.disconnectProvider).not.toHaveBeenCalled();
+    expect(apiMocks.disconnectConnection).not.toHaveBeenCalled();
   });
 
   it('deletes an inactive subscription connection and navigates back on success', async () => {
@@ -1788,8 +1783,7 @@ describe('ConnectionDetail (analytics)', () => {
     fireEvent.click(deleteButton);
 
     await waitFor(() =>
-      expect(apiMocks.disconnectProvider).toHaveBeenCalledWith(
-        'demo-agent',
+      expect(apiMocks.disconnectConnection).toHaveBeenCalledWith(
         'anthropic',
         'subscription',
         'Old Claude',
