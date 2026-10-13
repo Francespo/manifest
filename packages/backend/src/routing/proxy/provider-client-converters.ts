@@ -332,6 +332,13 @@ export interface SanitizeOpenAiBodyOptions {
    * `max_completion_tokens`, or dropped when both are present.
    */
   requireMaxCompletionTokens?: boolean;
+  /**
+   * The upstream accepts `reasoning_effort` but defaults to reasoning, which it
+   * rejects next to function tools. Forward the caller's effort, and send
+   * `none`, the OpenAI Chat Completions default, when function tools come
+   * without one.
+   */
+  forwardReasoningEffort?: boolean;
 }
 
 /**
@@ -386,7 +393,10 @@ export function sanitizeOpenAiBody(
     }
     // xAI and DeepSeek implement `reasoning_effort`; keep it there. Every other
     // non-passthrough provider gets the OpenAI-only field stripped below.
-    if (key === 'reasoning_effort' && (endpointKey === 'xai' || endpointKey === 'deepseek')) {
+    if (
+      key === 'reasoning_effort' &&
+      (endpointKey === 'xai' || endpointKey === 'deepseek' || options.forwardReasoningEffort)
+    ) {
       cleaned[key] = value;
       continue;
     }
@@ -406,6 +416,14 @@ export function sanitizeOpenAiBody(
       continue;
     }
     cleaned[key] = value;
+  }
+  if (
+    options.forwardReasoningEffort &&
+    cleaned.reasoning_effort === undefined &&
+    Array.isArray(cleaned.tools) &&
+    cleaned.tools.some((tool) => (tool as { type?: unknown } | null)?.type === 'function')
+  ) {
+    cleaned.reasoning_effort = 'none';
   }
   return cleaned;
 }

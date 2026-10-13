@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { ProviderClient } from '../provider-client';
+import { messagesToChatCompletionsRequest } from '../anthropic-messages-adapter';
 import { ManifestError } from '../../../common/errors/manifest-error';
 import { buildCustomEndpoint, buildEndpointOverride } from '../provider-endpoints';
 import { ThinkingBlockCache, type ThinkingBlockRouteContext } from '../thinking-block-cache';
@@ -806,6 +807,82 @@ describe('ProviderClient', () => {
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(sentBody.max_completion_tokens).toBe(512);
       expect(sentBody.max_tokens).toBeUndefined();
+    });
+
+    describe('reasoning_effort on Bedrock Runtime GPT Chat Completions', () => {
+      // Runtime applies a default reasoning effort and then rejects it next to
+      // function tools (mnfst/llm-gateway#3065).
+      const tools = [
+        {
+          type: 'function',
+          function: { name: 'get_weather', parameters: { type: 'object', properties: {} } },
+        },
+      ];
+      const sentBodyFor = async (model: string, extra: Record<string, unknown>) => {
+        mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+        await client.forward({
+          provider: 'bedrock',
+          apiKey: 'bedrock-api-key-test',
+          model,
+          body: { ...body, ...extra },
+          stream: false,
+          apiMode: 'chat_completions',
+        });
+        return JSON.parse(mockFetch.mock.calls[0][1].body);
+      };
+
+      it('sends reasoning_effort none when the caller sent none', async () => {
+        const sent = await sentBodyFor('us.openai.gpt-6-luna', { tools });
+
+        expect(sent.reasoning_effort).toBe('none');
+        expect(sent.tools).toEqual(tools);
+      });
+
+      it('sends reasoning_effort none for an Anthropic Messages request with tools', async () => {
+        mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+        const messagesBody = {
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: 'Hello' }],
+          tools: [{ name: 'get_weather', input_schema: { type: 'object', properties: {} } }],
+        };
+        await client.forward({
+          provider: 'bedrock',
+          apiKey: 'bedrock-api-key-test',
+          model: 'us.openai.gpt-6-luna',
+          body: messagesBody,
+          resolveChatBody: async () => messagesToChatCompletionsRequest(messagesBody),
+          stream: false,
+          apiMode: 'messages',
+        });
+
+        expect(mockFetch.mock.calls[0][0]).toBe(
+          'https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/chat/completions',
+        );
+        const sent = JSON.parse(mockFetch.mock.calls[0][1].body);
+        expect(sent.tools[0].type).toBe('function');
+        expect(sent.reasoning_effort).toBe('none');
+      });
+
+      it.each([{ tools }, {}])('forwards the caller reasoning_effort (%o)', async (extra) => {
+        const sent = await sentBodyFor('us.openai.gpt-6-luna', {
+          ...extra,
+          reasoning_effort: 'high',
+        });
+
+        expect(sent.reasoning_effort).toBe('high');
+      });
+
+      it('leaves reasoning_effort out when neither tools nor an effort are sent', async () => {
+        const sent = await sentBodyFor('us.openai.gpt-6-luna', {});
+
+        expect(sent.reasoning_effort).toBeUndefined();
+      });
+
+      it('leaves reasoning_effort out for Runtime models outside the GPT family', async () => {
+        const sent = await sentBodyFor('global.moonshotai.kimi-k3', { tools });
+
+        expect(sent.reasoning_effort).toBeUndefined();
+      });
     });
 
     it('keeps max_tokens for Bedrock Runtime models that accept it', async () => {
