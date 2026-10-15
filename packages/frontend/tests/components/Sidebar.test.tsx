@@ -27,9 +27,6 @@ vi.mock("@solidjs/router", () => ({
   useLocation: () => ({ get pathname() { return mockPathname; } }),
 }));
 
-vi.mock("../../src/services/dither-ground.js", () => ({
-  mountDither: () => () => {},
-}));
 
 const mockGetBillingStatus = vi.fn();
 vi.mock("../../src/services/api/billing.js", () => ({
@@ -417,17 +414,3 @@ describe("Sidebar — usage card", () => {
   });
 });
 
-describe("Sidebar — API Bot announcement card", () => {
-  it("renders the API Bot card in self-hosted", async () => {
-    const { container } = render(() => <Sidebar />);
-    await screen.findByText("Meet API Bot");
-    expect(container.querySelector(".sidebar-api-bot")).not.toBeNull();
-  });
-
-  it("renders the API Bot card in cloud too", async () => {
-    mockIsSelfHosted = false;
-    const { container } = render(() => <Sidebar />);
-    await screen.findByText("Meet API Bot");
-    expect(container.querySelector(".sidebar-api-bot")).not.toBeNull();
-  });
-});
