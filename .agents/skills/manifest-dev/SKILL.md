@@ -1,96 +1,82 @@
 ---
 name: manifest-dev
-description: Manage the Manifest Prod/Staging/Worktree multi-stack setup (router 2098 / prod 2099 / staging 2100 / worktrees 2100+N). Use when the user asks to switch between prod and staging/dev models, snapshot the database, check stack status, rebuild containers, manage worktree stacks, or anything related to the dev environment protocol.
+description: Manifest environments, the router, and where the config lives. Use when switching the gateway between prod and staging, checking stack health, needing the right base URL, or changing routing tiers and providers.
 ---
 
-# Manifest Dev & Staging Protocol
+# Manifest: ambienti, router, configurazione
 
-Two permanent Manifest instances run side-by-side on the host, plus on-demand isolated worktree stacks, routed via the **Manifest Dynamic Router (Port 2098)**:
+## Dove gira cosa
 
-| Service / Stack | Port | Healer | DB Volume | Docker Project | Managed by |
-|---|---|---|---|---|---|
-| **Dynamic Router** | **2098** | - | - | Systemd daemon (`manifest-router.service`) | `switch-manifest.sh` |
-| **Prod** | 2099 | 3100 | `manifest_pgdata` | `mnfst` | `switch-manifest.sh` |
-| **Staging (Dev)** | 2100 | 3101 | `manifest_dev_pgdata` | `mnfst-dev` | `switch-manifest.sh` |
-| **Feature worktree** | 2100+N | 3100+N | `manifest_wt_<slug>_pgdata` | `mnfst-wt-<slug>` | `worktree-stack.sh` |
+Dopo la migrazione prod e staging stanno su **macchine diverse**, quindi nessun host
+puo' ricavare la destinazione da un solo indirizzo.
 
----
+| | host | indirizzo | chi ci parla |
+|---|---|---|---|
+| prod | `production` | `100.109.76.51:2099` | il router |
+| staging | `personal` | `100.111.146.34:2100` | il router |
+| router | `production` | `100.109.76.51:2098` | agenti e tool |
+| router | `personal` | `100.111.146.34:2098` | i client (`pi`, OpenClaw) |
 
-## 1. Quick Model & Provider Routing (Prod ↔ Staging)
+`prod` **non ascolta su loopback**: lega l'IP del tailnet. `127.0.0.1:2099` non
+risponde, nemmeno sulla stessa macchina. E' il motivo per cui il router ha
+`PROD_URL` e `STAGING_URL` invece di ricavare tutto da `BACKEND_HOST`.
 
-Switching is **immediate** via the dynamic router without modifying config files or restarting OpenCode:
+Il router e' un **container**, non piu' un demone systemd avviato da questi script: si
+deploya da `infra` con `scripts/deploy-router.sh <host>`. Lo stato e' per-router: uno
+switch fatto su uno non si vede dall'altro, e non e' condiviso.
+
+## Cambiare target: `switch-manifest.sh`
+
+E' un **client** del router: chiama l'API di controllo via HTTP, non avvia niente. Se
+il router non risponde lo dice, invece di avviarne uno per conto suo.
 
 ```bash
-# Route ALL models and sub-agents to STAGING (port 2100):
-./scripts/switch-manifest.sh staging
-
-# Route ALL models and sub-agents to PRODUCTION (port 2099):
-./scripts/switch-manifest.sh prod
-
-# Check current active route and stack health:
-./scripts/switch-manifest.sh status
+./scripts/switch-manifest.sh status      # router, target attivo, salute
+./scripts/switch-manifest.sh prod        # tutti i modelli -> prod
+./scripts/switch-manifest.sh staging     # tutti i modelli -> staging
+./scripts/switch-manifest.sh toggle      # inverte il target
+./scripts/switch-manifest.sh wt <slug>   # -> stack del worktree
+./scripts/switch-manifest.sh targets     # cosa offre
+./scripts/switch-manifest.sh where       # dove gira il router che sta contattando
 ```
 
----
+Il router da contattare si sceglie con **`MANIFEST_ROUTER`**, default
+`http://100.111.146.34:2098`. **Non** usare `MANIFEST_ROUTER_URL`: quel nome e' gia'
+occupato e contiene un percorso (`.../v1/models`), quindi passarlo produce URL rotti
+(`.../v1/models/__router/status`).
 
-## 2. Restarts
+### Cosa non fa piu' (e dove e' finito)
 
-```bash
-# Restart the dynamic router (:2098):
-./scripts/switch-manifest.sh restart-router
+| prima | ora |
+|---|---|
+| `restart-router` | `infra/scripts/deploy-router.sh <host>` |
+| `restart-prod` / `restart-staging` | ricostruire l'immagine e `docker compose up -d --force-recreate manifest` sull'host di competenza |
+| `snapshot prod-to-staging` / `staging-to-prod` | `infra/scripts/manifest-config.py diff \| apply` |
 
-# Rebuild image from main and restart Production (:2099):
-./scripts/switch-manifest.sh restart-prod
+I vecchi comandi gestivano stack **locali**: con prod e staging su macchine diverse non
+potevano piu' funzionare. Lo script ora esce con un errore che dice dove sono finiti,
+invece di fare qualcosa di diverso da quello che il nome promette.
 
-# Rebuild image from staging and restart Staging (:2100):
-./scripts/switch-manifest.sh restart-staging
-```
+## La configurazione sta in git
 
----
+Tier, provider e agenti vivono in `infra/services/manifest/config/manifest-config.json`,
+non nel database come fonte di verita'. `infra/scripts/manifest-config.py` offre
+`snapshot` / `diff` / `apply` / `merge` / `copy-secret`.
 
-## 3. Database Snapshots (Bidirectional)
+Le colonne dei segreti sono escluse dallo snapshot **per costruzione**: `apply` non puo'
+cancellare le chiavi di un'istanza. Il rovescio e' che un provider migrato arriva senza
+chiave, e serve un `copy-secret` esplicito (una colonna, una riga, per nome).
 
-```bash
-# Copy Production DB (2099) -> Staging DB (2100):
-./scripts/switch-manifest.sh snapshot prod-to-staging
+## Il router ha una copia sola
 
-# Copy Staging DB (2100) -> Production DB (2099):
-./scripts/switch-manifest.sh snapshot staging-to-prod
-```
+Il codice del router sta in `infra/services/manifest-router/`. La copia
+`scripts/manifest-router.js` di questo repo e' codice di **upstream** e vale solo come
+riferimento: non e' quella che gira, e una correzione fatta qui non arriva agli host.
+E' il motivo per cui i router erano divergiti. Per cambiare il router: modifica
+`infra`, poi redeploya.
 
----
+## Worktree locali
 
-## 4. Local Feature Worktrees (`worktree-stack.sh`)
-
-```bash
-# Start an isolated stack for the current worktree:
-./scripts/worktree-stack.sh up
-
-# Check status and port for the current worktree stack:
-./scripts/worktree-stack.sh status
-
-# Rebuild worktree image:
-./scripts/worktree-stack.sh build
-# (or ./scripts/worktree-stack.sh rebuild)
-
-# Stop worktree stack and release port slot:
-./scripts/worktree-stack.sh down
-```
-
----
-
-## 5. Paseo UI Shortcuts (`paseo.json`)
-
-The following clean set of 12 shortcuts is configured in `paseo.json`:
-- `status`: Show router and stack status
-- `route-prod`: Switch router to Production (:2099)
-- `route-staging`: Switch router to Staging (:2100)
-- `restart-prod`: Rebuild and restart Production (:2099)
-- `restart-staging`: Rebuild and restart Staging (:2100)
-- `restart-router`: Restart the Dynamic Router (:2098)
-- `snapshot-prod-to-staging`: Copy Prod DB -> Staging DB
-- `snapshot-staging-to-prod`: Copy Staging DB -> Prod DB
-- `worktree-status`: Check worktree stack status
-- `worktree-build`: Rebuild worktree image
-- `worktree-up`: Start worktree stack
-- `worktree-down`: Stop worktree stack
+`worktree-stack.sh` resta valido **solo** su un host che ha worktree locali e le
+immagini corrispondenti (oggi: nessuno degli host in produzione). Con prod e staging
+distribuiti, uno stack per worktree non ha piu' un posto naturale dove girare.

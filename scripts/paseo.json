@@ -9,20 +9,11 @@
     "route-staging": {
       "command": "./scripts/switch-manifest.sh staging"
     },
-    "restart-prod": {
-      "command": "./scripts/switch-manifest.sh restart-prod"
+    "toggle": {
+      "command": "./scripts/switch-manifest.sh toggle"
     },
-    "restart-staging": {
-      "command": "./scripts/switch-manifest.sh restart-staging"
-    },
-    "restart-router": {
-      "command": "./scripts/switch-manifest.sh restart-router"
-    },
-    "snapshot-prod-to-staging": {
-      "command": "./scripts/switch-manifest.sh snapshot prod-to-staging"
-    },
-    "snapshot-staging-to-prod": {
-      "command": "./scripts/switch-manifest.sh snapshot staging-to-prod"
+    "where": {
+      "command": "./scripts/switch-manifest.sh where"
     },
     "worktree-status": {
       "command": "./scripts/worktree-stack.sh status"
