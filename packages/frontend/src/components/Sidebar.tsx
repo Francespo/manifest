@@ -12,6 +12,7 @@ import { agentPing, routingPing } from '../services/sse.js';
 import { platformIcon } from 'manifest-shared';
 import { useFocusTrap } from '../services/use-focus-trap.js';
 import AddAgentModal from './AddAgentModal.jsx';
+import QuotaBucketsDrawer from './QuotaBucketsDrawer.jsx';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -44,6 +45,7 @@ const Sidebar: Component<SidebarProps> = (props) => {
   const getAgentName = useAgentName();
   const [agentsCollapsed, setAgentsCollapsed] = createSignal(false);
   const [addModalOpen, setAddModalOpen] = createSignal(false);
+  const [quotaDrawerOpen, setQuotaDrawerOpen] = createSignal(false);
   // Poll every 15s to catch autofix toggle changes (no SSE for this mutation).
   const [autofixTick, setAutofixTick] = createSignal(0);
   const autofixInterval = setInterval(() => setAutofixTick((n) => n + 1), 15_000);
@@ -213,6 +215,14 @@ const Sidebar: Component<SidebarProps> = (props) => {
       >
         Requests
       </A>
+      <button
+        type="button"
+        class="sidebar__link"
+        classList={{ active: quotaDrawerOpen() }}
+        onClick={() => setQuotaDrawerOpen(true)}
+      >
+        Quota Buckets
+      </button>
       <div class="sidebar__section-label">PROVIDERS</div>
       <Show when={selfHosted()}>
         <A
@@ -439,6 +449,7 @@ const Sidebar: Component<SidebarProps> = (props) => {
         </A>
       </Show>
 
+      <QuotaBucketsDrawer open={quotaDrawerOpen()} onClose={() => setQuotaDrawerOpen(false)} />
       {/* Create-harness modal, opened by the HARNESSES section + button */}
       <AddAgentModal open={addModalOpen()} onClose={() => setAddModalOpen(false)} />
 

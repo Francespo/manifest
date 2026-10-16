@@ -501,7 +501,9 @@ const RequestDrawer: Component<RequestDrawerProps> = (props) => {
                                     <span>{att().auth_type}</span>
                                   </div>
                                 </Show>
-                                <Show when={att().provider_key_label || att().auth_type === 'api_key'}>
+                                <Show
+                                  when={att().provider_key_label || att().auth_type === 'api_key'}
+                                >
                                   <div class="drawer-kv">
                                     <span class="drawer-kv__key">API Key</span>
                                     <span>{att().provider_key_label ?? 'Default'}</span>
@@ -642,6 +644,38 @@ const RequestDrawer: Component<RequestDrawerProps> = (props) => {
                                   </div>
                                 </Show>
 
+                                {/* Pre-flight Policy Skip notice */}
+                                <Show
+                                  when={
+                                    att().error_origin === 'policy' ||
+                                    att().error_message?.includes('Pre-flight') ||
+                                    att().error_message?.includes('cooling down')
+                                  }
+                                >
+                                  <div
+                                    class="drawer-context-card"
+                                    style="border-color: hsl(36 80% 50% / 0.4); background: hsl(36 80% 50% / 0.05); margin-bottom: 12px;"
+                                  >
+                                    <div style="display: flex; align-items: center; gap: 6px; font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; color: hsl(36 80% 50%);">
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="14"
+                                        height="14"
+                                        fill="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                                      </svg>
+                                      Pre-Flight Quota Rule Skip (0ms Latency)
+                                    </div>
+                                    <div style="font-size: var(--font-size-sm); color: hsl(var(--foreground)); line-height: 1.4;">
+                                      Manifest proactively skipped this key/model attempt to avoid
+                                      an inevitable upstream rate-limit failure and immediately
+                                      routed to the next fallback option.
+                                    </div>
+                                  </div>
+                                </Show>
+
                                 {/* Error block if this attempt failed — never hidden
                                   by the context cards around it */}
                                 <Show when={att().error_message}>
@@ -652,6 +686,7 @@ const RequestDrawer: Component<RequestDrawerProps> = (props) => {
                                     <div style="font-size: var(--font-size-sm); color: hsl(var(--destructive)); font-family: var(--font-mono, monospace); overflow-wrap: anywhere; white-space: pre-wrap; margin-bottom: 8px;">
                                       {att().error_message}
                                     </div>
+
                                     <Show
                                       when={
                                         att().error_origin ||

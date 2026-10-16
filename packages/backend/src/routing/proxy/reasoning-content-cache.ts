@@ -133,22 +133,23 @@ export class ReasoningContentCache {
     const messages = body.messages;
     if (!Array.isArray(messages)) return body;
 
+    const isSupported = supportsReasoningContent(endpointKey, model, this.modelCatalog);
+    if (!isSupported) {
+      return body;
+    }
+
     const candidates = messages.map(reasoningReplayCandidate);
     if (!candidates.some(Boolean)) return body;
 
     const keys = candidates.flatMap((candidate) =>
       candidate?.cacheKey ? [candidate.cacheKey] : [],
     );
+
     const repeatedKeys = repeatedReplayKeys(keys);
     const cached = keys.length > 0 ? await this.retrieveMany(sessionKey, keys) : new Map();
 
-    const isSupported = supportsReasoningContent(endpointKey, model, this.modelCatalog);
-    const hasCachedHits = keys.some((k) => cached.has(k) && Boolean(cached.get(k)));
-    if (!isSupported && !hasCachedHits) {
-      return body;
-    }
-
     let changed = false;
+
     const nextMessages = messages.map((message, index) => {
       const candidate = candidates[index];
       if (!candidate) return message;

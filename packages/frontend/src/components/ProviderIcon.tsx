@@ -133,6 +133,10 @@ export function providerIcon(id: string, size: number = 20): JSX.Element | null 
     /* ── Gemini ───────────────────────────────────── */
     case 'gemini-free':
     case 'gemini':
+    // Rules and quota buckets may carry the provider as 'google' (the
+    // backend normalizes provider to lowercase). Render the same Gemini
+    // icon — a missing icon for a real provider is worse than a shared one.
+    case 'google':
       return (
         <svg
           style={s}

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { AuthType, ModelRoute } from 'manifest-shared';
@@ -6,6 +6,9 @@ import { applyRequestParamDefaults, KEY_LABEL_ROTATION } from 'manifest-shared';
 import { AgentModelParamsService } from '../routing-core/agent-model-params.service';
 import { ProviderParamSpecService } from '../routing-core/provider-param-spec.service';
 import { KeyRotationRuleService } from '../routing-core/key-rotation-rule.service';
+import { ModelQuotaLimiterService } from './model-quota/model-quota-limiter.service';
+import { estimatePayloadInputTokens } from './model-quota/fast-token-estimator';
+import type { QuotaCheckResult } from './model-quota/model-quota.types';
 import {
   KeyRotationState,
   keyRotationStateKey,
@@ -155,6 +158,8 @@ export class ProxyFallbackService {
     private readonly providerParamSpecs: ProviderParamSpecService,
     private readonly reasoningCache: ReasoningContentCache,
     private readonly keyRotationRules: KeyRotationRuleService,
+    @Optional()
+    private readonly modelQuotaLimiter?: ModelQuotaLimiterService,
   ) {}
 
   /**
@@ -477,10 +482,60 @@ export class ProxyFallbackService {
       return this.buildRateLimitCooldownForward(opts, cooldown);
     }
 
+    const estimatedTokens = estimatePayloadInputTokens(opts.body);
+    if (this.modelQuotaLimiter) {
+      const quotaCheck = this.modelQuotaLimiter.checkQuota({
+        provider: opts.provider,
+        model: opts.model,
+        key: opts.rawApiKey || opts.apiKey,
+        tenantProviderId: opts.tenantProviderId,
+        keyLabel: opts.providerKeyLabel,
+        estimatedTokens,
+      });
+      if (!quotaCheck.allowed) {
+        return this.buildQuotaSkipForward(opts, quotaCheck);
+      }
+    }
+
     try {
       const forward = await this.forwardToProvider(opts);
       const result = await this.retryOAuthSubscriptionAfterRejectedToken(opts, forward);
-      this.recordRateLimitCooldown(opts, result.response);
+
+      if (result?.response) {
+        this.recordRateLimitCooldown(opts, result.response);
+
+        if (this.modelQuotaLimiter) {
+          if (result.response.ok) {
+            this.modelQuotaLimiter.recordAttemptSuccess({
+              provider: opts.provider,
+              model: opts.model,
+              key: opts.rawApiKey || opts.apiKey,
+              tenantProviderId: opts.tenantProviderId,
+              keyLabel: opts.providerKeyLabel,
+              inputTokens: estimatedTokens,
+            });
+          } else if (result.response.status === 429) {
+            const errorBody = await result.response
+              .clone()
+              .text()
+              .catch(() => '');
+            const retryAfterMs = this.parseRetryAfterMs(
+              result.response.headers?.get?.('retry-after'),
+            );
+            this.modelQuotaLimiter.recordAttemptFailure({
+              provider: opts.provider,
+              model: opts.model,
+              key: opts.rawApiKey || opts.apiKey,
+              tenantProviderId: opts.tenantProviderId,
+              keyLabel: opts.providerKeyLabel,
+              status: 429,
+              errorBody,
+              retryAfterMs,
+            });
+          }
+        }
+      }
+
       return result;
     } catch (error) {
       if (opts.signal?.aborted) throw error;
@@ -501,6 +556,40 @@ export class ProxyFallbackService {
         isChatGpt: false,
       };
     }
+  }
+
+  private buildQuotaSkipForward(
+    opts: ForwardProviderOptions,
+    quotaCheck: QuotaCheckResult,
+  ): ForwardResult {
+    const attempt = opts.startProviderAttempt?.({
+      provider: opts.provider,
+      model: opts.model,
+      authType: opts.authType,
+      tenantProviderId: opts.tenantProviderId,
+      keyLabel: opts.providerKeyLabel,
+      providerCallStarted: false,
+    });
+    if (attempt) attempt.completedAtMs = Date.now();
+    const retryAfterSeconds = quotaCheck.retryAfterMs
+      ? Math.max(1, Math.ceil(quotaCheck.retryAfterMs / 1000))
+      : 60;
+    const message =
+      quotaCheck.reason || `Model quota limit reached: ${opts.provider}/${opts.model}`;
+    return {
+      response: new Response(JSON.stringify({ error: { message } }), {
+        status: 429,
+        headers: {
+          'content-type': 'application/json',
+          'retry-after': String(retryAfterSeconds),
+        },
+      }),
+      isGoogle: false,
+      isAnthropic: false,
+      isChatGpt: false,
+      providerCallStarted: false,
+      attempt,
+    };
   }
 
   /** Re-send a healed body without rebuilding the already-resolved provider request. */

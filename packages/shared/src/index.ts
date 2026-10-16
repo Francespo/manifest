@@ -191,3 +191,4 @@ export {
   normalizeRole,
 } from './chat-message';
 export type { ChatMessage, ChatTool, RecordedResponseBody, Role, ToolCall } from './chat-message';
+export type { KeyQuotaBucketStatus, ModelQuotaStatusResponse } from './model-quotas';

@@ -69,12 +69,7 @@ const TruncatedId: Component<{ id: string }> = (props) => {
   onCleanup(hide);
 
   return (
-    <code
-      ref={ref}
-      class="request-messages__tool-id"
-      onMouseEnter={show}
-      onMouseLeave={hide}
-    >
+    <code ref={ref} class="request-messages__tool-id" onMouseEnter={show} onMouseLeave={hide}>
       {props.id}
       <Show when={pos()}>
         <Portal>
@@ -101,7 +96,13 @@ const TruncatedId: Component<{ id: string }> = (props) => {
 
 const ToolIcon = () => (
   <span class="request-messages__tool-icon" aria-hidden="true">
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      fill="currentColor"
+      viewBox="0 0 24 24"
+    >
       <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.3.07-.61.07-.93s-.03-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.3-.07.62-.07.94s.03.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.21.07-.47-.12-.61l-2.01-1.58z" />
     </svg>
   </span>
@@ -114,7 +115,9 @@ const ToolCalls: Component<{ calls: ToolCall[] }> = (props) => (
         <div class="request-messages__tool-call">
           <div class="request-messages__tool-call-head">
             <ToolIcon />
-            <strong class="request-messages__tool-name">{call.function?.name ?? 'Unknown tool'}</strong>
+            <strong class="request-messages__tool-name">
+              {call.function?.name ?? 'Unknown tool'}
+            </strong>
             <Show when={call.id}>
               <TruncatedId id={call.id!} />
             </Show>
@@ -168,6 +171,9 @@ const MessageTurn: Component<{
         <span class="request-message__index">#{props.index + 1}</span>
         <span class={`request-message__role request-message__role--${role()}`}>
           {role() === 'unknown' ? (props.message.role ?? 'unknown') : role()}
+        </span>
+        <span class="request-message__tokens-badge" title="Estimated token count for this turn">
+          ~{approxTokens(content()).toLocaleString()} tokens
         </span>
         <Show when={props.message.name}>
           <code class="request-message__meta-code">{props.message.name}</code>
@@ -407,7 +413,9 @@ const RequestMessages: Component<{ recording: Recording | null; view?: Recording
             ◌
           </div>
           <strong>No logs for this attempt</strong>
-          <span>Logs were off when this attempt ran. Enable logs in Settings to inspect future requests.</span>
+          <span>
+            Logs were off when this attempt ran. Enable logs in Settings to inspect future requests.
+          </span>
         </div>
       }
     >

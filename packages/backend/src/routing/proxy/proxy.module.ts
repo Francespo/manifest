@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentMessage } from '../../entities/agent-message.entity';
 import { CustomProvider } from '../../entities/custom-provider.entity';
 import { ReasoningContentCacheEntry } from '../../entities/reasoning-content-cache-entry.entity';
+import { TenantProvider } from '../../entities/tenant-provider.entity';
 import { RoutingCoreModule } from '../routing-core/routing-core.module';
 import { ModelPricesModule } from '../../model-prices/model-prices.module';
 import { ModelDiscoveryModule } from '../../model-discovery/model-discovery.module';
@@ -29,10 +30,17 @@ import { ModelsDevReasoningCatalog } from './reasoning-model-catalog';
 import { CodexSessionAffinity } from './codex-session-affinity';
 import { ProxyExceptionFilter } from './proxy-exception.filter';
 import { AttemptRecordingService } from './attempt-recording.service';
+import { ModelQuotaLimiterService } from './model-quota/model-quota-limiter.service';
+import { ModelQuotaController } from './model-quota/model-quota.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AgentMessage, CustomProvider, ReasoningContentCacheEntry]),
+    TypeOrmModule.forFeature([
+      AgentMessage,
+      CustomProvider,
+      ReasoningContentCacheEntry,
+      TenantProvider,
+    ]),
     RoutingCoreModule,
     ModelPricesModule,
     ModelDiscoveryModule,
@@ -45,7 +53,7 @@ import { AttemptRecordingService } from './attempt-recording.service';
     BillingModule,
     AutofixModule,
   ],
-  controllers: [ProxyController],
+  controllers: [ProxyController, ModelQuotaController],
   providers: [
     ProxyService,
     ProxyFallbackService,
@@ -61,7 +69,8 @@ import { AttemptRecordingService } from './attempt-recording.service';
     CodexSessionAffinity,
     ProxyExceptionFilter,
     AttemptRecordingService,
+    ModelQuotaLimiterService,
   ],
-  exports: [ProviderClient],
+  exports: [ProviderClient, ModelQuotaLimiterService],
 })
 export class ProxyModule {}

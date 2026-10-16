@@ -705,6 +705,17 @@
 .request-message__role--unknown {
   color: hsl(var(--muted-foreground));
 }
+.request-message__tokens-badge {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.5);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid hsl(var(--border) / 0.4);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 /* Inline meta codes (name, tool_call_id) */
 .request-message__meta-code {
   overflow: hidden;
