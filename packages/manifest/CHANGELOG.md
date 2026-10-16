@@ -1,5 +1,11 @@
 # manifest
 
+## 6.28.8
+
+### Patch Changes
+
+- edabb1d: Remove the API Bot announcement banner and the API Bot sidebar card from the dashboard.
+
 ## 6.28.7
 
 ### Patch Changes
