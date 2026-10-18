@@ -39,6 +39,11 @@ import {
   type ProviderAttemptRef,
 } from './proxy-types';
 import { CodexSessionAffinity } from './codex-session-affinity';
+import {
+  buildOpencodeHarnessHeaders,
+  hasOpencodeIdentity,
+  resolveOpencodeSessionId,
+} from '../opencode-harness';
 import { ModelsDevReasoningCatalog } from './reasoning-model-catalog';
 import { toNativeResponsesRequest } from './responses-adapter';
 import { responsesToolNames, ResponsesToolNames } from './responses-tools';
@@ -262,6 +267,11 @@ function buildPromptCacheKey(sessionKey: string): string {
 
 function isOpenCode(endpointKey: string, provider: string): boolean {
   return endpointKey.startsWith('opencode-') || provider.toLowerCase().startsWith('opencode');
+}
+
+/** OpenCode Zen only, including its dedicated Google and Muse Spark routes. */
+function isOpencodeZen(endpointKey: string): boolean {
+  return endpointKey === 'opencode-zen' || endpointKey.startsWith('opencode-zen-');
 }
 
 function applyHashedPromptCacheKey(
@@ -553,6 +563,39 @@ export class ProviderClient {
       }
       if (!finalHeaders['user-agent'] && opts.clientUserAgent) {
         finalHeaders['user-agent'] = opts.clientUserAgent;
+      }
+    }
+
+    // OpenCode Zen gates its free model tier on a genuine OpenCode identity: the
+    // CLI's User-Agent *and* a well-formed `ses_…` session id (Manifest's opaque
+    // `manifest-<hash>` affinity value is rejected) on a request that already
+    // carries one of OpenCode's built-in system prompts. Forward the caller's own
+    // session id when it already looks like one, otherwise mint one; present the
+    // rest of the harness shape unless the caller already identifies as OpenCode.
+    if (isOpencodeZen(endpointKey)) {
+      const sessionId = resolveOpencodeSessionId({
+        callerSession: opts.sessionKey,
+        scopeKey: opts.providerCacheKey ?? opts.sessionKey,
+      });
+      if (hasOpencodeIdentity(finalHeaders)) {
+        // A real OpenCode caller keeps its own User-Agent / client marker; only
+        // the session headers need normalising to the CLI's id shape.
+        for (const key of [
+          'x-opencode-session',
+          'x-opencode-session-id',
+          'x-session-id',
+          'x-session-affinity',
+        ]) {
+          finalHeaders[key] = sessionId;
+        }
+      } else {
+        Object.assign(
+          finalHeaders,
+          buildOpencodeHarnessHeaders({
+            sessionId,
+            projectKey: opts.providerCacheKey ?? opts.sessionKey,
+          }),
+        );
       }
     }
 

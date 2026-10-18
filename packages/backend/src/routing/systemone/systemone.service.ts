@@ -1,5 +1,6 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { ProviderKeyService } from '../routing-core/provider-key.service';
+import { buildOpencodeHarnessHeaders, resolveOpencodeSessionId } from '../opencode-harness';
 import {
   CLASSIFIER_MODELS,
   CLASSIFIER_PROVIDER,
@@ -80,12 +81,18 @@ export class SystemOneService {
       );
     }
 
-    return this.forward(apiKey, { ...request.body, model }, request.signal);
+    return this.forward(
+      apiKey,
+      { ...request.body, model },
+      `${request.tenantId}\u0000${request.agentId}`,
+      request.signal,
+    );
   }
 
   private async forward(
     apiKey: string,
     payload: Record<string, unknown>,
+    agentScope: string,
     clientSignal?: AbortSignal,
   ): Promise<SystemOneResult> {
     const timeout = AbortSignal.timeout(SYSTEMONE_TIMEOUT_MS);
@@ -93,9 +100,18 @@ export class SystemOneService {
 
     let response: Response;
     try {
+      // Zen's free classifier models are first-party only, so present the
+      // OpenCode harness identity exactly like the chat proxy does. The
+      // classifier is stateless, so the per-agent scope stands in for the
+      // conversation affinity the harness would send (and mints a well-formed
+      // `ses_…` id, which Zen's gate requires).
       response = await fetch(OPENCODE_ZEN_SYSTEMONE_URL, {
         method: 'POST',
         headers: {
+          ...buildOpencodeHarnessHeaders({
+            sessionId: resolveOpencodeSessionId({ scopeKey: agentScope }),
+            projectKey: agentScope,
+          }),
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           Accept: 'application/json',
