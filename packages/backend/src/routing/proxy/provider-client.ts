@@ -39,6 +39,7 @@ import {
   type ProviderAttemptRef,
 } from './proxy-types';
 import { CodexSessionAffinity } from './codex-session-affinity';
+import { hasOpencodeIdentity, isOpencodeSessionId } from '../opencode-harness';
 import { ModelsDevReasoningCatalog } from './reasoning-model-catalog';
 import { toNativeResponsesRequest } from './responses-adapter';
 import { responsesToolNames, ResponsesToolNames } from './responses-tools';
@@ -262,6 +263,11 @@ function buildPromptCacheKey(sessionKey: string): string {
 
 function isOpenCode(endpointKey: string, provider: string): boolean {
   return endpointKey.startsWith('opencode-') || provider.toLowerCase().startsWith('opencode');
+}
+
+/** OpenCode Zen only, including its dedicated Google and Muse Spark routes. */
+function isOpencodeZen(endpointKey: string): boolean {
+  return endpointKey === 'opencode-zen' || endpointKey.startsWith('opencode-zen-');
 }
 
 function applyHashedPromptCacheKey(
@@ -553,6 +559,33 @@ export class ProviderClient {
       }
       if (!finalHeaders['user-agent'] && opts.clientUserAgent) {
         finalHeaders['user-agent'] = opts.clientUserAgent;
+      }
+    }
+
+    // OpenCode Zen serves its free model tier only to first-party OpenCode
+    // traffic. When the caller already is the OpenCode CLI — its own identity
+    // plus a genuine `ses_…` session id — carry that id on every session header,
+    // so Manifest's opaque `manifest-<hash>` affinity value cannot shadow it.
+    // Nothing is synthesised: a caller without an OpenCode identity is left
+    // exactly as it is, and Zen refuses it.
+    if (
+      isOpencodeZen(endpointKey) &&
+      hasOpencodeIdentity(finalHeaders) &&
+      isOpencodeSessionId(opts.sessionKey)
+    ) {
+      const sessionId = opts.sessionKey.trim();
+      for (const key of [
+        'x-opencode-session',
+        'x-opencode-session-id',
+        'x-session-id',
+        'x-session-affinity',
+      ]) {
+        finalHeaders[key] = sessionId;
+      }
+      // The caller's own project id rides with the same identity; Manifest has
+      // no project of its own and never invents one.
+      if (opts.clientOpencodeProject) {
+        finalHeaders['x-opencode-project'] = opts.clientOpencodeProject;
       }
     }
 

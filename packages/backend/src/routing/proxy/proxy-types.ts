@@ -132,6 +132,12 @@ export interface ForwardOptions {
   attempt?: ProviderAttemptRef;
   /** Caller-supplied User-Agent string to forward upstream when appropriate. */
   clientUserAgent?: string;
+  /**
+   * The caller's raw `x-opencode-project` header. Only the OpenCode CLI sends
+   * one, and only a caller that already presents an OpenCode identity has it
+   * forwarded — Manifest never invents a project id.
+   */
+  clientOpencodeProject?: string;
 }
 
 /** Options for ProxyService.proxyRequest. */

@@ -93,6 +93,10 @@ export class SystemOneService {
 
     let response: Response;
     try {
+      // The classifier call goes out as Manifest, with only its own credential.
+      // Zen reserves its free classifier models for first-party OpenCode
+      // traffic, so it may refuse this route — Manifest does not dress the
+      // request up as the OpenCode harness to get in.
       response = await fetch(OPENCODE_ZEN_SYSTEMONE_URL, {
         method: 'POST',
         headers: {

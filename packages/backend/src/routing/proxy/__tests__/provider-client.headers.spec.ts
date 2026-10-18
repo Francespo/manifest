@@ -13,6 +13,9 @@ import { CodexSessionAffinity } from '../codex-session-affinity';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
+// OpenCode session ids: `ses_` + 12-hex timestamp prefix + 14-char tail.
+const CALLER_SESSION_ID = 'ses_0123456789abABCDEFGHJKMNPQ';
+
 const mockFetch = jest.fn();
 (globalThis as unknown as { fetch: typeof fetch }).fetch = mockFetch;
 
@@ -262,7 +265,10 @@ describe('ProviderClient — strict header contract on auth-critical paths', () 
     expect(sentHeaders).not.toHaveProperty('Authorization');
   });
 
-  it('OpenCode Zen sends Authorization Bearer and x-opencode-session', async () => {
+  // Zen's free tier is first-party only. Manifest forwards a genuine OpenCode
+  // caller's own identity and fabricates one for nobody else.
+
+  it('OpenCode Zen sends no OpenCode identity for a caller that is not OpenCode', async () => {
     mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
     await client.forward({
@@ -277,8 +283,132 @@ describe('ProviderClient — strict header contract on auth-critical paths', () 
     expect(sentHeaders).toEqual({
       Authorization: 'Bearer zen-token',
       'Content-Type': 'application/json',
+      // Manifest's own opaque affinity value — not a synthesised `ses_…` id.
       'x-opencode-session': expect.stringMatching(/^manifest-[a-f0-9]{32}$/),
     });
+    expect(sentHeaders).not.toHaveProperty('x-opencode-client');
+    expect(sentHeaders).not.toHaveProperty('user-agent');
+    expect(sentHeaders).not.toHaveProperty('x-opencode-session-id');
+    expect(sentHeaders).not.toHaveProperty('x-session-affinity');
+    expect(sentHeaders).not.toHaveProperty('x-opencode-project');
+  });
+
+  it('OpenCode Zen does not dress up a third-party caller as the CLI', async () => {
+    mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+    await client.forward({
+      provider: 'opencode-zen',
+      apiKey: 'zen-token',
+      model: 'opencode-zen/big-pickle',
+      body,
+      stream: false,
+      clientUserAgent: 'pi-coding-agent/0.85.0 (linux-x64)',
+    });
+
+    const sentHeaders = mockFetch.mock.calls[0][1].headers as Record<string, string>;
+    expect(sentHeaders['user-agent']).toBe('pi-coding-agent/0.85.0 (linux-x64)');
+    expect(sentHeaders).not.toHaveProperty('x-opencode-client');
+    expect(sentHeaders['x-opencode-session']).toMatch(/^manifest-[a-f0-9]{32}$/);
+  });
+
+  it('OpenCode Zen does not mint a session id for an OpenCode UA that brings none', async () => {
+    mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+    await client.forward({
+      provider: 'opencode-zen',
+      apiKey: 'zen-token',
+      model: 'opencode-zen/big-pickle',
+      body,
+      stream: false,
+      clientUserAgent: 'opencode/local/9.9.9/opencode',
+    });
+
+    const sentHeaders = mockFetch.mock.calls[0][1].headers as Record<string, string>;
+    // The caller's own identity survives untouched…
+    expect(sentHeaders['user-agent']).toBe('opencode/local/9.9.9/opencode');
+    // …and nothing is invented to stand in for the session it did not send.
+    expect(sentHeaders['x-opencode-session']).toMatch(/^manifest-[a-f0-9]{32}$/);
+    expect(sentHeaders).not.toHaveProperty('x-opencode-session-id');
+    expect(sentHeaders).not.toHaveProperty('x-session-affinity');
+  });
+
+  it('OpenCode Zen ignores a session id from a caller that is not OpenCode', async () => {
+    mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+    await client.forward({
+      provider: 'opencode-zen',
+      apiKey: 'zen-token',
+      model: 'opencode-zen/big-pickle',
+      body,
+      stream: false,
+      sessionKey: CALLER_SESSION_ID,
+    });
+
+    const sentHeaders = mockFetch.mock.calls[0][1].headers as Record<string, string>;
+    expect(sentHeaders['x-opencode-session']).toMatch(/^manifest-[a-f0-9]{32}$/);
+    expect(sentHeaders).not.toHaveProperty('x-opencode-client');
+    expect(sentHeaders).not.toHaveProperty('x-opencode-project');
+  });
+
+  it('OpenCode Zen forwards a genuine OpenCode session id and project id', async () => {
+    mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+    await client.forward({
+      provider: 'opencode-zen',
+      apiKey: 'zen-token',
+      model: 'opencode-zen/big-pickle',
+      body,
+      stream: false,
+      sessionKey: CALLER_SESSION_ID,
+      clientUserAgent: 'opencode/stable/1.2.3/cli',
+      clientOpencodeProject: 'proj_01HZX9',
+    });
+
+    const sentHeaders = mockFetch.mock.calls[0][1].headers as Record<string, string>;
+    expect(sentHeaders['x-opencode-session']).toBe(CALLER_SESSION_ID);
+    expect(sentHeaders['x-opencode-session-id']).toBe(CALLER_SESSION_ID);
+    expect(sentHeaders['x-session-id']).toBe(CALLER_SESSION_ID);
+    expect(sentHeaders['x-session-affinity']).toBe(CALLER_SESSION_ID);
+    // The caller's own identity, not Manifest's rendition of it.
+    expect(sentHeaders['user-agent']).toBe('opencode/stable/1.2.3/cli');
+    expect(sentHeaders['x-opencode-project']).toBe('proj_01HZX9');
+    expect(sentHeaders).not.toHaveProperty('x-opencode-client');
+  });
+
+  it('OpenCode Zen drops a project id that is not accompanied by an OpenCode identity', async () => {
+    mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+    await client.forward({
+      provider: 'opencode-zen',
+      apiKey: 'zen-token',
+      model: 'opencode-zen/big-pickle',
+      body,
+      stream: false,
+      // No OpenCode UA/client and no genuine session id: nothing is forwarded.
+      clientOpencodeProject: 'proj_01HZX9',
+    });
+
+    const sentHeaders = mockFetch.mock.calls[0][1].headers as Record<string, string>;
+    expect(sentHeaders).not.toHaveProperty('x-opencode-project');
+    expect(sentHeaders).not.toHaveProperty('x-opencode-client');
+  });
+
+  it('OpenCode Go does not impersonate the OpenCode harness', async () => {
+    mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+    await client.forward({
+      provider: 'opencode-go',
+      apiKey: 'og-token',
+      model: 'opencode-go/glm-5.1',
+      body,
+      stream: false,
+      clientUserAgent: 'pi-coding-agent/0.85.0 (linux-x64)',
+    });
+
+    const sentHeaders = mockFetch.mock.calls[0][1].headers as Record<string, string>;
+    expect(sentHeaders['user-agent']).toBe('pi-coding-agent/0.85.0 (linux-x64)');
+    expect(sentHeaders).not.toHaveProperty('x-opencode-client');
+    expect(sentHeaders).not.toHaveProperty('x-session-affinity');
   });
 
   it('OpenCode preserves caller-supplied x-opencode-session in extraHeaders', async () => {
