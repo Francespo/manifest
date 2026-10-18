@@ -310,6 +310,13 @@ export class ProxyService {
     const rawUa = headers?.['user-agent'];
     const clientUserAgent =
       typeof rawUa === 'string' ? rawUa : Array.isArray(rawUa) ? rawUa[0] : undefined;
+    const rawOpencodeProject = headers?.['x-opencode-project'];
+    const clientOpencodeProject =
+      typeof rawOpencodeProject === 'string'
+        ? rawOpencodeProject
+        : Array.isArray(rawOpencodeProject)
+          ? rawOpencodeProject[0]
+          : undefined;
     const apiMode = opts.apiMode ?? 'chat_completions';
     const routingSource = opts.routingBody ?? body;
     const resolveChatBody = this.createChatBodyResolver(apiMode, body);
@@ -513,6 +520,7 @@ export class ProxyService {
           startProviderAttempt,
           credentialDashboardUrl: dashboardUrl,
           clientUserAgent,
+          clientOpencodeProject,
         });
         if (rotation) {
           currentForward = rotation.forward;
@@ -575,6 +583,7 @@ export class ProxyService {
           credentialDashboardUrl: dashboardUrl,
           keyRotationState,
           clientUserAgent,
+          clientOpencodeProject,
           clientAnthropicBeta: headers?.['anthropic-beta'],
         });
         if (fallbackResult) return fallbackResult;
@@ -624,6 +633,7 @@ export class ProxyService {
       tenantProviderId: credentials.tenantProviderId,
       startProviderAttempt,
       clientUserAgent,
+      clientOpencodeProject,
     });
     const autofixOriginalAttempt = forward.attempt;
     const autofixOriginalProviderCallStarted = forward.providerCallStarted;
@@ -734,6 +744,7 @@ export class ProxyService {
           startProviderAttempt,
           credentialDashboardUrl: dashboardUrl,
           clientUserAgent,
+          clientOpencodeProject,
         });
         if (rotation) {
           forward = rotation.forward;
@@ -776,6 +787,7 @@ export class ProxyService {
           credentialDashboardUrl: dashboardUrl,
           keyRotationState,
           clientUserAgent,
+          clientOpencodeProject,
         });
         if (fallbackResult) {
           return {
@@ -867,6 +879,7 @@ export class ProxyService {
           credentialDashboardUrl: dashboardUrl,
           keyRotationState,
           clientUserAgent,
+          clientOpencodeProject,
           clientAnthropicBeta: headers?.['anthropic-beta'],
         });
         if (fallbackResult) {
@@ -1526,6 +1539,8 @@ export class ProxyService {
     startProviderAttempt?: StartProviderAttempt;
     credentialDashboardUrl: string;
     clientUserAgent?: string;
+    /** The caller's raw `x-opencode-project` header, forwarded to OpenCode Zen. */
+    clientOpencodeProject?: string;
   }): Promise<PrimaryRotationResult | null> {
     const {
       agentId,
@@ -1549,6 +1564,7 @@ export class ProxyService {
       startProviderAttempt,
       credentialDashboardUrl,
       clientUserAgent,
+      clientOpencodeProject,
     } = opts;
     if (rule.provider.toLowerCase() !== provider.toLowerCase()) return null;
     if (!nextUnusedKeyLabel(rule, state, model)) return null;
@@ -1623,6 +1639,7 @@ export class ProxyService {
         tenantProviderId: credentials.tenantProviderId,
         startProviderAttempt,
         clientUserAgent,
+        clientOpencodeProject,
       });
 
       if (forward.response.ok) {
@@ -1746,6 +1763,8 @@ export class ProxyService {
     /** Per-request key rotation state (see tryFallbacks). */
     keyRotationState?: KeyRotationState;
     clientUserAgent?: string;
+    /** The caller's raw `x-opencode-project` header, forwarded to OpenCode Zen. */
+    clientOpencodeProject?: string;
     /** The caller's raw `anthropic-beta` header, forwarded on an Anthropic hop. */
     clientAnthropicBeta?: string | string[];
   }): Promise<ProxyResult | null> {
@@ -1765,6 +1784,7 @@ export class ProxyService {
       signal,
       apiMode,
       clientUserAgent,
+      clientOpencodeProject,
     } = args;
     // The chain evaluates structural fallback routes directly — it never
     // infers candidate providers from model names, so an agent with an
@@ -1807,6 +1827,7 @@ export class ProxyService {
       sessionCacheKey,
       clientUserAgent,
       args.clientAnthropicBeta,
+      clientOpencodeProject,
     );
 
     this.recordTierIfScoring(sessionMomentumKey, resolved.tier);

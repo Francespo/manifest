@@ -61,6 +61,8 @@ interface ForwardProviderOptions {
   tenantProviderId?: string | null;
   startProviderAttempt?: StartProviderAttempt;
   clientUserAgent?: string;
+  /** The caller's raw `x-opencode-project` header, forwarded to OpenCode Zen. */
+  clientOpencodeProject?: string;
 }
 
 import { ProviderKeyService } from '../routing-core/provider-key.service';
@@ -243,6 +245,8 @@ export class ProxyFallbackService {
     clientUserAgent?: string,
     /** The caller's raw `anthropic-beta` header; a fallback hop onto Anthropic needs it too. */
     clientAnthropicBeta?: string | string[],
+    /** The caller's raw `x-opencode-project` header, forwarded to OpenCode Zen. */
+    clientOpencodeProject?: string,
   ): Promise<{
     success: {
       forward: ForwardResult;
@@ -422,6 +426,7 @@ export class ProxyFallbackService {
             tenantProviderId,
             startProviderAttempt,
             clientUserAgent,
+            clientOpencodeProject,
           }),
           { stream, provider, model },
         );
@@ -1207,6 +1212,7 @@ export class ProxyFallbackService {
         providerResource,
         attempt,
         clientUserAgent: opts.clientUserAgent,
+        clientOpencodeProject: opts.clientOpencodeProject,
       });
       if (attempt) attempt.completedAtMs = Date.now();
       return { ...forward, attempt, providerCallStarted: true };

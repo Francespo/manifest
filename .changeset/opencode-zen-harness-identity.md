@@ -2,8 +2,12 @@
 'manifest': patch
 ---
 
-Fix OpenCode Zen requests so a genuine OpenCode caller keeps the identity that Zen's free model tier accepts. Zen only serves free models to first-party OpenCode traffic, and checks the request as a whole: it needs the CLI's `User-Agent`, a well-formed OpenCode session id (`ses_…`), and one of OpenCode's built-in system prompts in the body.
+Forward a genuine OpenCode caller's own identity to OpenCode Zen, and stop fabricating one for everybody else.
 
-Manifest was sending `x-opencode-session: manifest-<hash>`, which Zen rejects. Chat requests to `opencode-zen` (including the dedicated Google and Muse Spark routes) and classifier requests to `/zen/v1/systemone` now forward the caller's own session id when it is already OpenCode-shaped and otherwise mint a well-formed `ses_…` id, carrying it on `x-opencode-session`, `x-opencode-session-id`, `x-session-id`, and `x-session-affinity`. When the caller does not already identify as OpenCode, the request also carries `User-Agent: opencode/<channel>/<version>/<name>`, `x-opencode-client`, and `x-opencode-project`.
+Zen serves its free model tier only to first-party OpenCode traffic, and it checks the request as a whole: the CLI's `User-Agent`, a well-formed `ses_…` session id, and a body carrying one of OpenCode's built-in system prompts. Zen is the authority on that check.
 
-This only affects requests that already originate from an OpenCode client: Zen rejects the free tier for any other body, so no amount of header shaping unlocks it for other callers.
+Manifest was overwriting the caller's session id with its own opaque `manifest-<hash>` affinity value. Chat requests to `opencode-zen` (including the dedicated Google and Muse Spark routes) now carry the caller's own `ses_…` id on `x-opencode-session`, `x-opencode-session-id`, `x-session-id`, and `x-session-affinity` whenever the caller presents an OpenCode identity _and_ a genuine session id — so a real OpenCode client keeps the identity Zen accepts, instead of losing it to Manifest's own value. The caller's own `x-opencode-project` header rides along with that same identity: it is read from the inbound request and threaded through to the provider forward.
+
+Everything else is left untouched. Manifest no longer mints a session id, presents `User-Agent: opencode/<channel>/<version>/<name>`, sets `x-opencode-client`, or hashes a project id for callers that are not OpenCode, and the System One classifier call to `/zen/v1/systemone` now goes out as Manifest with only its own credential. A caller that does not bring an OpenCode identity gets Zen's refusal, which is the honest answer: the free tier is Zen's to grant and it grants it to its own client.
+
+One consequence worth knowing: Zen's free classifier model (`opencode-zen/jev-1.13-free`) is first-party only and can now be refused on `/zen/v1/systemone`; the paid `opencode-zen/jev-1.13` is unaffected.
