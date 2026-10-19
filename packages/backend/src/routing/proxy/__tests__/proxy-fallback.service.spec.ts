@@ -234,6 +234,86 @@ describe('ProxyFallbackService', () => {
       expect(result.response.ok).toBe(true);
     });
 
+    describe('opencode-zen free tier guard', () => {
+      const zenFree = (overrides: Record<string, unknown> = {}) => ({
+        provider: 'opencode-zen',
+        apiKey: 'public',
+        model: 'opencode-zen/big-pickle',
+        body,
+        stream: false,
+        sessionKey: 'manifest-0123456789abcdef0123456789abcdef',
+        ...overrides,
+      });
+      const ok = () => ({
+        response: new Response('{}', { status: 200 }),
+        isGoogle: false,
+        isAnthropic: false,
+        isChatGpt: false,
+      });
+
+      it('fails locally for a caller without an OpenCode identity, without calling Zen', async () => {
+        const result = await service.tryForwardToProvider(zenFree());
+
+        expect(providerClient.forward).not.toHaveBeenCalled();
+        expect(result.response.status).toBe(403);
+        expect(result.providerCallStarted).toBe(false);
+        // The condition is the request itself, not a cooldown: no retry-after.
+        expect(result.response.headers.get('retry-after')).toBeNull();
+        await expect(result.response.json()).resolves.toEqual({
+          error: {
+            message: expect.stringContaining('OpenCode Zen free-tier model'),
+          },
+        });
+      });
+
+      it('forwards when the caller is the OpenCode CLI with a genuine session id', async () => {
+        providerClient.forward.mockResolvedValue(ok());
+
+        const result = await service.tryForwardToProvider(
+          zenFree({
+            callerIsOpencode: true,
+            sessionKey: 'ses_0123456789abABCDEFGHJKMNPQ',
+          }),
+        );
+
+        expect(providerClient.forward).toHaveBeenCalledTimes(1);
+        expect(result.response.status).toBe(200);
+      });
+
+      it('still refuses when the identity is present but the session id is Manifest’s own', async () => {
+        const result = await service.tryForwardToProvider(
+          zenFree({
+            callerIsOpencode: true,
+            sessionKey: 'manifest-0123456789abcdef0123456789abcdef',
+          }),
+        );
+
+        expect(providerClient.forward).not.toHaveBeenCalled();
+        expect(result.response.status).toBe(403);
+      });
+
+      it('does not gate the billed zen catalog', async () => {
+        providerClient.forward.mockResolvedValue(ok());
+
+        const result = await service.tryForwardToProvider(
+          zenFree({ model: 'opencode-zen/claude-sonnet-4-5' }),
+        );
+
+        expect(providerClient.forward).toHaveBeenCalledTimes(1);
+        expect(result.response.status).toBe(200);
+      });
+
+      it('does not gate another provider whose model id merely ends in -free', async () => {
+        providerClient.forward.mockResolvedValue(ok());
+
+        await service.tryForwardToProvider(
+          zenFree({ provider: 'openrouter', model: 'openrouter/nemotron-free' }),
+        );
+
+        expect(providerClient.forward).toHaveBeenCalledTimes(1);
+      });
+    });
+
     it('passes Anthropic thinking lookup with route-specific replay context', async () => {
       providerClient.forward.mockResolvedValue({
         response: new Response('{}', { status: 200 }),

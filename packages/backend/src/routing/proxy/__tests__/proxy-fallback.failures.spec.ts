@@ -205,6 +205,37 @@ describe('ProxyFallbackService.tryFallbacks — failure chain by status code', (
     expect(result.failures.map((f) => f.provider)).toEqual(['openai', 'anthropic']);
   });
 
+  it('skips a zen free-tier route for a non-OpenCode caller without calling Zen, and reaches the next fallback', async () => {
+    // The free tier is Zen's to grant to its own client: a caller with no
+    // OpenCode identity must not even produce an upstream request. The hop
+    // fails locally (403, no provider call) and the chain moves on to the
+    // next route in the same request.
+    providerClient.forward.mockResolvedValueOnce({
+      response: new Response('{}', { status: 200 }),
+      isGoogle: false,
+      isAnthropic: false,
+      isChatGpt: false,
+    });
+
+    const routes: ModelRoute[] = [
+      route('opencode-zen', 'opencode-zen/big-pickle'),
+      route('openai', 'gpt-4o-mini'),
+    ];
+    const result = await runFallbacks(['opencode-zen/big-pickle', 'gpt-4o-mini'], routes);
+
+    expect(providerClient.forward).toHaveBeenCalledTimes(1);
+    expect(providerClient.forward.mock.calls[0][0].provider).toBe('openai');
+
+    expect(result.success).not.toBeNull();
+    expect(result.success!.fallbackIndex).toBe(1);
+    expect(result.success!.provider).toBe('openai');
+
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0].provider).toBe('opencode-zen');
+    expect(result.failures[0].status).toBe(403);
+    expect(result.failures[0].providerCallStarted).toBe(false);
+  });
+
   it('advances after a fallback returns HTTP 200 with an empty completion', async () => {
     const realClient = new ProviderClient();
     const originalFetch = global.fetch;

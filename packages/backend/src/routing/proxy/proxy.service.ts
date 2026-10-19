@@ -51,6 +51,7 @@ import { ThinkingBlockCache } from './thinking-block-cache';
 import { AgentModelParamsService } from '../routing-core/agent-model-params.service';
 import { ProviderParamSpecService } from '../routing-core/provider-param-spec.service';
 import { KeyRotationRuleService } from '../routing-core/key-rotation-rule.service';
+import { hasOpencodeIdentity } from '../opencode-harness';
 import {
   createKeyRotationState,
   markKeyLabelUsed,
@@ -236,6 +237,7 @@ interface HealedReforwardContext {
   providerRegion?: string | null;
   paramMergeContext: ParamMergeContext | undefined;
   tenantProviderId: string | null;
+  callerIsOpencode?: boolean;
 }
 
 /**
@@ -317,6 +319,10 @@ export class ProxyService {
         : Array.isArray(rawOpencodeProject)
           ? rawOpencodeProject[0]
           : undefined;
+    // The caller's own OpenCode identity, evaluated once on the inbound
+    // headers. Zen free-tier models are only attempted when this is true and
+    // the session id is a genuine `ses_…` (see opencodeZenFreeTierSkip).
+    const callerIsOpencode = hasOpencodeIdentity(headers ?? {});
     const apiMode = opts.apiMode ?? 'chat_completions';
     const routingSource = opts.routingBody ?? body;
     const resolveChatBody = this.createChatBodyResolver(apiMode, body);
@@ -521,6 +527,7 @@ export class ProxyService {
           credentialDashboardUrl: dashboardUrl,
           clientUserAgent,
           clientOpencodeProject,
+          callerIsOpencode,
         });
         if (rotation) {
           currentForward = rotation.forward;
@@ -584,6 +591,7 @@ export class ProxyService {
           keyRotationState,
           clientUserAgent,
           clientOpencodeProject,
+          callerIsOpencode,
           clientAnthropicBeta: headers?.['anthropic-beta'],
         });
         if (fallbackResult) return fallbackResult;
@@ -634,6 +642,7 @@ export class ProxyService {
       startProviderAttempt,
       clientUserAgent,
       clientOpencodeProject,
+      callerIsOpencode,
     });
     const autofixOriginalAttempt = forward.attempt;
     const autofixOriginalProviderCallStarted = forward.providerCallStarted;
@@ -698,6 +707,7 @@ export class ProxyService {
                   thinkingLookup,
                   tenantProviderId: credentials.tenantProviderId,
                   startProviderAttempt,
+                  callerIsOpencode,
                 },
                 reforwardOpts,
               ),
@@ -745,6 +755,7 @@ export class ProxyService {
           credentialDashboardUrl: dashboardUrl,
           clientUserAgent,
           clientOpencodeProject,
+          callerIsOpencode,
         });
         if (rotation) {
           forward = rotation.forward;
@@ -788,6 +799,7 @@ export class ProxyService {
           keyRotationState,
           clientUserAgent,
           clientOpencodeProject,
+          callerIsOpencode,
         });
         if (fallbackResult) {
           return {
@@ -880,6 +892,7 @@ export class ProxyService {
           keyRotationState,
           clientUserAgent,
           clientOpencodeProject,
+          callerIsOpencode,
           clientAnthropicBeta: headers?.['anthropic-beta'],
         });
         if (fallbackResult) {
@@ -1095,6 +1108,7 @@ export class ProxyService {
       paramMergeContext: ctx.paramMergeContext,
       tenantProviderId: credentials.tenantProviderId,
       startProviderAttempt: ctx.startProviderAttempt,
+      callerIsOpencode: ctx.callerIsOpencode,
     });
   }
 
@@ -1180,6 +1194,7 @@ export class ProxyService {
       paramMergeContext: explicitModelOverride ? undefined : { agentId: ctx.agentId, scopeKey },
       tenantProviderId: credentials.tenantProviderId,
       startProviderAttempt: ctx.startProviderAttempt,
+      callerIsOpencode: ctx.callerIsOpencode,
     });
   }
 
@@ -1541,6 +1556,8 @@ export class ProxyService {
     clientUserAgent?: string;
     /** The caller's raw `x-opencode-project` header, forwarded to OpenCode Zen. */
     clientOpencodeProject?: string;
+    /** True when the inbound request carried a genuine OpenCode identity. */
+    callerIsOpencode?: boolean;
   }): Promise<PrimaryRotationResult | null> {
     const {
       agentId,
@@ -1565,6 +1582,7 @@ export class ProxyService {
       credentialDashboardUrl,
       clientUserAgent,
       clientOpencodeProject,
+      callerIsOpencode,
     } = opts;
     if (rule.provider.toLowerCase() !== provider.toLowerCase()) return null;
     if (!nextUnusedKeyLabel(rule, state, model)) return null;
@@ -1640,6 +1658,7 @@ export class ProxyService {
         startProviderAttempt,
         clientUserAgent,
         clientOpencodeProject,
+        callerIsOpencode,
       });
 
       if (forward.response.ok) {
@@ -1765,6 +1784,8 @@ export class ProxyService {
     clientUserAgent?: string;
     /** The caller's raw `x-opencode-project` header, forwarded to OpenCode Zen. */
     clientOpencodeProject?: string;
+    /** True when the inbound request carried a genuine OpenCode identity. */
+    callerIsOpencode?: boolean;
     /** The caller's raw `anthropic-beta` header, forwarded on an Anthropic hop. */
     clientAnthropicBeta?: string | string[];
   }): Promise<ProxyResult | null> {
@@ -1785,6 +1806,7 @@ export class ProxyService {
       apiMode,
       clientUserAgent,
       clientOpencodeProject,
+      callerIsOpencode,
     } = args;
     // The chain evaluates structural fallback routes directly — it never
     // infers candidate providers from model names, so an agent with an
@@ -1828,6 +1850,7 @@ export class ProxyService {
       clientUserAgent,
       args.clientAnthropicBeta,
       clientOpencodeProject,
+      callerIsOpencode,
     );
 
     this.recordTierIfScoring(sessionMomentumKey, resolved.tier);

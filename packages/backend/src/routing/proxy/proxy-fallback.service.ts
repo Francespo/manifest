@@ -63,6 +63,13 @@ interface ForwardProviderOptions {
   clientUserAgent?: string;
   /** The caller's raw `x-opencode-project` header, forwarded to OpenCode Zen. */
   clientOpencodeProject?: string;
+  /**
+   * True when the inbound request carried a genuine OpenCode identity (the
+   * harness header or the CLI User-Agent). Zen serves its free model tier to
+   * first-party OpenCode traffic only; a request without the identity must
+   * not reach a free-tier model at all — see `opencodeZenFreeTierSkip`.
+   */
+  callerIsOpencode?: boolean;
 }
 
 import { ProviderKeyService } from '../routing-core/provider-key.service';
@@ -78,6 +85,7 @@ import { XaiOauthService } from '../oauth/xai/xai-oauth.service';
 import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
 import { ProviderClient, ForwardResult } from './provider-client';
 import { resolveEndpointKey } from './provider-endpoints';
+import { isOpencodeSessionId, isOpencodeZenFreeModel } from '../opencode-harness';
 import { CopilotTokenService } from './copilot-token.service';
 import { ReasoningContentCache } from './reasoning-content-cache';
 import { buildProviderExtraHeaders } from './provider-hooks';
@@ -247,6 +255,8 @@ export class ProxyFallbackService {
     clientAnthropicBeta?: string | string[],
     /** The caller's raw `x-opencode-project` header, forwarded to OpenCode Zen. */
     clientOpencodeProject?: string,
+    /** True when the inbound request carried a genuine OpenCode identity. */
+    callerIsOpencode?: boolean,
   ): Promise<{
     success: {
       forward: ForwardResult;
@@ -427,6 +437,7 @@ export class ProxyFallbackService {
             startProviderAttempt,
             clientUserAgent,
             clientOpencodeProject,
+            callerIsOpencode,
           }),
           { stream, provider, model },
         );
@@ -680,6 +691,10 @@ export class ProxyFallbackService {
   }
 
   async tryForwardToProvider(opts: ForwardProviderOptions): Promise<ForwardResult> {
+    const zenFreeTierSkip = this.opencodeZenFreeTierSkip(opts);
+    if (zenFreeTierSkip) {
+      return zenFreeTierSkip;
+    }
     const cooldown = this.getActiveRateLimitCooldown(opts);
     if (cooldown) {
       return this.buildRateLimitCooldownForward(opts, cooldown);
@@ -861,6 +876,37 @@ export class ProxyFallbackService {
     return this.buildLocalSkipForward(opts, 429, message, expiresAt);
   }
 
+  /**
+   * Zen's free model tier is served to first-party OpenCode traffic only —
+   * the CLI's identity header/User-Agent plus a genuine `ses_…` session id.
+   * A caller that brings no such identity would be refused upstream with a
+   * 403, after a wasted round-trip that also paints Manifest's egress as
+   * free-tier abuse. Fail the hop locally instead: the status keeps the
+   * fallback chain moving, Zen is never called, and no provider call is
+   * accounted.
+   */
+  private opencodeZenFreeTierSkip(opts: ForwardProviderOptions): ForwardResult | null {
+    const endpointKey = resolveEndpointKey(opts.provider);
+    if (
+      !endpointKey ||
+      (endpointKey !== 'opencode-zen' && !endpointKey.startsWith('opencode-zen-'))
+    ) {
+      return null;
+    }
+    if (!isOpencodeZenFreeModel(opts.model)) return null;
+    if (opts.callerIsOpencode === true && isOpencodeSessionId(opts.sessionKey)) return null;
+
+    this.logger.log(
+      `opencode-zen free model skipped without an upstream call: ` +
+        `model=${opts.model} (no OpenCode identity on the request)`,
+    );
+    const message =
+      `${opts.provider}/${opts.model} is an OpenCode Zen free-tier model, served only to ` +
+      `first-party OpenCode traffic. This request carries no OpenCode identity, so Manifest ` +
+      `did not send it to Zen. Reach the free tier from the OpenCode client, or use a paid model.`;
+    return this.buildLocalSkipForward(opts, 403, message);
+  }
+
   private buildCredentialRejectedForward(
     opts: ForwardProviderOptions,
     expiresAt: number,
@@ -875,12 +921,14 @@ export class ProxyFallbackService {
   /**
    * A route skipped locally, without calling the provider. The status keeps
    * the fallback chain moving; the attempt is not persisted as a provider call.
+   * `expiresAt` is for time-boxed skips (cooldowns); a skip whose condition is
+   * the request itself carries no `retry-after`.
    */
   private buildLocalSkipForward(
     opts: ForwardProviderOptions,
     status: number,
     message: string,
-    expiresAt: number,
+    expiresAt?: number,
   ): ForwardResult {
     const attempt = opts.startProviderAttempt?.({
       provider: opts.provider,
@@ -891,14 +939,15 @@ export class ProxyFallbackService {
       providerCallStarted: false,
     });
     if (attempt) attempt.completedAtMs = Date.now();
-    const retryAfterSeconds = Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000));
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (expiresAt !== undefined) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000));
+      headers['retry-after'] = String(retryAfterSeconds);
+    }
     return {
       response: new Response(JSON.stringify({ error: { message } }), {
         status,
-        headers: {
-          'content-type': 'application/json',
-          'retry-after': String(retryAfterSeconds),
-        },
+        headers,
       }),
       isGoogle: false,
       isAnthropic: false,
