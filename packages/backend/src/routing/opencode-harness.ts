@@ -25,14 +25,42 @@
 const OPENCODE_SESSION_ID_PATTERN = /^ses_[0-9a-f]{12}[0-9a-zA-Z]{14}$/;
 
 /** True when the caller already presents an OpenCode-shaped identity. */
-export function hasOpencodeIdentity(headers: Record<string, string>): boolean {
+export function hasOpencodeIdentity(
+  headers: Record<string, string | string[] | undefined>,
+): boolean {
   const client = headers['x-opencode-client'];
-  if (typeof client === 'string' && client.trim().length > 0) return true;
+  for (const value of Array.isArray(client) ? client : [client]) {
+    if (typeof value === 'string' && value.trim().length > 0) return true;
+  }
   const ua = headers['user-agent'];
-  return typeof ua === 'string' && /^opencode\//i.test(ua.trim());
+  for (const value of Array.isArray(ua) ? ua : [ua]) {
+    if (typeof value === 'string' && /^opencode\//i.test(value.trim())) return true;
+  }
+  return false;
 }
 
 /** True when `value` is a genuine OpenCode session id supplied by the caller. */
 export function isOpencodeSessionId(value: unknown): value is string {
   return typeof value === 'string' && OPENCODE_SESSION_ID_PATTERN.test(value.trim());
+}
+
+/**
+ * Zen names its free-tier ids `<model>-free`; the stealth model carries a
+ * plain id. These are exactly the models Zen reserves to first-party OpenCode
+ * traffic — the billed catalog is open to any authenticated caller, so only
+ * the free tier is gated.
+ */
+const OPENCODE_ZEN_FREE_MODEL_SUFFIX = '-free';
+const OPENCODE_ZEN_FREE_MODEL_IDS: ReadonlySet<string> = new Set(['big-pickle']);
+
+/**
+ * True when `model` names an OpenCode Zen free-tier model. Accepts the public
+ * `opencode-zen/<id>` route form and the bare gateway id.
+ */
+export function isOpencodeZenFreeModel(model: unknown): boolean {
+  if (typeof model !== 'string') return false;
+  const normalized = model.trim().toLowerCase();
+  if (!normalized) return false;
+  const id = normalized.slice(normalized.lastIndexOf('/') + 1);
+  return id.endsWith(OPENCODE_ZEN_FREE_MODEL_SUFFIX) || OPENCODE_ZEN_FREE_MODEL_IDS.has(id);
 }
