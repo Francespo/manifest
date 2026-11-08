@@ -59,6 +59,13 @@ export interface SharedProviderEntry {
    * media routing reaches them through the media adapter instead.
    */
   mediaOnly?: boolean;
+  /**
+   * Whether this provider can be routed through Manifest's US egress gateway.
+   * Only OpenCode Go/Zen expose a US-only regional gate today, and the gateway
+   * speaks their credential scheme. The dashboard hides the per-model toggle
+   * for every provider without this flag.
+   */
+  usEgress?: boolean;
 }
 
 export interface MetaModelApiModel {
@@ -571,6 +578,7 @@ export const SHARED_PROVIDERS: readonly SharedProviderEntry[] = [
     keyPrefix: '',
     minKeyLength: 20,
     keyPlaceholder: '',
+    usEgress: true,
   },
   {
     id: 'opencode-zen',
@@ -583,6 +591,7 @@ export const SHARED_PROVIDERS: readonly SharedProviderEntry[] = [
     keyPrefix: '',
     minKeyLength: 20,
     keyPlaceholder: 'OpenCode Zen API key',
+    usEgress: true,
   },
   {
     id: 'openrouter',
@@ -691,6 +700,14 @@ export const SHARED_PROVIDER_BY_ID_OR_ALIAS: ReadonlyMap<string, SharedProviderE
     ...p.aliases.map((a): [string, SharedProviderEntry] => [a, p]),
   ]),
 );
+
+/**
+ * Whether requests for this provider can be sent through Manifest's US egress
+ * gateway. Accepts aliases so callers never need to canonicalise first.
+ */
+export function supportsUsEgress(provider: string): boolean {
+  return SHARED_PROVIDER_BY_ID_OR_ALIAS.get(provider.toLowerCase().trim())?.usEgress === true;
+}
 
 /**
  * Collapse whitespace, dots, underscores, and hyphens so variants like

@@ -21,6 +21,7 @@ import { InstallMetadata } from '../entities/install-metadata.entity';
 import { BackfillState } from '../entities/backfill-state.entity';
 import { AgentModelParams } from '../entities/agent-model-params.entity';
 import { AgentKeyRotationRule } from '../entities/agent-key-rotation-rule.entity';
+import { ModelEgressPolicy } from '../entities/model-egress-policy.entity';
 import { PlaygroundRun } from '../entities/playground-run.entity';
 import { PlaygroundColumn } from '../entities/playground-column.entity';
 import { ReasoningContentCacheEntry } from '../entities/reasoning-content-cache-entry.entity';
@@ -46,6 +47,7 @@ import { CreateCliAuthCodes1801710000000 } from './migrations/1801710000000-Crea
 import { AddRequestApiMode1801720000000 } from './migrations/1801720000000-AddRequestApiMode';
 import { AddRequestMediaTaskId1803200000000 } from './migrations/1803200000000-AddRequestMediaTaskId';
 import { AddPlaygroundColumnMedia1803300000000 } from './migrations/1803300000000-AddPlaygroundColumnMedia';
+import { AddModelEgressPolicies1803400000000 } from './migrations/1803400000000-AddModelEgressPolicies';
 import { AddCliAuthCodeChallenge1801730000000 } from './migrations/1801730000000-AddCliAuthCodeChallenge';
 import { AddApiKeyAbsoluteExpiresAt1801740000000 } from './migrations/1801740000000-AddApiKeyAbsoluteExpiresAt';
 import { AddAutofixConsentToInstallMetadata1801900000000 } from './migrations/1801900000000-AddAutofixConsentToInstallMetadata';
@@ -201,6 +203,7 @@ export const entities = [
   InstallMetadata,
   AgentModelParams,
   AgentKeyRotationRule,
+  ModelEgressPolicy,
   PlaygroundRun,
   PlaygroundColumn,
   ReasoningContentCacheEntry,
@@ -366,4 +369,5 @@ export const migrations = [
   CoverHarnessRequestsIndex1803100000000,
   AddRequestMediaTaskId1803200000000,
   AddPlaygroundColumnMedia1803300000000,
+  AddModelEgressPolicies1803400000000,
 ];

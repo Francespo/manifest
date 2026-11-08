@@ -18,6 +18,7 @@ import { ProviderParamSpecService } from '../../routing-core/provider-param-spec
 import { AutofixService } from '../../autofix/autofix.service';
 import type { StartProviderAttempt } from '../proxy-types';
 import { KeyRotationRuleService } from '../../routing-core/key-rotation-rule.service';
+import { ModelEgressPolicyService } from '../../routing-core/model-egress-policy.service';
 
 /**
  * Status-code-driven fallback chain behavior for tryFallbacks().
@@ -154,6 +155,9 @@ describe('ProxyFallbackService.tryFallbacks — failure chain by status code', (
         getRule: jest.fn().mockResolvedValue(null),
         list: jest.fn().mockResolvedValue([]),
       } as unknown as KeyRotationRuleService,
+      {
+        resolve: jest.fn().mockResolvedValue('direct'),
+      } as unknown as ModelEgressPolicyService,
       {
         isRepairable: jest.fn().mockReturnValue(false),
         maybeHeal: jest.fn(),

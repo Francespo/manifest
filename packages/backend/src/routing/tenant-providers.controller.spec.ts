@@ -53,6 +53,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -87,6 +89,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -107,6 +111,8 @@ describe('TenantProvidersController', () => {
       providerRepo as never,
       { getAll: jest.fn().mockReturnValue([]) } as never,
       { list: jest.fn().mockResolvedValue([]) } as never,
+      {} as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -138,6 +144,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -152,6 +160,8 @@ describe('TenantProvidersController', () => {
       providerRepo as never,
       { getAll: jest.fn().mockReturnValue([]) } as never,
       customProviderService as never,
+      {} as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -197,6 +207,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -229,6 +241,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -247,6 +261,8 @@ describe('TenantProvidersController', () => {
       providerRepo as never,
       { getAll: jest.fn().mockReturnValue([]) } as never,
       { list: jest.fn().mockResolvedValue([]) } as never,
+      {} as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -277,6 +293,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -297,6 +315,8 @@ describe('TenantProvidersController', () => {
       providerRepo as never,
       { getAll: jest.fn().mockReturnValue([]) } as never,
       customProviderService as never,
+      {} as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -325,6 +345,8 @@ describe('TenantProvidersController', () => {
       providerRepo as never,
       { getAll: jest.fn().mockReturnValue([]) } as never,
       { list: jest.fn().mockResolvedValue([]) } as never,
+      {} as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -360,6 +382,8 @@ describe('TenantProvidersController mutations (no harness required)', () => {
     };
     const discoveryService = { discoverAllForAgent: jest.fn().mockResolvedValue(undefined) };
     const routingCache = { invalidateAgent: jest.fn(), invalidateTenant: jest.fn() };
+    const modelEgress = {};
+    const usEgress = {};
     const cacheManager = { clear: jest.fn().mockResolvedValue(undefined) };
     const controller = new TenantProvidersController(
       {} as never,
@@ -368,6 +392,8 @@ describe('TenantProvidersController mutations (no harness required)', () => {
       providerService as never,
       discoveryService as never,
       routingCache as never,
+      modelEgress as never,
+      usEgress as never,
       cacheManager as never,
     );
     return { controller, providerService, discoveryService, routingCache, cacheManager };
@@ -475,5 +501,124 @@ describe('TenantProvidersController mutations (no harness required)', () => {
     expect(providerService.removeProvider).not.toHaveBeenCalled();
     expect(providerService.renameKey).not.toHaveBeenCalled();
     expect(discoveryService.discoverAllForAgent).not.toHaveBeenCalled();
+  });
+});
+
+describe('TenantProvidersController model egress', () => {
+  const ctx: TenantContext = { tenantId: 'tenant-1', userId: 'user-1' };
+  const cached = [
+    {
+      id: 'opencode-go/crouton-alpha-free',
+      displayName: 'Crouton Alpha Free',
+      provider: 'opencode-go',
+      contextWindow: 128000,
+      inputPricePerToken: 0,
+      outputPricePerToken: 0,
+      capabilityReasoning: true,
+      capabilityCode: true,
+      qualityScore: 3,
+    },
+  ];
+
+  const setup = () => {
+    const providerRepo = {
+      find: jest.fn().mockResolvedValue([{ cached_models: cached, is_active: true }]),
+    };
+    const modelEgress = {
+      overview: jest.fn().mockResolvedValue([
+        {
+          model: 'opencode-go/crouton-alpha-free',
+          display_name: 'Crouton Alpha Free',
+          egress: 'us',
+          explicit: false,
+        },
+      ]),
+      set: jest.fn().mockResolvedValue('direct'),
+    };
+    const usEgress = {
+      health: jest.fn().mockResolvedValue({
+        configured: true,
+        reachable: true,
+        status: 'ok',
+        target: 'https://opencode.ai/zen/go',
+        latency_ms: 5,
+      }),
+    };
+    const controller = new TenantProvidersController(
+      providerRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      modelEgress as never,
+      usEgress as never,
+      {} as never,
+    );
+    return { controller, providerRepo, modelEgress, usEgress };
+  };
+
+  it('lists cached models with their effective egress', async () => {
+    const { controller, providerRepo, modelEgress } = setup();
+
+    const result = await controller.listProviderModels(
+      ctx,
+      { provider: 'opencode-go' },
+      { authType: 'subscription' },
+    );
+
+    expect(providerRepo.find).toHaveBeenCalledWith({
+      where: {
+        tenant_id: 'tenant-1',
+        provider: 'opencode-go',
+        auth_type: 'subscription',
+        is_active: true,
+      },
+    });
+    expect(modelEgress.overview).toHaveBeenCalledWith(
+      'tenant-1',
+      'opencode-go',
+      'subscription',
+      cached,
+    );
+    expect(result.supports_us_egress).toBe(true);
+    expect(result.models[0].egress).toBe('us');
+  });
+
+  it('writes a model policy', async () => {
+    const { controller, modelEgress } = setup();
+
+    const result = await controller.updateModelEgress(
+      ctx,
+      { provider: 'opencode-go' },
+      {
+        model: 'opencode-go/crouton-alpha-free',
+        egress: 'direct',
+        authType: 'subscription',
+      },
+    );
+
+    expect(modelEgress.set).toHaveBeenCalledWith(
+      'tenant-1',
+      'opencode-go',
+      'subscription',
+      'opencode-go/crouton-alpha-free',
+      'direct',
+    );
+    expect(result).toEqual({
+      provider: 'opencode-go',
+      auth_type: 'subscription',
+      model: 'opencode-go/crouton-alpha-free',
+      egress: 'direct',
+    });
+  });
+
+  it('probes the gateway health', async () => {
+    const { controller, usEgress } = setup();
+
+    const result = await controller.usEgressHealth(ctx);
+
+    expect(usEgress.health).toHaveBeenCalled();
+    expect(result.reachable).toBe(true);
   });
 });

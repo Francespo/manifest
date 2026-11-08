@@ -2,6 +2,7 @@ import { PROVIDER_REGISTRY } from '../../../common/constants/providers';
 import {
   buildCustomEndpoint,
   buildEndpointOverride,
+  buildUsEgressEndpoint,
   resolveBedrockEndpointKey,
   resolveEndpointKey,
   PROVIDER_ENDPOINTS,
@@ -182,11 +183,10 @@ describe('resolveEndpointKey', () => {
     expect(known).toContain('xiaomi-subscription');
     expect(known).toContain('kiro');
     expect(known).toContain('opencode-go');
-    expect(known).toContain('opencode-go-musespark');
     expect(known).toContain('opencode-go-anthropic');
     expect(known).toContain('opencode-go-responses');
     expect(known).toContain('opencode-zen');
-    expect(known).toContain('opencode-zen-musespark');
+    expect(known).toContain('opencode-zen-responses');
     expect(known).toContain('opencode-zen-google');
   });
 
@@ -798,15 +798,25 @@ describe('PROVIDER_ENDPOINTS', () => {
     });
   });
 
-  it('opencode-go-musespark uses Hugging Face proxy base URL with Responses format and proxy headers', () => {
-    const ep = PROVIDER_ENDPOINTS['opencode-go-musespark'];
-    expect(ep.baseUrl).toBe('https://franc3spo-opencode-proxy.hf.space');
-    expect(ep.format).toBe('chatgpt');
-    expect(ep.buildPath('muse-spark-1.2-contributor')).toBe('/v1/responses');
+  it('buildUsEgressEndpoint clones OpenCode Go onto the proxy and swaps only headers', () => {
+    const direct = PROVIDER_ENDPOINTS['opencode-go-responses'];
+    const ep = buildUsEgressEndpoint('opencode-go', direct);
+    expect(ep).not.toBeNull();
+    expect(ep!.baseUrl).toBe('https://franc3spo-opencode-proxy.hf.space');
+    expect(ep!.format).toBe('chatgpt');
+    expect(ep!.buildPath('muse-spark-1.2-contributor')).toBe('/v1/responses');
+    expect(ep!.acceptsMaxOutputTokens).toBe(true);
 
-    const headers = ep.buildHeaders('og-token');
+    const headers = ep!.buildHeaders('og-token');
     expect(headers['x-opencode-key']).toBe('og-token');
     expect(headers['Content-Type']).toBe('application/json');
+    expect(headers['x-target-base']).toBeUndefined();
+  });
+
+  it('buildUsEgressEndpoint leaves every non-OpenCode provider alone', () => {
+    const direct = PROVIDER_ENDPOINTS['anthropic'];
+    expect(buildUsEgressEndpoint('anthropic', direct)).toBeNull();
+    expect(buildUsEgressEndpoint('custom:abc', direct)).toBeNull();
   });
 
   it('opencode-go-anthropic uses Anthropic format with /v1/messages', () => {
@@ -846,13 +856,15 @@ describe('PROVIDER_ENDPOINTS', () => {
     expect(ep.buildPath('qwen3.6-plus')).toBe('/v1/chat/completions');
   });
 
-  it('opencode-zen-musespark uses Hugging Face proxy base URL with Responses format and Zen target base', () => {
-    const ep = PROVIDER_ENDPOINTS['opencode-zen-musespark'];
-    expect(ep.baseUrl).toBe('https://franc3spo-opencode-proxy.hf.space');
-    expect(ep.format).toBe('chatgpt');
-    expect(ep.buildPath('muse-spark-1.2-contributor-free')).toBe('/v1/responses');
+  it('buildUsEgressEndpoint adds the Zen target base for OpenCode Zen', () => {
+    const direct = PROVIDER_ENDPOINTS['opencode-zen-responses'];
+    const ep = buildUsEgressEndpoint('opencode-zen', direct);
+    expect(ep).not.toBeNull();
+    expect(ep!.baseUrl).toBe('https://franc3spo-opencode-proxy.hf.space');
+    expect(ep!.format).toBe('chatgpt');
+    expect(ep!.buildPath('muse-spark-1.2-contributor-free')).toBe('/v1/responses');
 
-    const headers = ep.buildHeaders('zen-token');
+    const headers = ep!.buildHeaders('zen-token');
     expect(headers['x-opencode-key']).toBe('zen-token');
     expect(headers['x-target-base']).toBe('https://opencode.ai/zen');
     expect(headers['Content-Type']).toBe('application/json');
@@ -986,9 +998,8 @@ describe('PROVIDER_ENDPOINTS', () => {
       'byteplus-anthropic',
       'minimax-subscription',
       'qwen-subscription-responses',
-      'opencode-go-musespark',
       'opencode-go-anthropic',
-      'opencode-zen-musespark',
+      'opencode-zen-responses',
       'opencode-go-responses',
       'opencode-zen-google',
     ];

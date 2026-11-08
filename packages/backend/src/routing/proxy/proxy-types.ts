@@ -1,4 +1,5 @@
 import type { IncomingHttpHeaders } from 'http';
+import type { ModelEgress } from 'manifest-shared';
 import type { RecordingResponseBody } from './attempt-recording.types';
 import { ProviderEndpoint } from './provider-endpoints';
 import type { AttemptRecordingCapture } from './attempt-recording-capture';
@@ -98,6 +99,11 @@ export interface ForwardOptions {
   body: Record<string, unknown>;
   resolveChatBody?: ResolveChatBody;
   apiMode?: ProxyApiMode;
+  /**
+   * Outbound egress policy for this route. `us` clones the resolved OpenCode
+   * Go/Zen endpoint onto the US gateway; every other provider ignores it.
+   */
+  egress?: ModelEgress;
   /** Legacy caller session identifier. Provider cache affinity must use providerCacheKey. */
   sessionKey?: string;
   /** Opaque, tenant/agent/session-scoped provider prompt-cache affinity key. */

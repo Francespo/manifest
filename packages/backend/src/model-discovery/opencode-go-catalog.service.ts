@@ -16,7 +16,7 @@ export interface OpencodeGoCatalogEntry {
 }
 
 const CATALOG_URL =
-  'https://raw.githubusercontent.com/anomalyco/opencode/dev/packages/web/src/content/docs/go.mdx';
+  'https://raw.githubusercontent.com/anomalyco/opencode/dev/services/site/src/docs/content/console/go.mdx';
 const CACHE_TTL_MS = 60 * 60 * 1000;
 // After a fetch failure we reuse the last-known-good list for a shorter window
 // so a sustained outage does not turn into a per-call retry storm.
@@ -195,8 +195,11 @@ export class OpencodeGoCatalogService implements OnModuleInit {
   /** Parse the Endpoints and Usage Limits tables out of the go.mdx source. */
   parse(mdx: string): OpencodeGoCatalogEntry[] {
     const costByName = this.parseLimits(mdx);
+    // The docs moved from `/zen/go/v1/...` to `/inference/go/{openai,anthropic}/v1/...`
+    // (the Go catalog lives under services/site now). Accept both so a stale
+    // docs copy from either location still parses while the move settles.
     const rowRe =
-      /\|\s*([A-Za-z][^|]*?)\s*\|\s*([a-z][a-z0-9.-]*)\s*\|\s*`?https:\/\/opencode\.ai\/zen\/go\/v1\/(chat\/completions|messages|responses)`?\s*\|/g;
+      /\|\s*([A-Za-z][^|]*?)\s*\|\s*([a-z][a-z0-9.-]*)\s*\|\s*`?https:\/\/opencode\.ai\/(?:zen\/go|inference\/go\/(?:openai|anthropic))\/v1\/(chat\/completions|messages|responses)`?\s*\|/g;
     const entries: OpencodeGoCatalogEntry[] = [];
     const seen = new Set<string>();
     let match: RegExpExecArray | null;

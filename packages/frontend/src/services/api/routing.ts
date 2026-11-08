@@ -34,7 +34,10 @@ export interface RoutingProvider {
 /* -- Routing: Status -- */
 
 export type RoutingStatusReason =
-  'no_provider' | 'no_routable_models' | 'pricing_cache_empty' | null;
+  | 'no_provider'
+  | 'no_routable_models'
+  | 'pricing_cache_empty'
+  | null;
 
 export interface RoutingStatus {
   enabled: boolean;
@@ -361,6 +364,8 @@ export interface AvailableModel {
   model_name: string;
   provider: string;
   auth_type?: AuthType;
+  /** Effective outbound egress; only present for US-gateway providers. */
+  us_egress?: 'direct' | 'us';
   input_price_per_token: number | null;
   output_price_per_token: number | null;
   /** Per-request USD cost for per-request subscriptions (e.g. OpenCode Go). */
@@ -373,7 +378,11 @@ export interface AvailableModel {
    * `/v1/models?capabilities=true` omits the window entirely in that case.
    */
   context_window_source?:
-    'provider' | 'provider_default' | 'subscription_config' | 'catalog' | null;
+    | 'provider'
+    | 'provider_default'
+    | 'subscription_config'
+    | 'catalog'
+    | null;
   max_output_tokens?: number;
   /** Manifest endpoints this model serves, e.g. `/v1/images/generations`. */
   supported_endpoints?: readonly string[];

@@ -42,6 +42,7 @@ describe('ModelController', () => {
   let mockProviderParamSpecs: Record<string, jest.Mock>;
   let mockModelsDevSync: Record<string, jest.Mock>;
   let mockOpencodeGoCatalog: Record<string, jest.Mock>;
+  let mockModelEgress: Record<string, jest.Mock>;
   let routingCache: RoutingCacheService;
 
   beforeEach(() => {
@@ -86,6 +87,9 @@ describe('ModelController', () => {
       resolveCostPerRequest: jest.fn().mockResolvedValue(null),
       list: jest.fn().mockResolvedValue([]),
     };
+    mockModelEgress = {
+      resolve: jest.fn().mockResolvedValue('direct'),
+    };
     routingCache = new RoutingCacheService();
 
     controller = new ModelController(
@@ -98,6 +102,7 @@ describe('ModelController', () => {
       mockModelsDevSync as unknown as ModelsDevSyncService,
       mockOpencodeGoCatalog as unknown as OpencodeGoCatalogService,
       routingCache,
+      mockModelEgress as never,
     );
   });
 

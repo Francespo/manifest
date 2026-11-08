@@ -6,6 +6,7 @@ import { SpecificityAssignment } from '../../entities/specificity-assignment.ent
 import { HeaderTier } from '../../entities/header-tier.entity';
 import { AgentModelParams } from '../../entities/agent-model-params.entity';
 import { AgentKeyRotationRule } from '../../entities/agent-key-rotation-rule.entity';
+import { ModelEgressPolicy } from '../../entities/model-egress-policy.entity';
 
 const TTL_MS = 120_000; // 2 minutes
 const MAX_ENTRIES = 5_000;
@@ -53,6 +54,7 @@ export class RoutingCacheService {
   private readonly headerTiers = new Map<string, CachedEntry<HeaderTier[]>>();
   private readonly modelParams = new Map<string, CachedEntry<AgentModelParams[]>>();
   private readonly keyRotationRules = new Map<string, CachedEntry<AgentKeyRotationRule[]>>();
+  private readonly modelEgressPolicies = new Map<string, CachedEntry<ModelEgressPolicy[]>>();
 
   // External caches keyed by agentId that must be dropped alongside the routing
   // cache. Kept as plain callbacks (not DI) so dependents in other modules can
@@ -168,6 +170,18 @@ export class RoutingCacheService {
     this.keyRotationRules.delete(agentId);
   }
 
+  getModelEgressPolicies(tenantId: string): ModelEgressPolicy[] | null {
+    return getOrExpire(this.modelEgressPolicies, tenantId) ?? null;
+  }
+
+  setModelEgressPolicies(tenantId: string, data: ModelEgressPolicy[]): void {
+    setWithEviction(this.modelEgressPolicies, tenantId, data);
+  }
+
+  invalidateModelEgressPolicies(tenantId: string): void {
+    this.modelEgressPolicies.delete(tenantId);
+  }
+
   /**
    * Register a callback fired (with the agentId) on every invalidateAgent().
    * Used to keep agent-keyed caches that live in other modules — e.g.
@@ -216,6 +230,7 @@ export class RoutingCacheService {
   invalidateTenant(tenantId: string): void {
     this.providers.delete(tenantId);
     this.customProviders.delete(tenantId);
+    this.modelEgressPolicies.delete(tenantId);
     // Clears both tenant-global and agent-scoped key chains: every entry for
     // this tenant starts with the same NUL-delimited tenantId segment.
     const prefix = `${tenantId}\u0000`;

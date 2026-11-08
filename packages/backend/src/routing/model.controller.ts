@@ -9,7 +9,8 @@ import { OllamaSyncService } from '../database/ollama-sync.service';
 import { PricingSyncService } from '../database/pricing-sync.service';
 import { ModelsDevSyncService } from '../database/models-dev-sync.service';
 import { RoutingCacheService } from './routing-core/routing-cache.service';
-import { resolveProviderMetadataIdentity } from 'manifest-shared';
+import { resolveProviderMetadataIdentity, supportsUsEgress } from 'manifest-shared';
+import { ModelEgressPolicyService } from './routing-core/model-egress-policy.service';
 import {
   inputModalitiesFromCapabilities,
   resolveModelCapabilityMetadata,
@@ -71,6 +72,7 @@ export class ModelController {
     private readonly modelsDevSync: ModelsDevSyncService,
     private readonly opencodeGoCatalog: OpencodeGoCatalogService,
     private readonly routingCache: RoutingCacheService,
+    private readonly modelEgress: ModelEgressPolicyService,
   ) {}
 
   @Get('pricing-health')
@@ -187,6 +189,16 @@ export class ModelController {
           model_name: m.id,
           provider: m.provider,
           auth_type: authType,
+          ...(supportsUsEgress(m.provider)
+            ? {
+                us_egress: await this.modelEgress.resolve(
+                  agent.tenant_id,
+                  m.provider,
+                  authType,
+                  m.id,
+                ),
+              }
+            : {}),
           input_price_per_token: m.inputPricePerToken,
           output_price_per_token: m.outputPricePerToken,
           ...(costPerRequest != null ? { cost_per_request: costPerRequest } : {}),

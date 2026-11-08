@@ -107,6 +107,8 @@ export {
   KEY_LABEL_ROTATION,
 } from './model-route';
 export type { ModelRoute, LegacyOverrideTriple } from './model-route';
+export { MODEL_EGRESS_VALUES, MODEL_EGRESS_SETTINGS } from './model-egress';
+export type { ModelEgress, ModelEgressSetting } from './model-egress';
 export { isKeyRotationRule, isKeyRotationRuleArray } from './key-rotation-rule';
 export type { KeyRotationRule, KeyRotationRuleScope } from './key-rotation-rule';
 export { applyRequestParamDefaults } from './request-params';
@@ -187,6 +189,7 @@ export {
   FAL_QUEUE_BASE_URL,
   FAL_PLATFORM_MODELS_URL,
   normalizeProviderName,
+  supportsUsEgress,
 } from './providers';
 export type {
   SharedProviderEntry,

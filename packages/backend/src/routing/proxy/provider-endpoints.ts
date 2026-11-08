@@ -643,12 +643,6 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
     format: 'openai',
     ...openaiStreamUsage,
   },
-  'opencode-go-musespark': {
-    baseUrl: OPENCODE_GO_PROXY_BASE,
-    buildHeaders: opencodeGoProxyHeaders,
-    buildPath: () => '/v1/responses',
-    format: 'chatgpt',
-  },
   'opencode-go-anthropic': {
     baseUrl: OPENCODE_GO_BASE,
     buildHeaders: anthropicApiKeyHeaders,
@@ -684,11 +678,16 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
     format: 'openai',
     ...openaiStreamUsage,
   },
-  'opencode-zen-musespark': {
-    baseUrl: OPENCODE_GO_PROXY_BASE,
-    buildHeaders: opencodeZenProxyHeaders,
+  // OpenCode Zen's Responses-only models (Muse Spark/Wonder, Crouton Alpha)
+  // reject /v1/chat/completions. The unified entry above cannot serve them,
+  // so they get a direct `/v1/responses` endpoint with the same Bearer auth.
+  'opencode-zen-responses': {
+    baseUrl: OPENCODE_ZEN_BASE,
+    buildHeaders: openaiHeaders,
     buildPath: () => '/v1/responses',
     format: 'chatgpt',
+    forwardResponsesStream: true,
+    acceptsMaxOutputTokens: true,
   },
   // TODO(opencode-zen): collapse this back into the single `opencode-zen`
   // entry once Zen's gateway stops tunneling the client Authorization header
@@ -705,6 +704,36 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
     format: 'google',
   },
 };
+
+/**
+ * Whether the US egress gateway is configured for this deployment. The base URL
+ * has a built-in default, but the private HF Space also needs its access token;
+ * without both the gateway returns 404, so the dashboard hides the toggle.
+ */
+export function isUsEgressConfigured(): boolean {
+  return Boolean(OPENCODE_GO_PROXY_BASE && OPENCODE_GO_HF_TOKEN);
+}
+
+/**
+ * Clone an OpenCode Go/Zen endpoint onto the US gateway. Path, wire format and
+ * streaming flags stay exactly as the direct route resolved them; only the
+ * base URL and auth/header builder change. Returns null for every other
+ * provider so an accidental policy row can never route a non-OpenCode key to
+ * the gateway.
+ */
+export function buildUsEgressEndpoint(
+  provider: string,
+  endpoint: ProviderEndpoint,
+): ProviderEndpoint | null {
+  const canonical = resolveEndpointKey(provider);
+  if (canonical !== 'opencode-go' && canonical !== 'opencode-zen') return null;
+  return {
+    ...endpoint,
+    baseUrl: OPENCODE_GO_PROXY_BASE.replace(/\/+$/, ''),
+    buildHeaders: canonical === 'opencode-zen' ? opencodeZenProxyHeaders : opencodeGoProxyHeaders,
+    requiresSsrfRevalidation: false,
+  };
+}
 
 /** Build a ProviderEndpoint for a custom provider with the given base URL. */
 export function buildCustomEndpoint(

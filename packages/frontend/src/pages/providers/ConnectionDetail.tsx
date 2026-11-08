@@ -27,7 +27,7 @@ import {
   CONNECTION_SUCCESS_RATE_TOOLTIP,
   CONNECTION_HARNESS_SUCCESS_RATE_TOOLTIP,
 } from '../../services/api/analytics.js';
-import { platformIcon } from 'manifest-shared';
+import { platformIcon, supportsUsEgress, type AuthType } from 'manifest-shared';
 import { PROVIDERS } from '../../services/providers.js';
 import { providerIcon } from '../../components/ProviderIcon.jsx';
 import FilterSelect from '../../components/FilterSelect.jsx';
@@ -54,6 +54,7 @@ import '../../styles/analytics-overview.css';
 import '../../styles/connection-detail.css';
 import { getModelDisplayName } from '../../services/model-display.js';
 import CustomProviderForm from '../../components/CustomProviderForm.jsx';
+import ModelEgressPanel from '../../components/ModelEgressPanel.jsx';
 import '../../styles/routing.css';
 
 const AUTH_TYPE_LABELS: Record<string, string> = {
@@ -1058,6 +1059,13 @@ const ConnectionDetail: Component = () => {
                   </div>
                 </Show>
               </div>
+
+              <Show when={conn() && supportsUsEgress(conn()!.provider)}>
+                <ModelEgressPanel
+                  provider={conn()!.provider}
+                  authType={conn()!.auth_type as AuthType}
+                />
+              </Show>
 
               {/* Models (full width) */}
               <div class="panel scroll-panel" style="margin-bottom: 24px;">

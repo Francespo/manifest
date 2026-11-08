@@ -18,9 +18,11 @@ import { Transform, Type } from 'class-transformer';
 import {
   AUTH_TYPES,
   MAX_FALLBACKS,
+  MODEL_EGRESS_SETTINGS,
   OUTPUT_MODALITIES,
   RESPONSE_MODES,
   TIER_SLOTS,
+  type ModelEgressSetting,
   type OutputModality,
   type ResponseMode,
 } from 'manifest-shared';
@@ -325,4 +327,26 @@ export class UpdateRecordingDto {
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;
+}
+
+/** Query for the per-provider model list used by the US-egress panel. */
+export class ProviderModelsQueryDto {
+  @IsOptional()
+  @IsIn(AUTH_TYPES)
+  authType?: AuthType;
+}
+
+/** Set or clear the US-egress policy for one model. */
+export class UpdateModelEgressDto {
+  @IsOptional()
+  @IsIn(AUTH_TYPES)
+  authType?: AuthType;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  model!: string;
+
+  @IsIn(MODEL_EGRESS_SETTINGS)
+  egress!: ModelEgressSetting;
 }

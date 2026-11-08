@@ -7,7 +7,18 @@ import {
   META_MODEL_API_MODELS,
   META_MODEL_API_MODEL_BY_ID,
   normalizeProviderName,
+  supportsUsEgress,
 } from '../src/providers';
+
+describe('supportsUsEgress', () => {
+  it('enables the gateway only for OpenCode Go and Zen', () => {
+    expect(supportsUsEgress('opencode-go')).toBe(true);
+    expect(supportsUsEgress('OpenCode-Zen')).toBe(true);
+    expect(supportsUsEgress('opencodego')).toBe(true);
+    expect(supportsUsEgress('anthropic')).toBe(false);
+    expect(supportsUsEgress('custom:abc')).toBe(false);
+  });
+});
 
 describe('normalizeProviderName', () => {
   it('lowercases the input', () => {

@@ -3528,7 +3528,30 @@ describe('ProviderClient', () => {
       expect(result.isChatGpt).toBe(false);
     });
 
-    it('routes musespark models to US Hugging Face proxy with auth and x-opencode-key headers', async () => {
+    it('routes Crouton Alpha to /v1/responses even when the docs catalog is cold', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      const result = await client.forward({
+        provider: 'opencode-go',
+        apiKey: 'og-token',
+        model: 'opencode-go/crouton-alpha-free',
+        body,
+        stream: false,
+        authType: 'subscription',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://opencode.ai/zen/go/v1/responses',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer og-token' }),
+        }),
+      );
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.model).toBe('crouton-alpha-free');
+      expect(result.isChatGpt).toBe(true);
+    });
+
+    it('routes an egress=us model to the US gateway with auth and x-opencode-key headers', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       const result = await client.forward({
@@ -3538,6 +3561,7 @@ describe('ProviderClient', () => {
         body,
         stream: false,
         authType: 'subscription',
+        egress: 'us',
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -3553,6 +3577,29 @@ describe('ProviderClient', () => {
       expect(sentBody.model).toBe('muse-spark-1.2-contributor');
       expect(result.isAnthropic).toBe(false);
       expect(result.isChatGpt).toBe(true);
+    });
+
+    it('keeps egress=direct models on the OpenCode endpoint', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'opencode-go',
+        apiKey: 'og-token',
+        model: 'opencode-go/muse-spark-1.2-contributor',
+        body,
+        stream: false,
+        authType: 'subscription',
+        egress: 'direct',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://opencode.ai/zen/go/v1/responses',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer og-token',
+          }),
+        }),
+      );
     });
 
     it('routes minimax-* models to Anthropic /v1/messages', async () => {
@@ -3826,6 +3873,26 @@ describe('ProviderClient', () => {
       },
     );
 
+    it('routes Crouton Alpha to the direct /v1/responses endpoint with Bearer auth', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      const result = await client.forward({
+        provider: 'opencode-zen',
+        apiKey: 'oz-token',
+        model: 'opencode-zen/crouton-alpha-free',
+        body,
+        stream: false,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://opencode.ai/zen/v1/responses',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer oz-token' }),
+        }),
+      );
+      expect(result.isChatGpt).toBe(true);
+    });
+
     it('routes gemini-* models to the dedicated generateContent endpoint with x-goog-api-key auth', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
@@ -3848,7 +3915,7 @@ describe('ProviderClient', () => {
       expect(result.isGoogle).toBe(true);
     });
 
-    it('routes musespark models to US Hugging Face proxy with Responses format and Zen target base', async () => {
+    it('routes an egress=us Zen model to the US gateway with Responses format and target base', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       const result = await client.forward({
@@ -3857,6 +3924,7 @@ describe('ProviderClient', () => {
         model: 'opencode-zen/muse-spark-1.2-contributor-free',
         body,
         stream: false,
+        egress: 'us',
       });
 
       expect(mockFetch).toHaveBeenCalledWith(

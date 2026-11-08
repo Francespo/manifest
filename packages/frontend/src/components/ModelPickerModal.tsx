@@ -781,6 +781,14 @@ const ModelPickerModal: Component<Props> = (props) => {
                       <span class="routing-modal__model-left">
                         <span class="routing-modal__model-label">
                           {model.label}
+                          <Show when={model.pricing?.us_egress === 'us'}>
+                            <span
+                              class="routing-modal__egress-tag"
+                              title="Routes through the US gateway"
+                            >
+                              US
+                            </span>
+                          </Show>
                           <Show when={modelRole(model.value, item.provId, activeTab())}>
                             {(role) => <span class="routing-modal__role-tag">{role()}</span>}
                           </Show>

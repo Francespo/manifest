@@ -566,3 +566,17 @@
     flex-wrap: wrap;
   }
 }
+
+.routing-modal__egress-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 6px;
+  margin-left: 6px;
+  border-radius: 4px;
+  background: hsl(var(--success) / 0.14);
+  color: hsl(var(--success));
+  vertical-align: middle;
+  letter-spacing: 0.04em;
+}

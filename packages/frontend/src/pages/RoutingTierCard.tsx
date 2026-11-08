@@ -592,6 +592,14 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
                               })()}
                             </Show>
                             <span class="routing-card__main">{labelFor(modelName())}</span>
+                            <Show when={modelInfo(modelName())?.us_egress === 'us'}>
+                              <span
+                                class="routing-card__egress-tag"
+                                title="Routes through the US gateway"
+                              >
+                                US
+                              </span>
+                            </Show>
                             <Show when={!isManual()}>
                               <span class="routing-card__auto-tag">auto</span>
                             </Show>

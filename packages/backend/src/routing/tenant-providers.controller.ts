@@ -22,11 +22,18 @@ import { filterProvidersForDeployment } from '../common/utils/provider-availabil
 import { ProviderService } from './routing-core/provider.service';
 import { RoutingCacheService } from './routing-core/routing-cache.service';
 import { ModelDiscoveryService } from '../model-discovery/model-discovery.service';
+import type { DiscoveredModel } from '../model-discovery/model-fetcher';
+import { supportsUsEgress } from 'manifest-shared';
+import { ModelEgressPolicyService } from './routing-core/model-egress-policy.service';
+import { isUsEgressConfigured } from './proxy/provider-endpoints';
+import { UsEgressService } from './us-egress.service';
 import {
   ProviderKeyParamDto,
+  ProviderModelsQueryDto,
   ProviderParamDto,
   RemoveProviderQueryDto,
   RenameProviderKeyDto,
+  UpdateModelEgressDto,
 } from './dto/routing.dto';
 
 /**
@@ -55,6 +62,8 @@ export class TenantProvidersController {
     private readonly providerService: ProviderService,
     private readonly discoveryService: ModelDiscoveryService,
     private readonly routingCache: RoutingCacheService,
+    private readonly modelEgress: ModelEgressPolicyService,
+    private readonly usEgress: UsEgressService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
@@ -121,6 +130,84 @@ export class TenantProvidersController {
     await this.invalidateTenantRouting(tenantId);
     await this.cacheManager.clear();
     return { ok: true, notifications };
+  }
+
+  /**
+   * Health of the US gateway. The dashboard calls this before letting a user
+   * flip a model to US routing, so a sleeping/private Space is visible.
+   */
+  @Get('us-egress/health')
+  async usEgressHealth(@TenantCtx() ctx: TenantContext) {
+    this.requireTenant(ctx);
+    return this.usEgress.health();
+  }
+
+  /**
+   * Every cached model of a provider/auth-type group, with its effective
+   * egress policy. Models are cached on each connection row; unioning them
+   * means a freshly-added key that has not discovered yet doesn't hide the
+   * list the older key already fetched.
+   */
+  @Get(':provider/models')
+  async listProviderModels(
+    @TenantCtx() ctx: TenantContext,
+    @Param() params: ProviderParamDto,
+    @Query() query: ProviderModelsQueryDto,
+  ) {
+    const tenantId = this.requireTenant(ctx);
+    const authType = query.authType ?? 'api_key';
+    const rows = await this.providerRepo.find({
+      where: {
+        tenant_id: tenantId,
+        provider: params.provider,
+        auth_type: authType,
+        is_active: true,
+      },
+    });
+
+    const byModel = new Map<string, DiscoveredModel>();
+    for (const row of rows) {
+      for (const model of row.cached_models ?? []) {
+        if (!byModel.has(model.id)) byModel.set(model.id, model);
+      }
+    }
+
+    return {
+      provider: params.provider,
+      auth_type: authType,
+      supports_us_egress: supportsUsEgress(params.provider),
+      us_egress_available: isUsEgressConfigured(),
+      models: await this.modelEgress.overview(tenantId, params.provider, authType, [
+        ...byModel.values(),
+      ]),
+    };
+  }
+
+  /**
+   * Set or clear the US-egress policy for one model. `auto` deletes the row so
+   * the provider/model default applies again.
+   */
+  @Patch(':provider/models/egress')
+  async updateModelEgress(
+    @TenantCtx() ctx: TenantContext,
+    @Param() params: ProviderParamDto,
+    @Body() body: UpdateModelEgressDto,
+  ) {
+    const tenantId = this.requireTenant(ctx);
+    const authType = body.authType ?? 'api_key';
+    const egress = await this.modelEgress.set(
+      tenantId,
+      params.provider,
+      authType,
+      body.model,
+      body.egress,
+    );
+    return {
+      provider: params.provider,
+      auth_type: authType,
+      model: body.model,
+      egress,
+    };
   }
 
   /**

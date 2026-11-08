@@ -1,6 +1,69 @@
 import { SHARED_PROVIDERS, type AuthType } from 'manifest-shared';
 import { invalidateAll } from './cache.js';
-import { BASE_URL, fetchJson, parseErrorMessage } from './core.js';
+import { BASE_URL, fetchJson, fetchMutate, parseErrorMessage } from './core.js';
+
+export type ModelEgress = 'direct' | 'us';
+export type ModelEgressSetting = ModelEgress | 'auto';
+
+export interface ProviderModelEgress {
+  model: string;
+  display_name: string | null;
+  /** Effective egress — explicit policy, or the provider/model default. */
+  egress: ModelEgress;
+  /** True when the user set this value instead of inheriting the default. */
+  explicit: boolean;
+}
+
+export interface ProviderModelsResponse {
+  provider: string;
+  auth_type: AuthType;
+  supports_us_egress: boolean;
+  us_egress_available: boolean;
+  models: ProviderModelEgress[];
+}
+
+export interface UsEgressHealth {
+  configured: boolean;
+  reachable: boolean;
+  status: string;
+  target: string | null;
+  latency_ms: number | null;
+}
+
+/** Models of one provider/auth-type group with their effective US-egress policy. */
+export function getProviderModels(provider: string, authType: AuthType) {
+  return fetchJson<ProviderModelsResponse>(
+    `/providers/${encodeURIComponent(provider)}/models`,
+    { authType },
+    { cache: false },
+  );
+}
+
+/** Set (or clear with `auto`) the US-egress policy for one model. */
+export async function setProviderModelEgress(
+  provider: string,
+  model: string,
+  egress: ModelEgressSetting,
+  authType: AuthType,
+) {
+  const result = await fetchMutate<{
+    provider: string;
+    auth_type: AuthType;
+    model: string;
+    egress: ModelEgress;
+  }>(`/providers/${encodeURIComponent(provider)}/models/egress`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, egress, authType }),
+  });
+  invalidateAll();
+  return result;
+}
+
+/** Whether the US gateway is configured and reachable. */
+export function getUsEgressHealth() {
+  return fetchJson<UsEgressHealth>('/providers/us-egress/health', undefined, { cache: false });
+}
 
 export interface TenantProviderConnection {
   id: string;
