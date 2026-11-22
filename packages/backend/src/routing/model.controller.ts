@@ -16,6 +16,7 @@ import {
 } from '../model-discovery/model-capabilities';
 import { openAiModelCapabilities } from './proxy/openai-model-capabilities';
 import { mediaCostProjection } from './media/media-pricing';
+import { audioCostProjection } from './audio/audio-pricing';
 import {
   dropShadowedGatewayModels,
   publishedOpencodeGoIds,
@@ -183,6 +184,7 @@ export class ModelController {
         // Media generation is not billed per token, so an image/video model
         // carries its per-image / per-second rate instead.
         const mediaCost = mediaCostProjection(m.provider, m.id, m.outputModalities);
+        const audioCost = mediaCost ? undefined : audioCostProjection(m.provider, m.id);
         return {
           model_name: m.id,
           provider: m.provider,
@@ -191,6 +193,17 @@ export class ModelController {
           output_price_per_token: m.outputPricePerToken,
           ...(costPerRequest != null ? { cost_per_request: costPerRequest } : {}),
           ...(mediaCost ? { media_cost: mediaCost } : {}),
+          ...(audioCost
+            ? {
+                audio_cost: {
+                  unit: 'minute' as const,
+                  rates: audioCost.rates,
+                  ...(audioCost.minimumBillableSeconds !== undefined
+                    ? { minimum_billable_seconds: audioCost.minimumBillableSeconds }
+                    : {}),
+                },
+              }
+            : {}),
           context_window: m.contextWindow,
           context_window_source: m.contextWindowSource ?? null,
           ...(projectedCapabilities?.max_output_tokens !== undefined

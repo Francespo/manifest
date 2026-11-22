@@ -54,6 +54,15 @@ export interface SharedProviderEntry {
     readonly video?: boolean;
   };
   /**
+   * Speech-to-text capabilities. Setting either flag marks the provider
+   * transcription-capable: its Whisper models bypass the non-chat discovery
+   * filter and publish `supported_endpoints` for the audio endpoints.
+   */
+  transcription?: {
+    readonly transcriptions?: boolean;
+    readonly translations?: boolean;
+  };
+  /**
    * Providers that serve only media and have no chat surface (fal.ai). They
    * are skipped by the text-proxy endpoint registry (`PROVIDER_ENDPOINTS`);
    * media routing reaches them through the media adapter instead.
@@ -316,6 +325,9 @@ export const SHARED_PROVIDERS: readonly SharedProviderEntry[] = [
     keyPrefix: 'gsk_',
     minKeyLength: 50,
     keyPlaceholder: 'gsk_...',
+    // Groq serves two OpenAI-compatible speech-to-text endpoints. Only
+    // whisper-large-v3 accepts translations (see GROQ_TRANSCRIPTION_MODELS).
+    transcription: { transcriptions: true, translations: true },
   },
   {
     id: 'huggingface',

@@ -44,6 +44,7 @@ import { DropLegacyAutofixRolloutColumns1801600000000 } from './migrations/18016
 import { AddApiKeyExpiresAt1801700000000 } from './migrations/1801700000000-AddApiKeyExpiresAt';
 import { CreateCliAuthCodes1801710000000 } from './migrations/1801710000000-CreateCliAuthCodes';
 import { AddRequestApiMode1801720000000 } from './migrations/1801720000000-AddRequestApiMode';
+import { AddRequestAudioTask1803400000000 } from './migrations/1803400000000-AddRequestAudioTask';
 import { AddRequestMediaTaskId1803200000000 } from './migrations/1803200000000-AddRequestMediaTaskId';
 import { AddPlaygroundColumnMedia1803300000000 } from './migrations/1803300000000-AddPlaygroundColumnMedia';
 import { AddCliAuthCodeChallenge1801730000000 } from './migrations/1801730000000-AddCliAuthCodeChallenge';
@@ -366,4 +367,5 @@ export const migrations = [
   CoverHarnessRequestsIndex1803100000000,
   AddRequestMediaTaskId1803200000000,
   AddPlaygroundColumnMedia1803300000000,
+  AddRequestAudioTask1803400000000,
 ];

@@ -99,6 +99,30 @@ export type {
   MediaRate,
 } from './media';
 export {
+  AUDIO_TRANSCRIPTION_ENDPOINT,
+  AUDIO_TRANSLATION_ENDPOINT,
+  AUDIO_ENDPOINTS,
+  AUDIO_RESPONSE_FORMATS,
+  AUDIO_TASK_STATUSES,
+  GROQ_AUDIO_BASE_URL,
+  GROQ_TRANSCRIPTION_MODELS,
+  GROQ_TRANSCRIPTION_MODEL_BY_ID,
+  GROQ_AUDIO_PRICES,
+  PROVIDER_AUDIO_PRICES,
+  isAudioEndpoint,
+  isAudioResponseFormat,
+} from './audio';
+export type {
+  AudioEndpoint,
+  AudioResponseFormat,
+  AudioTaskStatus,
+  AudioSegment,
+  TranscriptionResult,
+  AudioTaskObject,
+  TranscriptionModelEntry,
+  AudioPriceTable,
+} from './audio';
+export {
   routeEquals,
   isModelRoute,
   isModelRouteArray,

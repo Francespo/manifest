@@ -23,6 +23,18 @@ export interface OpenAiMediaCost {
   rates: MediaRate;
 }
 
+/**
+ * Speech-to-text pricing: audio is billed per minute of uploaded audio, not
+ * per token or per generated media unit.
+ */
+export interface OpenAiAudioCost {
+  unit: 'minute';
+  /** USD per minute of audio. */
+  rates: number;
+  /** Provider floor, e.g. Groq's 10-second minimum. */
+  minimum_billable_seconds?: number;
+}
+
 export interface OpenAiModelObject {
   id: string;
   object: 'model';
@@ -33,6 +45,7 @@ export interface OpenAiModelObject {
   capabilities?: OpenAiModelCapabilities;
   cost?: OpenAiModelCost;
   media_cost?: OpenAiMediaCost;
+  audio_cost?: OpenAiAudioCost;
 }
 
 export interface OpenAiModelList {

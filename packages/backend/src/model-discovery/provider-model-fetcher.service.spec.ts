@@ -1680,13 +1680,17 @@ describe('ProviderModelFetcherService', () => {
       });
 
       const result = await service.fetch('groq', 'gsk_test');
-      // whisper filtered by universal filter; prompt-guard, orpheus and
-      // every compound variant (start-of-string, slash-prefixed, hyphen-
-      // prefixed) filtered by groq-specific filter. gpt-oss-safeguard-20b
-      // is a real chat model and must NOT be filtered.
+      // Whisper models are speech-to-text, not chat, but Groq is
+      // transcription-capable so they are kept and annotated with the audio
+      // endpoints. prompt-guard, orpheus and every compound variant
+      // (start-of-string, slash-prefixed, hyphen-prefixed) are still filtered
+      // by the groq-specific filter. gpt-oss-safeguard-20b is a real chat
+      // model and must NOT be filtered.
       expect(result.map((m) => m.id)).toEqual([
         'llama-3.3-70b-versatile',
         'llama-3.1-8b-instant',
+        'whisper-large-v3',
+        'whisper-large-v3-turbo',
         'openai/gpt-oss-20b',
         'openai/gpt-oss-safeguard-20b',
       ]);

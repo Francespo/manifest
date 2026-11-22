@@ -11,6 +11,7 @@ import {
   PROVIDER_NON_CHAT,
   filterNonChatModels,
   isMediaCapableProvider,
+  isTranscriptionModel,
   type ProviderModelFetchOptions,
 } from './provider-model-fetcher.service';
 import { ProviderModelRegistryService } from './provider-model-registry.service';
@@ -388,9 +389,12 @@ export class ModelDiscoveryService {
     const mediaCapable = isMediaCapableProvider(provider.provider);
     const filtered = reconciled.filter(
       (model) =>
-        carriesText(model.inputModalities) &&
-        (carriesText(model.outputModalities) ||
-          (mediaCapable && carriesMediaOutput(model.outputModalities))),
+        // Speech-to-text models take audio in; their advertised audio endpoint
+        // is what keeps them out of the "chat only" filter above.
+        (isTranscriptionModel(model) ||
+          (carriesText(model.inputModalities) &&
+            (carriesText(model.outputModalities) ||
+              (mediaCapable && carriesMediaOutput(model.outputModalities))))),
     );
 
     const previousCachedCount = Array.isArray(provider.cached_models)

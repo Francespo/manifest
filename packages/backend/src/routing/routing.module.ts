@@ -13,6 +13,7 @@ import { HeaderTiersModule } from './header-tiers/header-tiers.module';
 import { AutofixModule } from './autofix/autofix.module';
 import { CommandCodeModule } from './command-code/command-code.module';
 import { MediaModule } from './media/media.module';
+import { AudioModule } from './audio/audio.module';
 import { ProviderController } from './provider.controller';
 import { TierController } from './tier.controller';
 import { ModelController } from './model.controller';
@@ -63,6 +64,7 @@ import { InstallMetadata } from '../entities/install-metadata.entity';
     CommandCodeModule,
     RouteModelParamsModule,
     MediaModule,
+    AudioModule,
   ],
   controllers: [
     ProviderController,

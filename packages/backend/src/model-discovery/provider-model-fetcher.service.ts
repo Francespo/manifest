@@ -43,9 +43,13 @@ import {
   AGNES_BASE_URL,
   AGNES_MODELS,
   AGNES_MODEL_BY_ID,
+  AUDIO_TRANSCRIPTION_ENDPOINT,
+  AUDIO_TRANSLATION_ENDPOINT,
   FAL_MODELS,
   FAL_MODEL_BY_ID,
   FAL_PLATFORM_MODELS_URL,
+  GROQ_TRANSCRIPTION_MODELS,
+  GROQ_TRANSCRIPTION_MODEL_BY_ID,
   getSubscriptionCapabilities,
   getSubscriptionKnownModels,
   META_MODEL_API_CONTEXT_WINDOW,
@@ -209,6 +213,57 @@ const parseOpenAI = createModelParser<OpenAIModelEntry>({
   inputModalities: (entry) => parseModalities(entry.input_modalities),
   outputModalities: (entry) => parseModalities(entry.output_modalities),
 });
+
+function audioEndpointsFor(transcription: boolean, translation: boolean): string[] {
+  return [
+    ...(transcription ? [AUDIO_TRANSCRIPTION_ENDPOINT] : []),
+    ...(translation ? [AUDIO_TRANSLATION_ENDPOINT] : []),
+  ];
+}
+
+/**
+ * Groq serves chat models and Whisper speech-to-text models from one OpenAI-
+ * compatible `/models` listing. Whisper is not a chat model, so the generic
+ * non-chat filter would hide it; annotate the curated STT entries with audio
+ * modalities and `supported_endpoints` so both the filter and the model
+ * catalog agree on what these models are. Curated models missing from the
+ * live listing are appended so a Groq connection always exposes them.
+ */
+function parseGroq(body: unknown, provider: string): DiscoveredModel[] {
+  const models = parseOpenAI(body, provider).map((model) => {
+    const entry = GROQ_TRANSCRIPTION_MODEL_BY_ID.get(model.id);
+    if (!entry) return model;
+    return {
+      ...model,
+      inputModalities: ['audio' as ModelModality],
+      outputModalities: ['text' as ModelModality],
+      capabilities: ['audio' as ModelCapability, 'text' as ModelCapability],
+      supportedEndpoints: audioEndpointsFor(entry.transcription, entry.translation),
+    };
+  });
+
+  const seen = new Set(models.map((model) => model.id));
+  for (const entry of GROQ_TRANSCRIPTION_MODELS) {
+    if (seen.has(entry.id)) continue;
+    seen.add(entry.id);
+    models.push({
+      id: entry.id,
+      displayName: entry.displayName,
+      provider,
+      contextWindow: DEFAULT_CONTEXT_WINDOW,
+      inputPricePerToken: null,
+      outputPricePerToken: null,
+      capabilityReasoning: false,
+      capabilityCode: false,
+      inputModalities: ['audio'],
+      outputModalities: ['text'],
+      capabilities: ['audio', 'text'],
+      supportedEndpoints: audioEndpointsFor(entry.transcription, entry.translation),
+      qualityScore: 3,
+    });
+  }
+  return models;
+}
 
 /**
  * Agnes AI serves text, image, and video models from one OpenAI-compatible
@@ -696,6 +751,22 @@ export function isMediaCapableProvider(providerId: string): boolean {
   return SHARED_PROVIDER_BY_ID_OR_ALIAS.get(providerId.toLowerCase())?.media !== undefined;
 }
 
+/**
+ * Providers that serve speech-to-text. Their Whisper models are not chat
+ * models, but they must survive the non-chat filters so `/v1/models` can
+ * publish them and the audio endpoints can route to them.
+ */
+export function isTranscriptionCapableProvider(providerId: string): boolean {
+  return SHARED_PROVIDER_BY_ID_OR_ALIAS.get(providerId.toLowerCase())?.transcription !== undefined;
+}
+
+/** True when a discovered model advertises one of the speech-to-text endpoints. */
+export function isTranscriptionModel(model: DiscoveredModel): boolean {
+  return (model.supportedEndpoints ?? []).some(
+    (endpoint) => endpoint === AUDIO_TRANSCRIPTION_ENDPOINT || endpoint === AUDIO_TRANSLATION_ENDPOINT,
+  );
+}
+
 /** Filter models that are not compatible with chat completions. */
 export function filterNonChatModels(
   models: DiscoveredModel[],
@@ -704,6 +775,10 @@ export function filterNonChatModels(
   const providerFilter = PROVIDER_NON_CHAT[configKey];
   const blocklist = PROVIDER_BLOCKLIST[configKey];
   return models.filter((m) => {
+    // A transcription model has audio input by design. Its advertised
+    // endpoints are the authoritative signal that it belongs to the audio
+    // surface, so it must bypass the "no speech recognition in chat" filter.
+    if (isTranscriptionModel(m)) return true;
     if (UNIVERSAL_NON_CHAT_RE.test(m.id)) return false;
     if (providerFilter && providerFilter.test(m.id)) return false;
     if (blocklist && blocklist.has(m.id)) return false;
@@ -1137,7 +1212,7 @@ export const PROVIDER_CONFIGS: Record<string, FetcherConfig> = {
   groq: {
     endpoint: 'https://api.groq.com/openai/v1/models',
     buildHeaders: bearerHeaders,
-    parse: parseOpenAI,
+    parse: parseGroq,
   },
   huggingface: {
     endpoint: HUGGING_FACE_MODELS_URL,

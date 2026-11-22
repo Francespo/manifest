@@ -16,6 +16,7 @@ import type { AutofixStatus } from 'manifest-shared';
 @Index(['tenant_id', 'trace_id'])
 @Index(['tenant_id', 'status', 'timestamp'])
 @Index(['tenant_id', 'media_task_id'])
+@Index(['tenant_id', 'audio_task_id'])
 export class ManifestRequest {
   @PrimaryColumn('varchar')
   id!: string;
@@ -103,6 +104,23 @@ export class ManifestRequest {
    */
   @Column('varchar', { nullable: true })
   media_task_id!: string | null;
+
+  /**
+   * Task id of an asynchronous speech-to-text request (`X-Manifest-Async`).
+   * `GET /v1/audio/transcriptions/{id}` resolves the owning request through
+   * this column. The provider call itself is synchronous on Groq; the task
+   * stores its finished result so clients can poll provider-agnostically.
+   */
+  @Column('varchar', { nullable: true })
+  audio_task_id?: string | null;
+
+  /**
+   * Finished transcript of an audio task (`TranscriptionResult`). Stored on
+   * the Manifest Request because Groq does not retain transcripts for later
+   * retrieval; only the owning tenant can read it back.
+   */
+  @Column('jsonb', { nullable: true })
+  audio_result?: object | null;
 
   @Column('simple-json', { nullable: true })
   caller_attribution!: CallerAttribution | null;

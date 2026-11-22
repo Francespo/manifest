@@ -76,6 +76,7 @@ import {
   type OpenAiModelObject,
 } from './openai-model-list';
 import { mediaCostProjection } from '../media/media-pricing';
+import { audioCostProjection } from '../audio/audio-pricing';
 import { buildSyntheticTierProfile } from './synthetic-model-profile';
 import {
   CLASSIFIER_MODELS,
@@ -279,8 +280,20 @@ export class ProxyController {
         if (mediaCost) {
           entry.media_cost = mediaCost;
         } else {
-          const modelCost = openAiModelCost(model.inputPricePerToken, model.outputPricePerToken);
-          if (modelCost) entry.cost = modelCost;
+          // Speech-to-text models are billed per audio minute, not per token.
+          const audioCost = audioCostProjection(model.provider, model.id);
+          if (audioCost) {
+            entry.audio_cost = {
+              unit: 'minute',
+              rates: audioCost.rates,
+              ...(audioCost.minimumBillableSeconds !== undefined
+                ? { minimum_billable_seconds: audioCost.minimumBillableSeconds }
+                : {}),
+            };
+          } else {
+            const modelCost = openAiModelCost(model.inputPricePerToken, model.outputPricePerToken);
+            if (modelCost) entry.cost = modelCost;
+          }
         }
       }
       if (filter && !servesOutput(modelCapabilities, filter)) continue;
