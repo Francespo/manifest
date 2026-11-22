@@ -3,7 +3,10 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { Observable } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import { TenantCtx, TenantContext } from '../common/decorators/tenant-context.decorator';
-import { IngestEventBusService } from '../common/services/ingest-event-bus.service';
+import {
+  IngestEventBusService,
+  type IngestEvent,
+} from '../common/services/ingest-event-bus.service';
 
 interface MessageEvent {
   data: string;
@@ -28,7 +31,7 @@ export class SseController {
     // listening on 'ping' still see every change during a partial upgrade).
     // A null tenantId (fresh account) keeps the stream open but never emits.
     return this.eventBus.forTenant(ctx.tenantId).pipe(
-      mergeMap((evt) => [
+      mergeMap((evt: IngestEvent) => [
         { type: evt.kind, data: evt.kind },
         { type: 'ping', data: 'ping' },
       ]),

@@ -19,7 +19,7 @@ describe('IngestEventBusService', () => {
 
   it('emits to the correct tenant after debounce', async () => {
     const received: IngestEvent[] = [];
-    service.forTenant('tenant-1').subscribe((e) => received.push(e));
+    service.forTenant('tenant-1').subscribe((e: IngestEvent) => received.push(e));
 
     service.emit('tenant-1');
     expect(received).toHaveLength(0);
@@ -30,7 +30,7 @@ describe('IngestEventBusService', () => {
 
   it('debounces rapid emissions for the same tenant/kind', async () => {
     const received: IngestEvent[] = [];
-    service.forTenant('tenant-1').subscribe((e) => received.push(e));
+    service.forTenant('tenant-1').subscribe((e: IngestEvent) => received.push(e));
 
     service.emit('tenant-1');
     jest.advanceTimersByTime(100);
@@ -47,7 +47,7 @@ describe('IngestEventBusService', () => {
 
   it('forwards the optional userId attribution', async () => {
     const received: IngestEvent[] = [];
-    service.forTenant('tenant-1').subscribe((e) => received.push(e));
+    service.forTenant('tenant-1').subscribe((e: IngestEvent) => received.push(e));
 
     service.emit('tenant-1', 'message', 'user-9');
     await jest.advanceTimersByTimeAsync(250);
@@ -57,7 +57,7 @@ describe('IngestEventBusService', () => {
 
   it('different kinds for the same tenant fire independently', async () => {
     const received: IngestEvent[] = [];
-    service.forTenant('tenant-1').subscribe((e) => received.push(e));
+    service.forTenant('tenant-1').subscribe((e: IngestEvent) => received.push(e));
 
     service.emit('tenant-1', 'message');
     service.emit('tenant-1', 'agent');
@@ -71,7 +71,7 @@ describe('IngestEventBusService', () => {
 
   it('does not deliver events for other tenants', async () => {
     const received: IngestEvent[] = [];
-    service.forTenant('tenant-1').subscribe((e) => received.push(e));
+    service.forTenant('tenant-1').subscribe((e: IngestEvent) => received.push(e));
 
     service.emit('tenant-2');
     await jest.advanceTimersByTimeAsync(250);
@@ -82,8 +82,8 @@ describe('IngestEventBusService', () => {
   it('emits independently for different tenants', async () => {
     const tenant1: IngestEvent[] = [];
     const tenant2: IngestEvent[] = [];
-    service.forTenant('tenant-1').subscribe((e) => tenant1.push(e));
-    service.forTenant('tenant-2').subscribe((e) => tenant2.push(e));
+    service.forTenant('tenant-1').subscribe((e: IngestEvent) => tenant1.push(e));
+    service.forTenant('tenant-2').subscribe((e: IngestEvent) => tenant2.push(e));
 
     service.emit('tenant-1');
     service.emit('tenant-2', 'routing');
@@ -95,7 +95,7 @@ describe('IngestEventBusService', () => {
 
   it('null tenantId matches no events', async () => {
     const received: IngestEvent[] = [];
-    service.forTenant(null).subscribe((e) => received.push(e));
+    service.forTenant(null).subscribe((e: IngestEvent) => received.push(e));
 
     service.emit('tenant-1');
     await jest.advanceTimersByTimeAsync(250);
@@ -105,7 +105,7 @@ describe('IngestEventBusService', () => {
 
   it('all() observes every event regardless of tenant', async () => {
     const received: IngestEvent[] = [];
-    service.all().subscribe((e) => received.push(e));
+    service.all().subscribe((e: IngestEvent) => received.push(e));
 
     service.emit('a');
     service.emit('b', 'agent');
@@ -119,7 +119,7 @@ describe('IngestEventBusService', () => {
   it('cleans up timers on module destroy', () => {
     const received: IngestEvent[] = [];
     service.forTenant('tenant-1').subscribe({
-      next: (e) => received.push(e),
+      next: (e: IngestEvent) => received.push(e),
       complete: () => received.push({ tenantId: 'COMPLETE', kind: 'message' }),
     });
 
@@ -153,7 +153,7 @@ describe('IngestEventBusService message cache invalidation', () => {
     });
     invalidate.mockReturnValue(invalidationFinished);
     const eventPublished = new Promise<void>((resolve) => {
-      service.forTenant('tenant-1').subscribe((event) => {
+      service.forTenant('tenant-1').subscribe((event: IngestEvent) => {
         received.push(event);
         resolve();
       });
@@ -175,7 +175,7 @@ describe('IngestEventBusService message cache invalidation', () => {
     const received: IngestEvent[] = [];
     const logger = jest.spyOn(Logger.prototype, 'error').mockImplementation();
     invalidate.mockRejectedValue(new Error('cache unavailable'));
-    service.forTenant('tenant-1').subscribe((event) => received.push(event));
+    service.forTenant('tenant-1').subscribe((event: IngestEvent) => received.push(event));
 
     service.emit('tenant-1', 'message');
     await jest.advanceTimersByTimeAsync(250);
@@ -192,7 +192,7 @@ describe('IngestEventBusService message cache invalidation', () => {
     const received: IngestEvent[] = [];
     const logger = jest.spyOn(Logger.prototype, 'error').mockImplementation();
     invalidate.mockRejectedValue('boom');
-    service.forTenant('tenant-1').subscribe((event) => received.push(event));
+    service.forTenant('tenant-1').subscribe((event: IngestEvent) => received.push(event));
 
     service.emit('tenant-1', 'message');
     await jest.advanceTimersByTimeAsync(250);
@@ -211,7 +211,7 @@ describe('IngestEventBusService message cache invalidation', () => {
 
   it('keeps the response-cache generation fresh for automatic fallback', async () => {
     const received: IngestEvent[] = [];
-    service.forTenant('tenant-1').subscribe((event) => received.push(event));
+    service.forTenant('tenant-1').subscribe((event: IngestEvent) => received.push(event));
 
     service.emit('tenant-1', 'message');
     await jest.advanceTimersByTimeAsync(250);

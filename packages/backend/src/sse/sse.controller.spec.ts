@@ -60,7 +60,7 @@ describe('SseController', () => {
     const received: unknown[] = [];
 
     stream$.subscribe({
-      next: (event) => {
+      next: (event: { type: string; data: string }) => {
         received.push(event);
         if (received.length === 6) {
           expect(received).toEqual([

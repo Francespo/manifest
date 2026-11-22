@@ -522,8 +522,10 @@ export function sanitizeOpenAiBody(
       continue;
     }
     // Both caps were sent: `max_completion_tokens` stays, and the rejected
-    // `max_tokens` goes.
-    if (options.requireMaxCompletionTokens && key === 'max_tokens') continue;
+    // `max_tokens` goes. This applies to every endpoint that requires the new
+    // field (native OpenAI o/GPT-5 models as well as explicit overrides), not
+    // only to callers that set the flag by hand.
+    if (needsMaxCompletionTokens && key === 'max_tokens') continue;
     if (passthroughTopLevel) {
       // OpenRouter forwards the whole body for most models, but NVIDIA Nemotron
       // hosts validate strictly and reject Anthropic-style `thinking`. Drop it
