@@ -381,6 +381,8 @@ vi.mock('manifest-shared', () => ({
     m.startsWith('opencode-go/') ? m.slice('opencode-go/'.length) : null,
   inferProviderFromModel: (m: string) => (m.startsWith('custom:') ? 'custom' : null),
   isSuccessStatus: (s: string | null | undefined) => s == null || s === 'ok' || s === 'success',
+  // ConnectionDetail renders ModelEgressPanel only for US-egress providers.
+  supportsUsEgress: () => false,
 }));
 
 // Local providers only exist on self-hosted installs.
