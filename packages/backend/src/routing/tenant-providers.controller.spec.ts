@@ -356,9 +356,21 @@ describe('TenantProvidersController mutations (no harness required)', () => {
         label: 'Renamed',
         priority: 0,
       }),
+      changeKey: jest.fn().mockResolvedValue({
+        id: 'p1',
+        provider: 'openai',
+        auth_type: 'api_key',
+        label: 'Default',
+        key_prefix: 'sk-newkey',
+        region: null,
+        is_active: true,
+      }),
       listOwnedAgentIds: jest.fn().mockResolvedValue(['agent-a', 'agent-b']),
     };
-    const discoveryService = { discoverAllForAgent: jest.fn().mockResolvedValue(undefined) };
+    const discoveryService = {
+      discoverAllForAgent: jest.fn().mockResolvedValue(undefined),
+      discoverModels: jest.fn().mockResolvedValue([]),
+    };
     const routingCache = { invalidateAgent: jest.fn(), invalidateTenant: jest.fn() };
     const cacheManager = { clear: jest.fn().mockResolvedValue(undefined) };
     const controller = new TenantProvidersController(
@@ -449,6 +461,78 @@ describe('TenantProvidersController mutations (no harness required)', () => {
     );
   });
 
+  it('changes a connection key in place at tenant scope', async () => {
+    const { controller, providerService, discoveryService, routingCache } = setup();
+
+    const result = await controller.updateProviderKey(
+      ctx,
+      { provider: 'openai', label: 'Default' },
+      { apiKey: 'sk-newkey-123' },
+    );
+
+    expect(providerService.changeKey).toHaveBeenCalledWith(
+      'tenant-1',
+      'openai',
+      'api_key',
+      'Default',
+      'sk-newkey-123',
+      undefined,
+    );
+    expectTenantInvalidated(routingCache);
+    expect(discoveryService.discoverModels).toHaveBeenCalled();
+    // The raw credential is never echoed back to the dashboard.
+    expect(result).toEqual({
+      id: 'p1',
+      provider: 'openai',
+      auth_type: 'api_key',
+      label: 'Default',
+      key_prefix: 'sk-newkey',
+      region: null,
+      is_active: true,
+    });
+    expect(JSON.stringify(result)).not.toContain('sk-newkey-123');
+  });
+
+  it('passes an explicit subscription authType and region through on key change', async () => {
+    const { controller, providerService } = setup();
+
+    await controller.updateProviderKey(
+      ctx,
+      { provider: 'anthropic', label: 'Work' },
+      { apiKey: 'token', authType: 'subscription', region: 'us' },
+    );
+
+    expect(providerService.changeKey).toHaveBeenCalledWith(
+      'tenant-1',
+      'anthropic',
+      'subscription',
+      'Work',
+      'token',
+      'us',
+    );
+  });
+
+  it('does not run discovery for custom providers on key change', async () => {
+    const { controller, providerService, discoveryService } = setup();
+    providerService.changeKey.mockResolvedValueOnce({
+      id: 'p2',
+      provider: 'custom:cp-1',
+      auth_type: 'api_key',
+      label: 'Default',
+      key_prefix: 'cust',
+      region: null,
+      is_active: true,
+    });
+
+    await controller.updateProviderKey(
+      ctx,
+      { provider: 'custom:cp-1', label: 'Default' },
+      { apiKey: 'custom-key' },
+    );
+
+    expect(discoveryService.discoverModels).not.toHaveBeenCalled();
+  });
+
   it('refreshes every connection for the tenant', async () => {
     const { controller, discoveryService, routingCache } = setup();
 
@@ -472,8 +556,16 @@ describe('TenantProvidersController mutations (no harness required)', () => {
     await expect(
       controller.renameProviderKey(noTenant, { provider: 'openai', label: 'a' }, { newLabel: 'b' }),
     ).rejects.toThrow('Provider not found');
+    await expect(
+      controller.updateProviderKey(
+        noTenant,
+        { provider: 'openai', label: 'a' },
+        { apiKey: 'new-key' },
+      ),
+    ).rejects.toThrow('Provider not found');
     expect(providerService.removeProvider).not.toHaveBeenCalled();
     expect(providerService.renameKey).not.toHaveBeenCalled();
+    expect(providerService.changeKey).not.toHaveBeenCalled();
     expect(discoveryService.discoverAllForAgent).not.toHaveBeenCalled();
   });
 });

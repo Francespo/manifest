@@ -59,6 +59,7 @@ describe('MessagesQueryService request-first queries', () => {
     const legacyBase = makeQb();
     legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       { createQueryBuilder: jest.fn(() => legacyBase) } as never,
       { find: jest.fn() } as never,
       { createQueryBuilder: jest.fn(() => requestQb) } as never,

@@ -10,7 +10,7 @@ import { makeShortTermBedrockKey } from '../../__tests__/bedrock-fixtures';
 import { In, type Repository } from 'typeorm';
 import type { RoutingCacheService } from '../routing-cache.service';
 import type { ModelPricingCacheService } from '../../../model-prices/model-pricing-cache.service';
-import { encrypt, getEncryptionSecret } from '../../../common/utils/crypto.util';
+import { decrypt, encrypt, getEncryptionSecret } from '../../../common/utils/crypto.util';
 
 const route = (
   provider: string,
@@ -2026,5 +2026,114 @@ describe('ProviderService — getFreshSubscriptionCredential', () => {
       { label: 'Default', api_key_encrypted: 'not-a-valid-ciphertext' },
     ]);
     expect(await svc.getFreshSubscriptionCredential('tenant-1', 'openai')).toBeNull();
+  });
+});
+
+describe('ProviderService — changeKey', () => {
+  const PREV_KEY = process.env.MANIFEST_ENCRYPTION_KEY;
+  let providerRepo: ReturnType<typeof makeRepo>;
+  let routingCache: {
+    getProviders: jest.Mock;
+    setProviders: jest.Mock;
+    invalidateAgent: jest.Mock;
+    invalidateTenant: jest.Mock;
+  };
+  let svc: ProviderService;
+
+  beforeAll(() => {
+    process.env.MANIFEST_ENCRYPTION_KEY = 'unit-test-encryption-key-1234567890';
+  });
+
+  afterAll(() => {
+    if (PREV_KEY === undefined) delete process.env.MANIFEST_ENCRYPTION_KEY;
+    else process.env.MANIFEST_ENCRYPTION_KEY = PREV_KEY;
+  });
+
+  beforeEach(() => {
+    providerRepo = makeRepo();
+    routingCache = {
+      getProviders: jest.fn(),
+      setProviders: jest.fn(),
+      invalidateAgent: jest.fn(),
+      invalidateTenant: jest.fn(),
+    };
+    svc = new ProviderService(
+      providerRepo as unknown as Repository<TenantProvider>,
+      makeRepo() as unknown as Repository<TierAssignment>,
+      makeRepo() as unknown as Repository<SpecificityAssignment>,
+      makeRepo() as unknown as Repository<Agent>,
+      makeRepo() as unknown as Repository<HeaderTier>,
+      { getByModel: jest.fn() } as unknown as ModelPricingCacheService,
+      routingCache as unknown as RoutingCacheService,
+    );
+  });
+
+  const makeRow = (overrides: Partial<TenantProvider> = {}): TenantProvider =>
+    ({
+      id: 'p1',
+      tenant_id: 'tenant-1',
+      provider: 'openai',
+      auth_type: 'api_key',
+      label: 'Default',
+      priority: 2,
+      api_key_encrypted: encrypt('sk-old', getEncryptionSecret()),
+      key_prefix: 'sk-old',
+      region: null,
+      is_active: true,
+      connected_at: '2025-01-01T00:00:00.000Z',
+      updated_at: '2025-01-01T00:00:00.000Z',
+      ...overrides,
+    }) as TenantProvider;
+
+  it('replaces only the credential on the matching connection', async () => {
+    const target = makeRow();
+    const sibling = makeRow({
+      id: 'p2',
+      label: 'Work',
+      api_key_encrypted: encrypt('sk-sibling', getEncryptionSecret()),
+      key_prefix: 'sk-sibli',
+      priority: 3,
+    });
+    providerRepo.find.mockResolvedValue([sibling, target]);
+
+    const out = await svc.changeKey('tenant-1', 'openai', 'api_key', 'DEFAULT', 'sk-rotated-999');
+
+    expect(providerRepo.find).toHaveBeenCalledWith({
+      where: { tenant_id: 'tenant-1', provider: 'openai', auth_type: 'api_key' },
+    });
+    expect(decrypt(out.api_key_encrypted!, getEncryptionSecret())).toBe('sk-rotated-999');
+    expect(out.key_prefix).toBe('sk-rotat');
+    expect(out.label).toBe('Default');
+    expect(out.priority).toBe(2);
+    expect(out.is_active).toBe(true);
+    expect(out.connected_at).toBe('2025-01-01T00:00:00.000Z');
+    expect(out.updated_at).not.toBe('2025-01-01T00:00:00.000Z');
+
+    // One row written; the sibling connection is untouched.
+    expect(providerRepo.save).toHaveBeenCalledTimes(1);
+    expect(providerRepo.save).toHaveBeenCalledWith(target);
+    expect(decrypt(sibling.api_key_encrypted!, getEncryptionSecret())).toBe('sk-sibling');
+    expect(routingCache.invalidateTenant).toHaveBeenCalledWith('tenant-1');
+    expect(routingCache.invalidateAgent).not.toHaveBeenCalled();
+  });
+
+  it('does not create or reactivate a connection for the new key value', async () => {
+    const target = makeRow({ is_active: false });
+    providerRepo.find.mockResolvedValue([target]);
+
+    await svc.changeKey('tenant-1', 'openai', 'api_key', 'Default', 'sk-rotated');
+
+    expect(providerRepo.insert).not.toHaveBeenCalled();
+    expect(target.is_active).toBe(false);
+  });
+
+  it('fails without writing when no connection matches the label', async () => {
+    providerRepo.find.mockResolvedValue([makeRow({ label: 'Work' })]);
+
+    await expect(
+      svc.changeKey('tenant-1', 'openai', 'api_key', 'Default', 'sk-rotated'),
+    ).rejects.toThrow('Provider key not found');
+    expect(providerRepo.save).not.toHaveBeenCalled();
+    expect(routingCache.invalidateTenant).not.toHaveBeenCalled();
   });
 });

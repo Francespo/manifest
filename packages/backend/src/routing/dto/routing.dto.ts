@@ -178,6 +178,24 @@ export class RenameProviderKeyDto {
   authType?: 'api_key' | 'subscription';
 }
 
+/** Credentials that can be replaced in place on an existing connection. */
+const KEY_AUTH_TYPES = ['api_key', 'subscription'] as const;
+
+export class UpdateProviderKeyDto {
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/\S/, { message: 'apiKey must not be blank' })
+  apiKey!: string;
+
+  @IsOptional()
+  @IsIn(KEY_AUTH_TYPES)
+  authType?: (typeof KEY_AUTH_TYPES)[number];
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+}
+
 export class ReorderProviderKeysDto {
   @IsArray()
   @ArrayMinSize(1)

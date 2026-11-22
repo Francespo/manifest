@@ -11,12 +11,14 @@ const disconnectProviderMock = vi.fn().mockResolvedValue({});
 const revokeOpenaiOAuthMock = vi.fn().mockResolvedValue(undefined);
 const renameProviderKeyMock = vi.fn().mockResolvedValue({});
 const reorderProviderKeysMock = vi.fn().mockResolvedValue([]);
+const updateConnectionKeyMock = vi.fn().mockResolvedValue({});
 
 vi.mock('../../src/services/api.js', () => ({
   connectProvider: (...args: unknown[]) => connectProviderMock(...args),
   disconnectProvider: (...args: unknown[]) => disconnectProviderMock(...args),
   revokeOpenaiOAuth: (...args: unknown[]) => revokeOpenaiOAuthMock(...args),
   renameProviderKey: (...args: unknown[]) => renameProviderKeyMock(...args),
+  updateConnectionKey: (...args: unknown[]) => updateConnectionKeyMock(...args),
   reorderProviderKeys: (...args: unknown[]) => reorderProviderKeysMock(...args),
 }));
 
@@ -941,6 +943,41 @@ describe('ProviderKeyForm', () => {
       });
       expect(container.querySelector('.provider-detail__label')!.textContent).toBe('API Keys');
       expect(container.querySelector('ul[role="list"]')).toBeDefined();
+    });
+
+    it('changes a single key of the chain through the tenant endpoint', async () => {
+      const def = makeProviderDef({ id: 'openai', name: 'OpenAI' });
+      const onUpdate = vi.fn();
+      mount({
+        provDef: def,
+        connected: true,
+        providers: [
+          makeProvider({ id: 'p1', label: 'Personal', priority: 0 }),
+          makeProvider({ id: 'p2', label: 'Work', priority: 1 }),
+        ],
+        onUpdate,
+      });
+
+      fireEvent.click(screen.getByLabelText('Change key Work'));
+      fireEvent.input(screen.getByLabelText('New Work key'), {
+        target: { value: 'sk-new-work' },
+      });
+      fireEvent.click(screen.getByText('Save'));
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Only the targeted label is written; the sibling key is untouched and
+      // no delete/reconnect call is made.
+      expect(updateConnectionKeyMock).toHaveBeenCalledWith(
+        'openai',
+        'Work',
+        'sk-new-work',
+        'api_key',
+      );
+      expect(updateConnectionKeyMock).toHaveBeenCalledTimes(1);
+      expect(disconnectProviderMock).not.toHaveBeenCalled();
+      expect(connectProviderMock).not.toHaveBeenCalled();
+      expect(onUpdate).toHaveBeenCalled();
     });
 
     it('renders each key by its label without chain badges', () => {

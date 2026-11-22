@@ -142,6 +142,33 @@ export function renameConnection(
   );
 }
 
+/**
+ * Replace the credential of an existing connection in place. The connection
+ * is addressed by provider + label; `authType` disambiguates a usage-based key
+ * from a subscription token using the same label.
+ */
+export function updateConnectionKey(
+  provider: string,
+  currentLabel: string,
+  apiKey: string,
+  authType?: AuthType,
+  region?: string,
+) {
+  return fetchMutate<{
+    id: string;
+    provider: string;
+    auth_type: AuthType;
+    label: string;
+    key_prefix: string | null;
+    region: string | null;
+    is_active: boolean;
+  }>(`/providers/${encodeURIComponent(provider)}/keys/${encodeURIComponent(currentLabel)}/key`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ apiKey, ...(authType && { authType }), ...(region && { region }) }),
+  });
+}
+
 export function refreshConnectionModels() {
   return fetchMutate<{ ok: boolean }>('/providers/refresh-models', { method: 'POST' });
 }

@@ -27,7 +27,7 @@ import {
   CONNECTION_SUCCESS_RATE_TOOLTIP,
   CONNECTION_HARNESS_SUCCESS_RATE_TOOLTIP,
 } from '../../services/api/analytics.js';
-import { platformIcon } from 'manifest-shared';
+import { platformIcon, type AuthType } from 'manifest-shared';
 import { PROVIDERS } from '../../services/providers.js';
 import { providerIcon } from '../../components/ProviderIcon.jsx';
 import FilterSelect from '../../components/FilterSelect.jsx';
@@ -42,6 +42,7 @@ import {
   renameConnection,
   disconnectConnection,
   refreshConnectionModels,
+  updateConnectionKey,
 } from '../../services/api/routing.js';
 import UnifiedChartCard, { type ChartTab } from '../../components/UnifiedChartCard.jsx';
 import InfoTooltip from '../../components/InfoTooltip.jsx';
@@ -522,6 +523,9 @@ const ConnectionDetail: Component = () => {
   const [renameValue, setRenameValue] = createSignal('');
   const [renaming, setRenaming] = createSignal(false);
   const [renameError, setRenameError] = createSignal('');
+  const [keyValue, setKeyValue] = createSignal('');
+  const [keyError, setKeyError] = createSignal('');
+  const [updatingKey, setUpdatingKey] = createSignal(false);
   const [refreshingModels, setRefreshingModels] = createSignal(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
   const [deleteConfirmName, setDeleteConfirmName] = createSignal('');
@@ -542,6 +546,8 @@ const ConnectionDetail: Component = () => {
     const c = conn();
     if (c) setRenameValue(c.label);
     setRenameError('');
+    setKeyValue('');
+    setKeyError('');
     setShowDeleteConfirm(false);
     setDeleteConfirmName('');
     setShowManageModal(true);
@@ -591,6 +597,28 @@ const ConnectionDetail: Component = () => {
       setRenameError(e?.message ?? 'Failed to rename');
     } finally {
       setRenaming(false);
+    }
+  };
+
+  const handleUpdateKey = async () => {
+    const c = conn();
+    if (!c) return;
+    const apiKey = keyValue().trim();
+    if (!apiKey) {
+      setKeyError('Enter the new key');
+      return;
+    }
+    setUpdatingKey(true);
+    setKeyError('');
+    try {
+      await updateConnectionKey(c.provider, c.label, apiKey, c.auth_type as AuthType);
+      toast.success(c.auth_type === 'subscription' ? 'Token updated' : 'API key updated');
+      setKeyValue('');
+      refetchDetail();
+    } catch (e: any) {
+      setKeyError(e?.message ?? 'Failed to update key');
+    } finally {
+      setUpdatingKey(false);
     }
   };
 
@@ -1299,6 +1327,53 @@ const ConnectionDetail: Component = () => {
                             </div>
                           </Show>
                         </div>
+
+                        {/* Credential rotation keeps this row (and its usage history) intact. */}
+                        <Show when={c.auth_type === 'api_key' || c.auth_type === 'subscription'}>
+                          <div style="margin-bottom: 16px; border-top: 1px solid hsl(var(--border)); padding-top: 16px;">
+                            <label
+                              for="connection-key-input"
+                              style="display: block; font-size: var(--font-size-sm); font-weight: 500; color: hsl(var(--foreground)); margin-bottom: 6px;"
+                            >
+                              {c.auth_type === 'subscription' ? 'Subscription token' : 'API key'}
+                            </label>
+                            <Show when={c.key_prefix}>
+                              <p style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground)); margin: 0 0 8px;">
+                                Current key: {c.key_prefix}••••••••
+                              </p>
+                            </Show>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                              <input
+                                id="connection-key-input"
+                                type="password"
+                                class={`provider-detail__input${keyError() ? ' provider-detail__input--error' : ''}`}
+                                value={keyValue()}
+                                placeholder="Paste the new key"
+                                autocomplete="off"
+                                onInput={(e) => {
+                                  setKeyValue(e.currentTarget.value);
+                                  setKeyError('');
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleUpdateKey();
+                                }}
+                                style="flex: 1;"
+                              />
+                              <button
+                                class="btn btn--outline btn--sm"
+                                disabled={updatingKey() || !keyValue().trim()}
+                                onClick={handleUpdateKey}
+                              >
+                                {updatingKey() ? 'Saving...' : 'Change key'}
+                              </button>
+                            </div>
+                            <Show when={keyError()}>
+                              <div style="color: hsl(var(--destructive)); font-size: var(--font-size-sm); margin-top: 4px;">
+                                {keyError()}
+                              </div>
+                            </Show>
+                          </div>
+                        </Show>
 
                         <Show when={c.is_active}>
                           {/* Models */}

@@ -17,6 +17,7 @@ import { ModelPricingCacheService } from '../../../model-prices/model-pricing-ca
 import { AgentModelParamsService } from '../../routing-core/agent-model-params.service';
 import { ProviderParamSpecService } from '../../routing-core/provider-param-spec.service';
 import { AutofixService } from '../../autofix/autofix.service';
+import { KeyRotationRuleService } from '../../routing-core/key-rotation-rule.service';
 
 /**
  * A reasoning effort saved on the tier reaches `ProviderClient.forward` only
@@ -147,6 +148,9 @@ describe('ProxyFallbackService: Bedrock Runtime GPT with a tier reasoning effort
         list: jest.fn().mockResolvedValue(specCatalog),
       } as unknown as ProviderParamSpecService,
       new ReasoningContentCache(),
+      {
+        getRule: jest.fn().mockResolvedValue(null),
+      } as unknown as KeyRotationRuleService,
       {
         isRepairable: jest.fn().mockReturnValue(false),
         maybeHeal: jest.fn(),

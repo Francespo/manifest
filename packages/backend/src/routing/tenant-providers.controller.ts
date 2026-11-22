@@ -27,6 +27,7 @@ import {
   ProviderParamDto,
   RemoveProviderQueryDto,
   RenameProviderKeyDto,
+  UpdateProviderKeyDto,
 } from './dto/routing.dto';
 
 /**
@@ -101,6 +102,52 @@ export class TenantProvidersController {
       auth_type: updated.auth_type,
       label: updated.label,
       priority: updated.priority,
+    };
+  }
+
+  /**
+   * Rotate the credential of a single connection without deleting/recreating
+   * it. The connection is addressed by provider + label, the same tuple the
+   * rename/delete endpoints use, with authType in the body to disambiguate
+   * a usage-based key from a subscription token that share a label.
+   */
+  @Patch(':provider/keys/:label/key')
+  async updateProviderKey(
+    @TenantCtx() ctx: TenantContext,
+    @Param() params: ProviderKeyParamDto,
+    @Body() body: UpdateProviderKeyDto,
+  ) {
+    const tenantId = this.requireTenant(ctx);
+    const updated = await this.providerService.changeKey(
+      tenantId,
+      params.provider.toLowerCase(),
+      body.authType ?? 'api_key',
+      params.label,
+      body.apiKey,
+      body.region,
+    );
+    await this.invalidateTenantRouting(tenantId);
+    await this.cacheManager.clear();
+
+    // A new credential can expose a different model catalog. Discovery is
+    // best-effort, exactly as on connect — a failed probe must not fail the
+    // rotation itself. Custom providers store their models on the definition.
+    if (!updated.provider.startsWith('custom:')) {
+      try {
+        await this.discoveryService.discoverModels(updated);
+      } catch {
+        // User can retry via "Refresh models".
+      }
+    }
+
+    return {
+      id: updated.id,
+      provider: updated.provider,
+      auth_type: updated.auth_type,
+      label: updated.label,
+      key_prefix: updated.key_prefix,
+      region: updated.region ?? null,
+      is_active: updated.is_active,
     };
   }
 

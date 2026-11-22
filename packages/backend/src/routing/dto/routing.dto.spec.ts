@@ -9,6 +9,7 @@ import {
   SetOverrideDto,
   SetResponseModeDto,
   SetFallbacksDto,
+  UpdateProviderKeyDto,
   responseModeFromDto,
 } from './routing.dto';
 
@@ -279,5 +280,33 @@ describe('routing.dto decorator transforms', () => {
     });
     expect(dto.routes).toHaveLength(1);
     expect(await validate(dto)).toHaveLength(0);
+  });
+});
+
+describe('UpdateProviderKeyDto', () => {
+  it('accepts an api key with no auth type', async () => {
+    const dto = plainToInstance(UpdateProviderKeyDto, { apiKey: 'sk-123' });
+    expect(await validate(dto)).toHaveLength(0);
+  });
+
+  it('accepts subscription and api_key auth types', async () => {
+    for (const authType of ['api_key', 'subscription']) {
+      const dto = plainToInstance(UpdateProviderKeyDto, { apiKey: 'x', authType });
+      expect(await validate(dto)).toHaveLength(0);
+    }
+  });
+
+  it('rejects local and unknown auth types', async () => {
+    for (const authType of ['local', 'whatever']) {
+      const dto = plainToInstance(UpdateProviderKeyDto, { apiKey: 'x', authType });
+      expect((await validate(dto)).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('rejects a missing, empty or whitespace-only key', async () => {
+    for (const apiKey of [undefined, '', '   ', null]) {
+      const dto = plainToInstance(UpdateProviderKeyDto, { apiKey });
+      expect((await validate(dto)).length).toBeGreaterThan(0);
+    }
   });
 });

@@ -578,6 +578,47 @@ export class ProviderService {
     return target;
   }
 
+  /**
+   * Replace the credential on one existing connection, in place.
+   *
+   * Unlike `upsertProvider`, this never creates a second row, reactivates a
+   * different connection, or touches the connection's identity: only the
+   * encrypted secret, its display prefix and the (possibly re-detected)
+   * region change. Label, priority, connected_at, is_active and per-agent
+   * enable flags are preserved, so rotating a credential does not disturb
+   * routing decisions or usage history.
+   */
+  async changeKey(
+    tenantId: string,
+    provider: string,
+    authType: AuthType,
+    label: string,
+    apiKey: string,
+    requestedRegion?: string,
+  ): Promise<TenantProvider> {
+    const rows = await this.providerRepo.find({
+      where: { tenant_id: tenantId, provider, auth_type: authType },
+    });
+    const target = rows.find((r) => r.label.toLowerCase() === label.toLowerCase());
+    if (!target) throw new NotFoundException('Provider key not found');
+
+    const resolvedRegion = await this.resolveProviderRegion(
+      provider,
+      authType,
+      requestedRegion,
+      apiKey,
+      target,
+    );
+
+    target.api_key_encrypted = encrypt(apiKey, getEncryptionSecret());
+    target.key_prefix = apiKey.substring(0, 8);
+    target.region = resolvedRegion;
+    target.updated_at = new Date().toISOString();
+    await this.providerRepo.save(target);
+    this.routingCache.invalidateTenant(tenantId);
+    return target;
+  }
+
   async reorderKeys(
     agentId: string,
     tenantId: string,
