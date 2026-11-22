@@ -3,6 +3,7 @@ import {
   fromGoogleResponse,
   transformGoogleStreamChunk,
   type GoogleStreamChunkResult,
+  type GoogleStreamState,
 } from './google-adapter';
 import {
   applyAnthropicAutomaticCacheControl,
@@ -28,6 +29,7 @@ import {
   normalizeOpenAiReasoningDelta,
   type OpenAiReasoningStreamFormat,
 } from './reasoning-format';
+import { hasFunctionTools } from '../function-tools';
 
 /** Convert a ChatGPT Responses API response to OpenAI format. */
 export function convertChatGptResponse(
@@ -52,9 +54,16 @@ export function convertGoogleResponse(
   return fromGoogleResponse(googleBody, model);
 }
 
-/** Convert a Google SSE chunk to OpenAI SSE format. */
-export function convertGoogleStreamChunk(chunk: string, model: string): GoogleStreamChunkResult {
-  return transformGoogleStreamChunk(chunk, model);
+/**
+ * Convert a Google SSE chunk to OpenAI SSE format. Pass one `state` (from
+ * `createGoogleStreamState`) for every chunk of a stream.
+ */
+export function convertGoogleStreamChunk(
+  chunk: string,
+  model: string,
+  state?: GoogleStreamState,
+): GoogleStreamChunkResult {
+  return transformGoogleStreamChunk(chunk, model, state);
 }
 
 /** Convert an Anthropic non-streaming response to OpenAI format. */
@@ -461,6 +470,19 @@ export interface SanitizeOpenAiBodyOptions {
    * `max_completion_tokens`, or dropped when both are present.
    */
   requireMaxCompletionTokens?: boolean;
+  /**
+   * The upstream accepts `reasoning_effort` but defaults to reasoning, which it
+   * rejects next to function tools. Forward the caller's effort, and send
+   * `none`, the OpenAI Chat Completions default, when function tools come
+   * without one.
+   */
+  forwardReasoningEffort?: boolean;
+  /**
+   * The provider implements `reasoning_effort` but is reached through an
+   * endpoint key the allow-list cannot name (MiniMax CN uses a `custom`
+   * override). Keep the caller's value; never inject one.
+   */
+  keepReasoningEffort?: boolean;
 }
 
 /**
@@ -535,9 +557,16 @@ export function sanitizeOpenAiBody(
       cleaned[key] = value;
       continue;
     }
-    // xAI and DeepSeek implement `reasoning_effort`; keep it there. Every other
-    // non-passthrough provider gets the OpenAI-only field stripped below.
-    if (key === 'reasoning_effort' && (endpointKey === 'xai' || endpointKey === 'deepseek')) {
+    // xAI, DeepSeek and MiniMax implement `reasoning_effort`; keep it there.
+    // Every other non-passthrough provider gets the OpenAI-only field stripped
+    // below. Models that reject a level are left to Autofix.
+    if (
+      key === 'reasoning_effort' &&
+      (endpointKey === 'xai' ||
+        endpointKey === 'deepseek' ||
+        options.keepReasoningEffort ||
+        options.forwardReasoningEffort)
+    ) {
       cleaned[key] = value;
       continue;
     }
@@ -557,6 +586,13 @@ export function sanitizeOpenAiBody(
       continue;
     }
     cleaned[key] = value;
+  }
+  if (
+    options.forwardReasoningEffort &&
+    cleaned.reasoning_effort === undefined &&
+    hasFunctionTools(cleaned.tools)
+  ) {
+    cleaned.reasoning_effort = 'none';
   }
   return cleaned;
 }

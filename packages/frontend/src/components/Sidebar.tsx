@@ -1,10 +1,10 @@
 import { A, useLocation } from '@solidjs/router';
 import { Show, createSignal, createResource, type Component } from 'solid-js';
 import { getBillingStatus } from '../services/api/billing.js';
-import { FREE_REQUEST_LIMIT_LABEL } from '../services/billing-display.js';
 import { checkIsSelfHosted, checkMcpEnabled } from '../services/setup-status.js';
 import AddAgentModal from './AddAgentModal.jsx';
-import ApiBotAnnouncement from './ApiBotAnnouncement.jsx';
+import ServicesContactModal from './ServicesContactModal.jsx';
+import { authClient } from '../services/auth-client.js';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -26,6 +26,8 @@ const Sidebar: Component<SidebarProps> = (props) => {
   const location = useLocation();
   const isGlobalActive = makeIsGlobalActive(() => location.pathname);
   const [addModalOpen, setAddModalOpen] = createSignal(false);
+  const [servicesOpen, setServicesOpen] = createSignal(false);
+  const session = authClient.useSession();
   // Local providers only exist on self-hosted installs — a cloud backend
   // can't reach the user's localhost, so the Local entry is hidden there.
   const [selfHosted] = createResource(checkIsSelfHosted);
@@ -42,8 +44,10 @@ const Sidebar: Component<SidebarProps> = (props) => {
     }
   });
   const showUpgrade = () => billing()?.enabled && billing()?.plan === 'free';
-  const requestLimitLabel = () =>
-    billing()?.requests.limit?.toLocaleString('en-US') ?? FREE_REQUEST_LIMIT_LABEL;
+  // A tenant without a subscription has a limit of 0 since the Cloud Free plan
+  // ended: there is no allowance to meter, only the upgrade link stays.
+  const hasAllowance = () => (billing()?.requests.limit ?? 0) > 0;
+  const requestLimitLabel = () => (billing()?.requests.limit ?? 0).toLocaleString('en-US');
 
   const handleNav = () => {
     props.onNavigate?.();
@@ -173,54 +177,66 @@ const Sidebar: Component<SidebarProps> = (props) => {
 
       <div class="sidebar__spacer" />
 
-      {/* API Bot announcement: shows for everyone in every deployment mode,
-          with a per-session dismiss. Links to manifest.build/api-bot/. */}
-      <ApiBotAnnouncement />
+      <button type="button" class="sidebar-services" onClick={() => setServicesOpen(true)}>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path d="m19.46,5.52c-2.06-2.03-5.29-2.03-7.34,0l-.08.08s-.03.02-.04.03h0s-.11-.11-.11-.11c-2.05-2.03-5.28-2.03-7.34,0-.99.99-1.54,2.29-1.53,3.65,0,1.36.55,2.65,1.54,3.63l6.06,6c.39.38.9.58,1.41.58s1.02-.19,1.41-.58l6.06-6c.99-.98,1.53-2.27,1.54-3.63,0-1.37-.54-2.67-1.53-3.65,0,0,0,0,0,0Zm-8.17,12.58l-6.06-6c-.8-.79-1.24-1.83-1.24-2.92,0-1.1.44-2.15,1.24-2.94.83-.82,1.9-1.23,2.97-1.23s2.13.41,2.96,1.23l.12.11-2.3,2.32c-.74.75-.74,1.96,0,2.71.37.37.86.56,1.36.56s.98-.19,1.36-.56l1.98-1.98,3.89,3.89-1.05,1.04-2.17-2.17c-.2-.2-.51-.2-.71,0s-.2.51,0,.71l2.17,2.17-.8.79-2.16-2.16c-.2-.2-.51-.2-.71,0s-.2.51,0,.71l2.16,2.16-.8.79-2.15-2.15c-.2-.2-.51-.2-.71,0s-.2.51,0,.71l2.15,2.15-.09.09c-.39.38-1.02.38-1.41,0Zm7.46-6l-.48.48-3.89-3.89,1.31-1.31c.2-.2.2-.51,0-.71s-.51-.2-.71,0l-4,4c-.36.36-.94.36-1.3,0s-.36-.94,0-1.29l2.63-2.65s.01,0,.02-.01l.47-.47c1.66-1.64,4.27-1.64,5.94,0,.8.8,1.24,1.84,1.24,2.94,0,1.1-.44,2.13-1.24,2.92Z" />
+        </svg>
+        Custom development
+      </button>
 
       <Show when={!selfHosted() && showUpgrade()}>
-        <div class="sidebar-usage">
-          <span class="sidebar-usage__title">
-            {new Date().toLocaleDateString('en-US', { month: 'long' })} usage
-          </span>
-          <span
-            class="sidebar-usage__count"
-            classList={{
-              'sidebar-usage__count--danger':
-                (billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1) >= 0.8,
-            }}
-          >
-            {billing()!.requests.used != null
-              ? billing()!.requests.used!.toLocaleString('en-US')
-              : '0'}
-            {' / '}
-            {billing()!.requests.limit != null
-              ? billing()!.requests.limit!.toLocaleString('en-US')
-              : '0'}
-            {' requests'}
-          </span>
-          <div class="sidebar-usage__bar">
-            <div
-              class="sidebar-usage__fill"
+        <Show when={hasAllowance()}>
+          <div class="sidebar-usage">
+            <span class="sidebar-usage__title">
+              {new Date().toLocaleDateString('en-US', { month: 'long' })} usage
+            </span>
+            <span
+              class="sidebar-usage__count"
               classList={{
-                'sidebar-usage__fill--warning':
-                  (billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1) >= 0.5 &&
-                  (billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1) < 0.8,
-                'sidebar-usage__fill--danger':
+                'sidebar-usage__count--danger':
                   (billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1) >= 0.8,
               }}
-              style={{
-                width: `${Math.min(100, ((billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1)) * 100)}%`,
-              }}
-            />
+            >
+              {billing()!.requests.used != null
+                ? billing()!.requests.used!.toLocaleString('en-US')
+                : '0'}
+              {' / '}
+              {billing()!.requests.limit != null
+                ? billing()!.requests.limit!.toLocaleString('en-US')
+                : '0'}
+              {' requests'}
+            </span>
+            <div class="sidebar-usage__bar">
+              <div
+                class="sidebar-usage__fill"
+                classList={{
+                  'sidebar-usage__fill--warning':
+                    (billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1) >= 0.5 &&
+                    (billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1) < 0.8,
+                  'sidebar-usage__fill--danger':
+                    (billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1) >= 0.8,
+                }}
+                style={{
+                  width: `${Math.min(100, ((billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1)) * 100)}%`,
+                }}
+              />
+            </div>
+            <Show when={(billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1) >= 0.8}>
+              <p class="sidebar-usage__alert">
+                {(billing()!.requests.used ?? 0) >= (billing()!.requests.limit ?? 1)
+                  ? "You've reached your monthly limit. Requests are being blocked."
+                  : `You're limited to ${requestLimitLabel()} requests this month. Upgrade for unlimited.`}
+              </p>
+            </Show>
           </div>
-          <Show when={(billing()!.requests.used ?? 0) / (billing()!.requests.limit ?? 1) >= 0.8}>
-            <p class="sidebar-usage__alert">
-              {(billing()!.requests.used ?? 0) >= (billing()!.requests.limit ?? 1)
-                ? "You've reached your monthly limit. Requests are being blocked."
-                : `You're limited to ${requestLimitLabel()} requests this month. Upgrade for unlimited.`}
-            </p>
-          </Show>
-        </div>
+        </Show>
         <A href="/upgrade" class="sidebar-upgrade" onClick={handleNav}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -239,6 +255,12 @@ const Sidebar: Component<SidebarProps> = (props) => {
 
       {/* Create-harness modal, opened by the + button next to the Harnesses nav link */}
       <AddAgentModal open={addModalOpen()} onClose={() => setAddModalOpen(false)} />
+      <ServicesContactModal
+        open={servicesOpen()}
+        defaultName={session()?.data?.user?.name ?? ''}
+        defaultEmail={session()?.data?.user?.email ?? ''}
+        onClose={() => setServicesOpen(false)}
+      />
     </nav>
   );
 };

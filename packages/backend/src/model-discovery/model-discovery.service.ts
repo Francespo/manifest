@@ -251,6 +251,10 @@ export class ModelDiscoveryService {
     }
 
     let raw: DiscoveredModel[];
+    const subscriptionRegion =
+      lowerProvider === 'minimax' && endpointOverride?.startsWith(MINIMAX_BASE_URLS.cn)
+        ? 'cn'
+        : provider.region;
 
     const useCuratedSubscriptionModels =
       provider.auth_type === 'subscription' && (!apiKey || lowerProvider === 'anthropic');
@@ -289,7 +293,7 @@ export class ModelDiscoveryService {
     // subscription discovery is also static so connecting Claude Code does
     // not spend live /models or /messages calls before the first real request.
     if (useCuratedSubscriptionModels) {
-      raw = buildSubscriptionFallbackModels(provider.provider);
+      raw = buildSubscriptionFallbackModels(provider.provider, subscriptionRegion);
       if (raw.length > 0) {
         this.logger.log(
           `Subscription provider ${provider.provider} — using ${raw.length} curated models`,
@@ -318,7 +322,7 @@ export class ModelDiscoveryService {
       // actually grants must use the curated `knownModels` list — otherwise
       // the routing UI offers models that 404 at chat time.
       if (raw.length === 0 && provider.auth_type === 'subscription') {
-        raw = buildSubscriptionFallbackModels(provider.provider);
+        raw = buildSubscriptionFallbackModels(provider.provider, subscriptionRegion);
         if (raw.length > 0) {
           this.logger.log(
             `Subscription provider ${provider.provider} — using ${raw.length} curated models`,
@@ -356,7 +360,7 @@ export class ModelDiscoveryService {
     // For subscription providers, supplement live discovery with the explicit
     // curated list so users can always select known supported models.
     if (provider.auth_type === 'subscription') {
-      raw = supplementWithKnownModels(raw, provider.provider);
+      raw = supplementWithKnownModels(raw, provider.provider, subscriptionRegion);
     }
 
     // Preserve the full AuthType union (api_key / subscription / local) —

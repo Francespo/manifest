@@ -27,10 +27,6 @@ Manifest Gateway is an open-source LLM gateway for agents and apps. It sits betw
 
 ![manifest-gh](https://raw.githubusercontent.com/mnfst/llm-gateway/HEAD/.github/assets/manifest-screenshot.png)
 
-<p align="center">
-  <a href="https://manifest.build/api-bot/"><img src="https://raw.githubusercontent.com/mnfst/llm-gateway/HEAD/.github/assets/api-bot-readme-banner.png" alt="Meet API Bot: API changes won't take your app down anymore. Discover" width="100%" /></a>
-</p>
-
 ---
 
 ## Table of contents
@@ -135,7 +131,8 @@ session-signing secret also decrypts every stored credential and recording.
 Set it before first boot.
 Recordings written under a previous secret are not migrated: after the secret
 changes they can no longer be decrypted and the dashboard shows them as
-unavailable, while retention removes them on schedule.
+unavailable. They stay on disk unless `REQUEST_RECORDING_RETENTION_DAYS` is set,
+which deletes them once they are older than that many days.
 
 (Optional: to use a stronger database password, set BOTH `POSTGRES_PASSWORD` and `DATABASE_URL` in `.env`, they must agree, and any special characters in the password need to be percent-encoded in the URL.)
 

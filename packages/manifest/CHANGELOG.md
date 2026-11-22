@@ -1,5 +1,99 @@
 # manifest
 
+## 6.29.2
+
+### Patch Changes
+
+- 239cb32: Replayed Anthropic tool calls whose arguments are JSON null or another non-object now send `tool_use.input` as `{}`. A missing payload was already empty; `"null"` and `"[]"` were forwarded and rejected.
+- e48ea50: The Anthropic Messages endpoint now reports `stop_reason: "tool_use"` when a provider returns tool calls with a `stop` (or missing) finish reason, so clients run the tools instead of ending the turn.
+- 6e4b2f4: Non-streaming Gemini function calls with no arguments now keep `arguments` set to `"{}"`. A missing or null `args` used to omit the field or send the string `"null"`; replayed non-object JSON such as `"null"` or `"[]"` is now sent as `{}` instead of an invalid Gemini `args` value.
+- a244229: OpenAI-format requests routed to Gemini now forward `seed` as `generationConfig.seed` instead of silently dropping it.
+- 899f65e: Pass empty completions through instead of failing them. A provider reply that finished normally with no text and no tool call (Chat Completions with `finish_reason: "stop"`, or a completed ChatGPT subscription response) now reaches the caller as a normal 200. Manifest no longer turns it into a 502 or moves to the next fallback.
+
+## 6.29.1
+
+### Patch Changes
+
+- c973255: Keep tool call arguments for parallel tool calls on the ChatGPT subscription provider. The backend can send a call's arguments only on `response.function_call_arguments.done`, with no deltas, so Chat Completions and Messages clients got every call with empty arguments (#3118).
+- 7e81f40: Responses from the ChatGPT backend now include `completion_tokens_details.reasoning_tokens` in the usage, so clients see reasoning token counts for streaming and non-streaming requests.
+- 0c834ac: Gemini prompts rejected up front (`promptFeedback.blockReason`, no candidates) now return a `content_filter` finish reason with usage instead of an empty `choices` array or a bare `stop`.
+- e10162d: Request recordings are no longer deleted after a retention period on Manifest Cloud, for any plan. Self-hosted installs now keep them forever by default; set `REQUEST_RECORDING_RETENTION_DAYS` to delete older ones.
+
+## 6.29.0
+
+### Minor Changes
+
+- 8dec00d: Manifest Cloud is Pro only: a workspace without a subscription routes nothing and gets M204 "Subscription required". Self-hosted is unchanged.
+
+### Patch Changes
+
+- ac7c89e: Bedrock discovery now lists the Claude Fable 5 and 5.1 inference profiles. AWS only serves them when the Region's data retention mode is `aws_review` (or legacy `provider_data_share`), which retains prompts and completions for up to 30 days and lets AWS review them; otherwise Bedrock answers 400.
+- 9c87bbe: Serve Chat Completions requests with function tools and reasoning for Amazon Bedrock GPT cross-Region inference profiles through the Bedrock Runtime Responses API, which Runtime Chat Completions rejects for these models. Set `BEDROCK_RUNTIME_CHAT_VIA_RESPONSES=false` to turn it off. Sampling parameters (`temperature`, `top_p`, `stop`, `seed`, ...) are not forwarded on this route. Also read Responses stream events that carry their name only in `data.type`, and number streamed tool calls from 0 when a reasoning item comes first.
+
+  This numbering also applies to the other Responses-backed routes (OpenAI, Copilot, xAI, ChatGPT subscription and Bedrock Mantle): their streamed tool calls now start at index 0 when a reasoning item precedes them. GPT-6 Astra on Bedrock Runtime now serves Chat Completions requests with function tools instead of failing; without a `reasoning_effort` it runs at the model's default effort.
+
+- ac0d8bf: Bump `modelparams` to 0.0.72: GPT-6 (luna, astra, sol), GPT-6.1 sol and Claude Fable 5.1 parameter specs are now available in the bundled catalog, including offline and cold-boot installs. Also fixes the catalog loader, which could not read `modelparams` 0.0.58 or newer.
+- 394d9a9: Report Gemini replies blocked for BLOCKLIST, PROHIBITED_CONTENT, SPII or IMAGE_SAFETY as `content_filter` instead of `stop`.
+
+## 6.28.11
+
+### Patch Changes
+
+- 698a3b0: Show compact token counts with the right unit and no trailing `.0` on the dashboard. A count from 999,950 to 999,999 was shown as `1000.0k` instead of `1M`, and a count that rounds to a whole number was shown as `1.0k` or `2.0M` instead of `1k` or `2M`.
+- 7264e2c: Keep parallel tool calls apart when a provider streams them without an index, in recorded conversations and in the /v1/messages and /v1/responses translations. A delta without an index starts the next call when it brings a new id.
+- 71dce7d: List MiniMax M3.1 Flash, then M3, first in model choices without hiding other MiniMax models. Forward reasoning effort to MiniMax on direct and subscription HTTP requests, and keep Flash image input available when capability catalogs lag.
+
+## 6.28.10
+
+### Patch Changes
+
+- 3243da5: Tell Cloud workspaces on the Free plan that it ends on November 2, 2026: a dismissable banner at the top of the dashboard with a link to the announcement, and a note on the Free card of the plan picker and on the Account page. Pro workspaces and self-hosted installs see nothing.
+- 2a6d84b: Bump the Docker base images to Node.js 24.22.1 to pick up the October 2026 Node.js security releases (including CVE-2026-111497, CVE-2026-106069 and CVE-2026-105483). All installs should update.
+- 01e0e2a: The dashboard's Recent Requests and Model usage panels now start loading with the rest of the page instead of after it. Recent Requests updates live as new requests arrive, and Model usage refreshes every 30 seconds like the other usage figures. Before, both stayed stale until the range changed or the page was reloaded.
+- 1c75318: Stop storing Google load-balancer headers (`Forwarded`, `Via`, trace context) in recorded request headers. `Forwarded` carries the caller's IP.
+- c19d7b6: Read tool messages whose `content` is an array of text parts on Gemini and Anthropic routes. Gemini received them as plain user text with no `functionResponse`, so the model's function call went unanswered, and Anthropic received the JSON of the parts array as the tool result instead of its text.
+
+## 6.28.9
+
+### Patch Changes
+
+- 45d82cf: Add a "Custom development" button at the bottom of the dashboard sidebar. It opens a contact form for custom guardrails, hooks, integrations, governance, user management and installation by the Manifest team. The backend relays the form to manifest.build, which emails the team.
+
+## 6.28.8
+
+### Patch Changes
+
+- edabb1d: Remove the API Bot announcement banner and the API Bot sidebar card from the dashboard.
+
+## 6.28.7
+
+### Patch Changes
+
+- 52a921c: Surface Claude thinking text as `reasoning_content` when an Anthropic Messages reply is translated to a Chat Completions reply, both streaming and non-streaming.
+- f93cde5: Report Anthropic `refusal` stops as `content_filter` and `model_context_window_exceeded` stops as `length` on chat completions routes. Both were reported as `stop`, so a refused or truncated Claude reply looked like a finished turn.
+- b3f1251: Fix Chat Completions requests with function tools to Amazon Bedrock GPT cross-Region inference profiles (such as `us.openai.gpt-6-luna`). Bedrock Runtime defaults these models to reasoning and rejects that next to function tools, so a request with tools and no `reasoning_effort` now sends `none`, the OpenAI default. A `reasoning_effort` the caller sets is now forwarded instead of dropped.
+- 78780f9: Speed up harness-scoped request logs by reusing the resolved harness ID when querying unlinked legacy attempts.
+- ca55315: Send provider-required request headers from the Playground. Runs against OpenCode Go and OpenCode Zen now carry `x-opencode-session`, so the provider no longer rejects them with `MissingSessionID`. Headers set in the request editor still take precedence.
+- 352618a: Keep token-limited and refused replies visible on `/v1/responses` when the upstream speaks Chat Completions. A `length` or `content_filter` finish now yields `status: "incomplete"` (streams end with `response.incomplete`), and `message.refusal` / `delta.refusal` become `refusal` content parts instead of an empty completed response. Non-stream requests answered by a native Responses upstream over SSE now keep the `response.incomplete` and `response.failed` snapshots instead of reporting them as completed.
+- df977e5: Reuse resolved harness IDs across analytics queries and keep cached request filters isolated when harness names are reused.
+
+## 6.28.6
+
+### Patch Changes
+
+- 16a5203: List Claude Haiku 5.5 (`claude-haiku-5-5`) in the Claude subscription catalog and serve its Bedrock cross-region inference profiles (`us.anthropic.claude-haiku-5-5`, …) through the Runtime Messages endpoint, so it can be picked for routing on both providers.
+- 2d585ca: Stream Gemini API replies through `:streamGenerateContent`. Streaming requests used `:generateContent?alt=sse`, which Gemini answers with a single event once the whole reply is generated, so clients got no output until the end.
+- bea98ee: Keep Gemini streams consistent across events: one completion id, distinct tool-call indices, a `tool_calls` finish reason when a tool call came in an earlier event, and a single finish and usage chunk at the end of the stream even though Gemini repeats usage on every event. A Gemini stream that ends before its finish still records its last usage.
+- fc4464a: Recorded conversations now keep tool calls on array-content messages and in Gemini streams, read multi-line SSE events, and show Gemini function declarations as named tools.
+- 3c0c22f: Stop the daily usage rollup from re-scanning requests whose harness was deleted on every run.
+- 394602c: List Claude Sonnet 5.5 (`claude-sonnet-5-5`) in the Claude subscription catalog and the GPT-6 models (`gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-sol`, `gpt-6-luna`) in the ChatGPT subscription catalog, so both can be picked for routing even when live discovery does not return them.
+
+## 6.28.5
+
+### Patch Changes
+
+- 7d49332: Forward `max_completion_tokens` and `stop` to Gemini as `maxOutputTokens` and `stopSequences` on Google routes. Both were dropped, so the output cap and stop sequences sent by OpenAI SDK clients (and `stop_sequences` on `/v1/messages`) were ignored.
+
 ## 6.28.4
 
 ### Patch Changes

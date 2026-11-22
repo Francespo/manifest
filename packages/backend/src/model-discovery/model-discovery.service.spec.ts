@@ -2231,11 +2231,13 @@ describe('ModelDiscoveryService', () => {
         'claude-fable-5',
         'claude-fable-5-1',
         'claude-haiku-4',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-5',
         'claude-opus-5-5',
         'claude-sonnet-4',
         'claude-sonnet-5',
+        'claude-sonnet-5-5',
       ]);
       expect(result.map((m) => m.id)).not.toContain('claude-sonnet-5:batch');
       expect(mockPricingSync.getAll).not.toHaveBeenCalled();
@@ -2315,6 +2317,30 @@ describe('ModelDiscoveryService', () => {
         'https://api.minimax.io/anthropic',
         {},
       );
+    });
+
+    it('leaves Flash out of the curated list for a MiniMax OAuth token on the CN host', async () => {
+      mockDecrypt.mockReturnValue(
+        JSON.stringify({
+          t: 'minimax-access',
+          r: 'minimax-refresh',
+          e: Date.now() + 60000,
+          u: 'https://api.minimaxi.com/anthropic',
+        }),
+      );
+      fetcher.fetch.mockResolvedValue([]);
+
+      const result = await service.discoverModels(
+        makeProvider({
+          provider: 'minimax',
+          auth_type: 'subscription',
+          api_key_encrypted: 'encrypted-blob',
+        }),
+      );
+
+      const ids = result.map((model) => model.id);
+      expect(ids).toContain('MiniMax-M3');
+      expect(ids).not.toContain('MiniMax-M3.1-Flash');
     });
 
     it('routes pasted-token MiniMax CN subscription discovery to the CN host', async () => {
@@ -2633,16 +2659,18 @@ describe('ModelDiscoveryService', () => {
       );
 
       // Subscription membership comes only from the curated knownModels list.
-      expect(result).toHaveLength(8);
+      expect(result).toHaveLength(10);
       expect(result.map((m) => m.id).sort()).toEqual([
         'claude-fable-5',
         'claude-fable-5-1',
         'claude-haiku-4',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-5',
         'claude-opus-5-5',
         'claude-sonnet-4',
         'claude-sonnet-5',
+        'claude-sonnet-5-5',
       ]);
       // All should be stamped as subscription
       for (const m of result) {
@@ -2839,16 +2867,18 @@ describe('ModelDiscoveryService', () => {
       );
 
       // Even without pricingSync, knownModels are returned directly
-      expect(result).toHaveLength(8);
+      expect(result).toHaveLength(10);
       expect(result.map((m) => m.id).sort()).toEqual([
         'claude-fable-5',
         'claude-fable-5-1',
         'claude-haiku-4',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-5',
         'claude-opus-5-5',
         'claude-sonnet-4',
         'claude-sonnet-5',
+        'claude-sonnet-5-5',
       ]);
       for (const m of result) {
         expect(m.authType).toBe('subscription');
@@ -3109,9 +3139,13 @@ describe('ModelDiscoveryService', () => {
 
       const result = supplementWithKnownModels(raw, 'openai');
 
-      // 1 discovered + 7 ChatGPT-account supported knownModels
-      expect(result.length).toBe(8);
+      // 1 discovered + 11 ChatGPT-account supported knownModels
+      expect(result.length).toBe(12);
       expect(result[0].id).toBe('gpt-oss-120b');
+      expect(result.map((m) => m.id)).toContain('gpt-6-astra');
+      expect(result.map((m) => m.id)).toContain('gpt-6.1-sol');
+      expect(result.map((m) => m.id)).toContain('gpt-6-sol');
+      expect(result.map((m) => m.id)).toContain('gpt-6-luna');
       expect(result.map((m) => m.id)).toContain('gpt-5.6-sol');
       expect(result.map((m) => m.id)).toContain('gpt-5.6-terra');
       expect(result.map((m) => m.id)).toContain('gpt-5.6-luna');

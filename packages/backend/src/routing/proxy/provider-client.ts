@@ -5,6 +5,7 @@ import { XAI_RESPONSES_ONLY_RE } from '../../common/constants/xai-models';
 import {
   PROVIDER_ENDPOINTS,
   ProviderEndpoint,
+  buildEndpointOverride,
   resolveBedrockEndpointKey,
   resolveEndpointKey,
 } from './provider-endpoints';
@@ -52,7 +53,10 @@ import { isProviderAvailableForDeployment } from '../../common/utils/provider-av
 import { ManifestError } from '../../common/errors/manifest-error';
 import { MANAGED_FREE_PROVIDER_BY_ID } from '../../common/constants/managed-free-providers';
 import { isBedrockProvider } from '../bedrock-region';
-import { getBedrockRuntimeCapabilities } from '../bedrock-runtime-capabilities';
+import {
+  bedrockRuntimeChatNeedsResponses,
+  getBedrockRuntimeCapabilities,
+} from '../bedrock-runtime-capabilities';
 
 export interface ForwardResult {
   response: Response;
@@ -188,26 +192,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function hasChatCompletionOutput(message: Record<string, unknown>): boolean {
-  return Object.entries(message).some(([key, value]) => {
-    if (key === 'role' || value == null) return false;
-    if (typeof value === 'string' || Array.isArray(value)) return value.length > 0;
-    return true;
-  });
-}
-
-function isEmptyChatCompletion(body: unknown): boolean {
-  if (!isRecord(body) || !Array.isArray(body.choices)) return false;
-  return body.choices.every(
-    (choice) =>
-      isRecord(choice) &&
-      choice.finish_reason === 'stop' &&
-      isRecord(choice.message) &&
-      !hasChatCompletionOutput(choice.message),
-  );
-}
-
-async function qualifyEmptyChatCompletion(
+/**
+ * A Chat Completions reply with no choice at all carries no answer and breaks
+ * SDKs that read `choices[0]`, so it fails like a provider error. A choice with
+ * empty content is a valid answer and passes through (#3128).
+ */
+async function rejectChoicelessChatCompletion(
   response: Response,
   attempt?: ProviderAttemptRef,
 ): Promise<Response> {
@@ -219,15 +209,17 @@ async function qualifyEmptyChatCompletion(
   } catch {
     return response;
   }
-  if (!isEmptyChatCompletion(body)) return response;
+  if (!isRecord(body) || !Array.isArray(body.choices) || body.choices.length > 0) {
+    return response;
+  }
   await attempt?.finishRecording?.({ type: 'json', body });
 
   return new Response(
     JSON.stringify({
       error: {
-        message: 'Upstream provider returned an empty Chat Completions response',
+        message: 'Upstream provider returned a Chat Completions response without choices',
         type: 'server_error',
-        code: 'empty_response',
+        code: 'malformed_response',
       },
     }),
     { status: HttpStatus.BAD_GATEWAY, headers: { 'content-type': 'application/json' } },
@@ -442,6 +434,7 @@ export class ProviderClient {
       authType,
       model,
       opts.apiMode,
+      body,
       apiKey,
       opts.providerResource,
     );
@@ -627,7 +620,7 @@ export class ProviderClient {
         !stream &&
         endpoint.format === 'openai' &&
         (opts.apiMode === undefined || opts.apiMode === 'chat_completions')
-          ? await qualifyEmptyChatCompletion(result.response, attempt)
+          ? await rejectChoicelessChatCompletion(result.response, attempt)
           : result.response;
       const qualifiedResult =
         endpointKey === 'openai-subscription'
@@ -664,11 +657,27 @@ export class ProviderClient {
     authType: string | undefined,
     model: string,
     apiMode: ForwardOptions['apiMode'],
+    body: Record<string, unknown>,
     apiKey?: string,
     providerResource?: string,
   ): Promise<{ endpoint: ProviderEndpoint; endpointKey: string }> {
+    // Runtime Chat Completions rejects function tools next to reasoning on GPT
+    // profiles, so those chat requests go to Runtime Responses instead
+    // (mnfst/llm-gateway#3107). `BEDROCK_RUNTIME_CHAT_VIA_RESPONSES=false` turns it off.
+    const viaResponses =
+      isBedrockProvider(provider) &&
+      (apiMode === undefined || apiMode === 'chat_completions') &&
+      process.env.BEDROCK_RUNTIME_CHAT_VIA_RESPONSES !== 'false' &&
+      bedrockRuntimeChatNeedsResponses(model, body);
     if (customEndpoint) {
-      return { endpoint: customEndpoint, endpointKey: 'custom' };
+      // A stored-region connection arrives as the Runtime chat override.
+      return {
+        endpoint:
+          viaResponses && customEndpoint.format === 'openai'
+            ? buildEndpointOverride(customEndpoint.baseUrl, 'bedrock-runtime-responses')
+            : customEndpoint,
+        endpointKey: 'custom',
+      };
     }
     let resolved = resolveEndpointKey(provider);
     if (!resolved) {
@@ -679,7 +688,7 @@ export class ProviderClient {
       if (override) resolved = override;
     }
     if (resolved === 'bedrock') {
-      resolved = resolveBedrockEndpointKey(model, apiMode);
+      resolved = resolveBedrockEndpointKey(model, viaResponses ? 'responses' : apiMode);
     }
     if (resolved === 'qwen-subscription') {
       const bareQwenModel = stripVendorPrefix(model);
@@ -851,6 +860,7 @@ export class ProviderClient {
     // Native matching targets read `body` directly. Cross-protocol targets
     // receive the lazily resolved Chat Completions view as `chatBody`.
     const requestSource = chatBody ?? body;
+    const isMinimax = ctx.provider.toLowerCase() === 'minimax';
 
     if (endpoint.format === 'google') {
       // Google accepts the API key via header (set by buildHeaders below) so
@@ -905,6 +915,16 @@ export class ProviderClient {
               thinkingLookup: ctx.thinkingLookup,
               thinkingRouteContext,
             });
+      // MiniMax's Messages API takes effort as `output_config.effort`. Matched by
+      // provider, not endpoint key, so the CN override (`custom`) is covered.
+      if (isMinimax && requestSource.reasoning_effort !== undefined) {
+        const outputConfig = (requestBody.output_config ?? {}) as Record<string, unknown>;
+        requestBody.output_config = {
+          effort: requestSource.reasoning_effort,
+          ...outputConfig,
+        };
+        delete requestBody.reasoning_effort;
+      }
       requestBody.model = bareModel;
       if (stream) requestBody.stream = true;
       if (shouldApplyAnthropicAutomaticCacheControl(endpointKey)) {
@@ -974,10 +994,12 @@ export class ProviderClient {
                 endpointKey === 'openai-subscription' ||
                 endpointKey === 'openai-responses' ||
                 endpointKey === 'xai-responses',
-              // Only OpenAI infrastructure is known to accept
-              // reasoning.summary; other Responses backends may 400 on it.
+              // Only OpenAI infrastructure and Bedrock Runtime are known to
+              // accept reasoning.summary; other Responses backends may 400 on it.
               mapReasoningEffort:
-                endpointKey === 'openai-subscription' || endpointKey === 'openai-responses',
+                endpointKey === 'openai-subscription' ||
+                endpointKey === 'openai-responses' ||
+                endpoint.acceptsReasoningSummary,
             });
       if (endpointKey === 'xai-responses' || endpoint.acceptsPromptCacheKey) {
         applyHashedPromptCacheKey(requestBody, ctx.providerCacheKey);
@@ -1021,11 +1043,15 @@ export class ProviderClient {
     }
 
     // OpenAI-compatible path (default)
+    const isBedrockRuntimeGpt =
+      isBedrockProvider(ctx.provider) &&
+      getBedrockRuntimeCapabilities(ctx.model)?.chatTokenParameter === 'max_completion_tokens';
+    // GPT models on Bedrock Runtime reject `max_tokens`, and reject function
+    // tools next to their default reasoning effort (mnfst/llm-gateway#3065).
     const sanitized = sanitizeOpenAiBody(requestSource, endpointKey, ctx.model, {
-      // GPT models on Bedrock Runtime reject `max_tokens`.
-      requireMaxCompletionTokens:
-        isBedrockProvider(ctx.provider) &&
-        getBedrockRuntimeCapabilities(ctx.model)?.chatTokenParameter === 'max_completion_tokens',
+      requireMaxCompletionTokens: isBedrockRuntimeGpt,
+      forwardReasoningEffort: isBedrockRuntimeGpt,
+      keepReasoningEffort: isMinimax,
     });
     if (stream && endpoint.streamUsageReporting === 'openai_stream_options') {
       const existing =

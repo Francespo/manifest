@@ -18,6 +18,7 @@ import {
 import { Request, Response as ExpressResponse } from 'express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { v4 as uuid } from 'uuid';
+import { currentMinimaxModelChoices } from 'manifest-shared';
 import { Public } from '../../common/decorators/public.decorator';
 import { AgentKeyAuthGuard } from '../../otlp/guards/agent-key-auth.guard';
 import { IngestionContext } from '../../otlp/interfaces/ingestion-context.interface';
@@ -225,7 +226,9 @@ export class ProxyController {
     // the default payload (no flags) must not pay for it. The output filter
     // needs the facts even when the caller did not ask to see them.
     const needMetadata = includeCapabilities || includeCost || filter !== undefined;
-    const models = await this.modelDiscovery.getModelsForAgent(ctx.tenantId, ctx.agentId);
+    const models = currentMinimaxModelChoices(
+      await this.modelDiscovery.getModelsForAgent(ctx.tenantId, ctx.agentId),
+    );
 
     const data: OpenAiModelObject[] = [];
     const seen = new Set<string>(['auto']);
@@ -1078,7 +1081,7 @@ export class ProxyController {
           if (typeof nested === 'string') return nested;
         }
         const code = record.code;
-        if (code === 'PLAN_LIMIT_REQUESTS') return 'Free plan monthly request limit reached';
+        if (code === 'PLAN_LIMIT_REQUESTS') return 'Manifest Cloud subscription required';
         if (typeof code === 'string') return code;
       }
     }

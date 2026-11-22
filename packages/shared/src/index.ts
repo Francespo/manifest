@@ -175,6 +175,7 @@ export {
   modelParamsScopeForTier,
 } from './model-params-scope';
 export type { ModelParamsRoutingScopeInput } from './model-params-scope';
+export { minimaxTextModelRank, currentMinimaxModelChoices } from './minimax-model-choices';
 export { API_KEY_PREFIX } from './api-key';
 export { MAX_KEYS_PER_PROVIDER } from './provider-limits';
 export {
@@ -270,6 +271,7 @@ export {
   normalizeRole,
 } from './chat-message';
 export type { ChatMessage, ChatTool, RecordedResponseBody, Role, ToolCall } from './chat-message';
+export { resolveToolCallIndex } from './tool-call-index';
 export {
   CUSTOM_PROVIDER_ALIAS_MAX_LENGTH,
   CUSTOM_PROVIDER_ALIAS_MESSAGE,

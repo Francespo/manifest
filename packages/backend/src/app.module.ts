@@ -27,6 +27,7 @@ import { PlaygroundModule } from './playground/playground.module';
 import { CommonModule } from './common/common.module';
 import { SseModule } from './sse/sse.module';
 import { GithubModule } from './github/github.module';
+import { ServicesContactModule } from './services-contact/services-contact.module';
 import { VersionModule } from './version/version.module';
 import { ErrorPagesModule } from './error-pages/error-pages.module';
 import { SetupModule } from './setup/setup.module';
@@ -114,6 +115,7 @@ const mcpImports = mcpAvailability().enabled ? [McpModule] : [];
     PlaygroundModule,
     SseModule,
     GithubModule,
+    ServicesContactModule,
     VersionModule,
     ErrorPagesModule,
     SetupModule,

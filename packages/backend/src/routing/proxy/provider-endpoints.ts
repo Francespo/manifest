@@ -72,6 +72,8 @@ export interface ProviderEndpoint {
   acceptsMaxOutputTokens?: boolean;
   /** Send Manifest's stable `prompt_cache_key` when the caller did not set one. */
   acceptsPromptCacheKey?: boolean;
+  /** Map Chat Completions `reasoning_effort` to `reasoning: { effort, summary: 'auto' }`. */
+  acceptsReasoningSummary?: boolean;
 }
 
 const openaiStreamUsage = { streamUsageReporting: 'openai_stream_options' as const };
@@ -287,6 +289,7 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
     forwardResponsesStream: true,
     acceptsMaxOutputTokens: true,
     acceptsPromptCacheKey: true,
+    acceptsReasoningSummary: true,
   },
   'bedrock-anthropic': {
     baseUrl: getBedrockMantleBaseUrl(),
@@ -530,6 +533,9 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
       'x-goog-api-key': apiKey,
     }),
     buildPath: (model: string) => `/v1beta/models/${model}:generateContent`,
+    // `:generateContent?alt=sse` answers with one event once the whole reply is
+    // generated; only `:streamGenerateContent` streams incrementally.
+    buildStreamPath: (model: string) => `/v1beta/models/${model}:streamGenerateContent`,
     format: 'google',
   },
   // Vertex AI: the same Gemini wire format as `google`, on Google Cloud's
