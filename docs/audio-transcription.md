@@ -77,7 +77,7 @@ POST /v1/audio/transcriptions        POST /v1/audio/translations
    `rate_per_minute × max(duration, 10s)` and is written to
    `agent_messages.cost_usd` with zero tokens.
 9. An async POST persists `audio_task_id` and the finished payload on the
-   Manifest Request (migration `1803400000000-AddRequestAudioTask`) and returns
+   Manifest Request (migration `1803500000000-AddRequestAudioTask`) and returns
    a task object. GET reads it back locally — no second provider call, no
    second attempt — and finalizes cost if the create had no duration.
 

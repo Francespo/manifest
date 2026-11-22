@@ -117,3 +117,181 @@
     min-width: 0;
   }
 }
+
+/* ── Model egress (US gateway) panel ───────────────── */
+.model-egress__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  margin-bottom: var(--gap-md);
+}
+
+.model-egress__subtitle {
+  margin: 0;
+  max-width: 62ch;
+  color: hsl(var(--muted-foreground));
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.model-egress__health {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.model-egress__health-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.model-egress__health--online {
+  color: hsl(var(--success));
+  background: hsl(var(--success) / 0.12);
+}
+
+.model-egress__health--offline,
+.model-egress__health--unconfigured {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.12);
+}
+
+.model-egress__health--checking {
+  color: hsl(var(--muted-foreground));
+}
+
+.model-egress__notice {
+  margin-bottom: var(--gap-md);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: hsl(var(--destructive) / 0.08);
+  color: hsl(var(--muted-foreground));
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.model-egress__notice code {
+  font-size: 0.9em;
+}
+
+.model-egress__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  margin-bottom: var(--gap-sm);
+}
+
+.model-egress__search {
+  flex: 1;
+  max-width: 320px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-sm);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: var(--font-size-sm);
+}
+
+.model-egress__count {
+  color: hsl(var(--muted-foreground));
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.model-egress__list {
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-sm);
+}
+
+.model-egress__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  padding: 9px 12px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.model-egress__row:last-child {
+  border-bottom: none;
+}
+
+.model-egress__model {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.model-egress__model-name {
+  color: hsl(var(--foreground));
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-egress__model-id {
+  color: hsl(var(--muted-foreground));
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-egress__control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.model-egress__auto {
+  color: hsl(var(--muted-foreground));
+  font-size: var(--font-size-xs);
+  font-style: italic;
+}
+
+.model-egress__value {
+  color: hsl(var(--muted-foreground));
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  min-width: 38px;
+  text-align: right;
+}
+
+.model-egress__value--us {
+  color: hsl(var(--success));
+}
+
+.model-egress__empty {
+  padding: 20px 12px;
+  color: hsl(var(--muted-foreground));
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.model-egress__footnote {
+  margin: var(--gap-md) 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}

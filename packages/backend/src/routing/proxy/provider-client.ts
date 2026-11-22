@@ -3,6 +3,7 @@ import { HttpStatus, Injectable, Logger, Optional } from '@nestjs/common';
 import { OPENAI_RESPONSES_ONLY_RE, stripVendorPrefix } from '../../common/constants/openai-models';
 import { XAI_RESPONSES_ONLY_RE } from '../../common/constants/xai-models';
 import {
+  buildUsEgressEndpoint,
   PROVIDER_ENDPOINTS,
   ProviderEndpoint,
   buildEndpointOverride,
@@ -147,6 +148,12 @@ const PROVIDER_TIMEOUT_MS =
     ? parsedProviderTimeout
     : 180_000;
 const QWEN_TOKEN_PLAN_RESPONSES_RE = /^qwen3\.7-max$/i;
+/**
+ * OpenCode's Responses-only families. Used as a fallback when the docs catalog
+ * is cold or unreachable, so a new stealth model still gets the right wire
+ * format instead of a guaranteed 400 on /v1/chat/completions.
+ */
+const OPENCODE_RESPONSES_FAMILY_RE = /(?:crouton|muse-spark|muse-wonder|grok-)/i;
 const COPILOT_CHAT_COMPLETIONS_ENDPOINT = '/chat/completions';
 const COPILOT_RESPONSES_ENDPOINTS = new Set(['/responses', 'ws:/responses']);
 
@@ -437,6 +444,7 @@ export class ProviderClient {
       body,
       apiKey,
       opts.providerResource,
+      opts.egress,
     );
     const isGoogle = endpoint.format === 'google';
     const isAnthropic = endpoint.format === 'anthropic';
@@ -660,6 +668,7 @@ export class ProviderClient {
     body: Record<string, unknown>,
     apiKey?: string,
     providerResource?: string,
+    egress?: ForwardOptions['egress'],
   ): Promise<{ endpoint: ProviderEndpoint; endpointKey: string }> {
     // Runtime Chat Completions rejects function tools next to reasoning on GPT
     // profiles, so those chat requests go to Runtime Responses instead
@@ -723,17 +732,16 @@ export class ProviderClient {
     }
     if (resolved === 'opencode-go') {
       const bareOpenCodeModel = stripVendorPrefix(model).toLowerCase();
-      if (bareOpenCodeModel.includes('musespark') || bareOpenCodeModel.includes('muse-spark')) {
-        resolved = 'opencode-go-musespark';
+      const catalogFormat = await this.resolveOpencodeGoFormat(bareOpenCodeModel);
+      if (
+        catalogFormat === 'responses' ||
+        (!catalogFormat && OPENCODE_RESPONSES_FAMILY_RE.test(bareOpenCodeModel))
+      ) {
+        resolved = 'opencode-go-responses';
       } else {
-        const catalogFormat = await this.resolveOpencodeGoFormat(bareOpenCodeModel);
-        if (catalogFormat === 'responses') {
-          resolved = 'opencode-go-responses';
-        } else {
-          const knownAnthropicFamily = this.isKnownOpencodeGoAnthropicFamily(bareOpenCodeModel);
-          if (catalogFormat === 'anthropic' || (!catalogFormat && knownAnthropicFamily)) {
-            resolved = 'opencode-go-anthropic';
-          }
+        const knownAnthropicFamily = this.isKnownOpencodeGoAnthropicFamily(bareOpenCodeModel);
+        if (catalogFormat === 'anthropic' || (!catalogFormat && knownAnthropicFamily)) {
+          resolved = 'opencode-go-anthropic';
         }
       }
     }
@@ -763,8 +771,8 @@ export class ProviderClient {
     }
     if (resolved === 'opencode-zen') {
       const bareOpenCodeModel = stripVendorPrefix(model).toLowerCase();
-      if (bareOpenCodeModel.includes('musespark') || bareOpenCodeModel.includes('muse-spark')) {
-        resolved = 'opencode-zen-musespark';
+      if (OPENCODE_RESPONSES_FAMILY_RE.test(bareOpenCodeModel)) {
+        resolved = 'opencode-zen-responses';
       } else if (bareOpenCodeModel.startsWith('gemini-')) {
         // TODO(opencode-zen): once Zen's gateway stops forwarding the client
         // Authorization header to Vertex AI, drop this branch and let Gemini
@@ -778,7 +786,12 @@ export class ProviderClient {
         resolved = 'opencode-zen-google';
       }
     }
-    return { endpoint: PROVIDER_ENDPOINTS[resolved], endpointKey: resolved };
+    const endpoint = PROVIDER_ENDPOINTS[resolved];
+    if (egress === 'us') {
+      const usEndpoint = buildUsEgressEndpoint(provider, endpoint);
+      if (usEndpoint) return { endpoint: usEndpoint, endpointKey: resolved };
+    }
+    return { endpoint, endpointKey: resolved };
   }
 
   private async resolveOpencodeGoFormat(

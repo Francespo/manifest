@@ -4,6 +4,9 @@ const BT = String.fromCharCode(96);
 const OAI = BT + 'https://opencode.ai/zen/go/v1/chat/completions' + BT;
 const ANT = BT + 'https://opencode.ai/zen/go/v1/messages' + BT;
 const RESP = BT + 'https://opencode.ai/zen/go/v1/responses' + BT;
+const INF_OAI = BT + 'https://opencode.ai/inference/go/openai/v1/chat/completions' + BT;
+const INF_ANT = BT + 'https://opencode.ai/inference/go/anthropic/v1/messages' + BT;
+const INF_RESP = BT + 'https://opencode.ai/inference/go/openai/v1/responses' + BT;
 const OAI_SDK = BT + '@ai-sdk/openai-compatible' + BT;
 const ANT_SDK = BT + '@ai-sdk/anthropic' + BT;
 const RESP_SDK = BT + '@ai-sdk/openai' + BT;
@@ -107,6 +110,24 @@ describe('OpencodeGoCatalogService', () => {
       expect(byId['minimax-m2.5']).toBe('anthropic');
       expect(byId['minimax-m2.7']).toBe('anthropic');
       expect(byId['muse-spark-1.2-contributor']).toBe('responses');
+    });
+
+    it('parses the new /inference/go endpoint table used by the current docs', () => {
+      const moved = [
+        '## Endpoints',
+        '',
+        '| Model        | Model ID     | Endpoint                                         | AI SDK Package              |',
+        '| ------------ | ------------ | ------------------------------------------------ | --------------------------- |',
+        `| Crouton Alpha Free | crouton-alpha-free | ${INF_RESP} | ${RESP_SDK} |`,
+        `| GLM-5.3      | glm-5.3      | ${INF_OAI} | ${OAI_SDK} |`,
+        `| Qwen3.8 Max  | qwen3.8-max  | ${INF_ANT} | ${ANT_SDK} |`,
+        '',
+      ].join('\n');
+      const entries = service.parse(moved);
+      const byId = Object.fromEntries(entries.map((e) => [e.id, e.format]));
+      expect(byId['crouton-alpha-free']).toBe('responses');
+      expect(byId['glm-5.3']).toBe('openai');
+      expect(byId['qwen3.8-max']).toBe('anthropic');
     });
 
     it('never matches the header row (uppercase model ID column fails regex)', () => {

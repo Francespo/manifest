@@ -6,8 +6,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * request up by (tenant_id, audio_task_id) and reads the transcript back
  * from `audio_result` — Groq does not retain transcripts for polling.
  */
-export class AddRequestAudioTask1803400000000 implements MigrationInterface {
-  name = 'AddRequestAudioTask1803400000000';
+export class AddRequestAudioTask1803500000000 implements MigrationInterface {
+  name = 'AddRequestAudioTask1803500000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await this.withBoundedLockWait(queryRunner, async () => {
