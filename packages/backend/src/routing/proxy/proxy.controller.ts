@@ -132,7 +132,13 @@ function servesOutput(
   return modalities.includes(filter);
 }
 
-@Controller('v1')
+/**
+ * Both the default surface and the scoped catalogs are served by the SAME
+ * controller: Nest mounts every route under both prefixes, so no handler is
+ * duplicated and no controller has to be injected into another controller.
+ * `@Param('variant')` is only present on the scoped prefix.
+ */
+@Controller(['v1', 'catalog/:variant/v1'])
 @Public()
 @UseGuards(AgentKeyAuthGuard)
 @UseFilters(ProxyExceptionFilter)
@@ -198,10 +204,12 @@ export class ProxyController {
     @Query('route_metadata') routeMetadata?: string,
     @Query('output') output?: string,
     @Query('classifiers') classifiers?: string,
+    @Param('variant') variant?: string,
   ): Promise<OpenAiModelList> {
     const data = await this.listModelEntries(
       req.ingestionContext,
       this.modelListOptions(capabilities, cost, routeMetadata, classifiers, output),
+      variant ? this.parseVariant(variant) : undefined,
     );
     return { object: 'list', data };
   }
@@ -220,95 +228,19 @@ export class ProxyController {
     @Query('cost') cost?: string,
     @Query('route_metadata') routeMetadata?: string,
     @Query('classifiers') classifiers?: string,
+    @Param('variant') variant?: string,
   ): Promise<OpenAiModelObject> {
     const id = Array.isArray(splat) ? splat.join('/') : (splat ?? '');
     const data = await this.listModelEntries(
       req.ingestionContext,
       this.modelListOptions(capabilities, cost, routeMetadata, classifiers),
+      variant ? this.parseVariant(variant) : undefined,
     );
     const entry = data.find((model) => model.id === id);
     if (!entry) {
       throw new NotFoundException(`Model "${id}" is not available for this agent.`);
     }
     return entry;
-  }
-
-  /* ── Scoped catalogs ───────────────────────────────────────────────────────
-   * Legacy-compatible surface under /v1/catalog/:variant; the client-facing
-   * one is CatalogProxyController at /catalog/:variant/v1. Both delegate here.
-   * Only the model list is scoped; the other handlers are the very same
-   * methods the default routes call.
-   */
-
-  @Get('catalog/:variant/models')
-  async catalogModels(
-    @Req() req: Request & { ingestionContext: IngestionContext },
-    @Param('variant') variant: string,
-    @Query('capabilities') capabilities?: string,
-    @Query('cost') cost?: string,
-    @Query('route_metadata') routeMetadata?: string,
-    @Query('output') output?: string,
-    @Query('classifiers') classifiers?: string,
-  ): Promise<OpenAiModelList> {
-    const data = await this.listModelEntries(
-      req.ingestionContext,
-      this.modelListOptions(capabilities, cost, routeMetadata, classifiers, output),
-      this.parseVariant(variant),
-    );
-    return { object: 'list', data };
-  }
-
-  @Get('catalog/:variant/models/*splat')
-  async catalogModel(
-    @Req() req: Request & { ingestionContext: IngestionContext },
-    @Param('variant') variant: string,
-    @Param('splat') splat: string | string[] | undefined,
-    @Query('capabilities') capabilities?: string,
-    @Query('cost') cost?: string,
-    @Query('route_metadata') routeMetadata?: string,
-    @Query('classifiers') classifiers?: string,
-  ): Promise<OpenAiModelObject> {
-    const id = Array.isArray(splat) ? splat.join('/') : (splat ?? '');
-    const data = await this.listModelEntries(
-      req.ingestionContext,
-      this.modelListOptions(capabilities, cost, routeMetadata, classifiers),
-      this.parseVariant(variant),
-    );
-    const entry = data.find((model) => model.id === id);
-    if (!entry) {
-      throw new NotFoundException(`Model "${id}" is not available in this catalog.`);
-    }
-    return entry;
-  }
-
-  @Post('catalog/:variant/chat/completions')
-  async catalogChatCompletions(
-    @Req() req: Request & { ingestionContext: IngestionContext },
-    @Res() res: ExpressResponse,
-    @Param('variant') variant: string,
-  ): Promise<void> {
-    this.parseVariant(variant);
-    return this.handleProxyRequest(req, res, 'chat_completions');
-  }
-
-  @Post('catalog/:variant/responses')
-  async catalogResponses(
-    @Req() req: Request & { ingestionContext: IngestionContext },
-    @Res() res: ExpressResponse,
-    @Param('variant') variant: string,
-  ): Promise<void> {
-    this.parseVariant(variant);
-    return this.handleProxyRequest(req, res, 'responses');
-  }
-
-  @Post('catalog/:variant/messages')
-  async catalogMessages(
-    @Req() req: Request & { ingestionContext: IngestionContext },
-    @Res() res: ExpressResponse,
-    @Param('variant') variant: string,
-  ): Promise<void> {
-    this.parseVariant(variant);
-    return this.handleProxyRequest(req, res, 'messages');
   }
 
   /**
@@ -499,7 +431,9 @@ export class ProxyController {
   async chatCompletions(
     @Req() req: Request & { ingestionContext: IngestionContext },
     @Res() res: ExpressResponse,
+    @Param('variant') variant?: string,
   ): Promise<void> {
+    if (variant) this.parseVariant(variant);
     await this.handleProxyRequest(req, res, 'chat_completions');
   }
 
@@ -507,7 +441,9 @@ export class ProxyController {
   async responses(
     @Req() req: Request & { ingestionContext: IngestionContext },
     @Res() res: ExpressResponse,
+    @Param('variant') variant?: string,
   ): Promise<void> {
+    if (variant) this.parseVariant(variant);
     await this.handleProxyRequest(req, res, 'responses');
   }
 
@@ -515,7 +451,9 @@ export class ProxyController {
   async messages(
     @Req() req: Request & { ingestionContext: IngestionContext },
     @Res() res: ExpressResponse,
+    @Param('variant') variant?: string,
   ): Promise<void> {
+    if (variant) this.parseVariant(variant);
     await this.handleProxyRequest(req, res, 'messages');
   }
 

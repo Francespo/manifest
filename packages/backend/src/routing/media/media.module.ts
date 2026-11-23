@@ -10,7 +10,6 @@ import { ProxyModule } from '../proxy/proxy.module';
 import { ResolveModule } from '../resolve/resolve.module';
 import { RoutingCoreModule } from '../routing-core/routing-core.module';
 import { MediaController } from './media.controller';
-import { CatalogMediaController } from './catalog-media.controller';
 import { MediaProviderClient } from './media-provider-client';
 import { MediaService } from './media.service';
 
@@ -30,7 +29,7 @@ import { MediaService } from './media.service';
     // same requests/agent_messages tables.
     ProxyModule,
   ],
-  controllers: [MediaController, CatalogMediaController],
+  controllers: [MediaController],
   providers: [MediaService, MediaProviderClient],
   exports: [MediaService],
 })

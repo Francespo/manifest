@@ -5115,7 +5115,15 @@ describe('ProxyController', () => {
     });
 
     const ids = async (variant: string): Promise<string[]> => {
-      const result = await controller.catalogModels(mockRequest({}) as never, variant);
+      const result = await controller.models(
+        mockRequest({}) as never,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        variant,
+      );
       return result.data.map((entry) => entry.id);
     };
 
@@ -5161,9 +5169,17 @@ describe('ProxyController', () => {
     });
 
     it('rejects an unknown catalog name', async () => {
-      await expect(controller.catalogModels(mockRequest({}) as never, 'nope')).rejects.toThrow(
-        /Unknown model catalog/,
-      );
+      await expect(
+        controller.models(
+          mockRequest({}) as never,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'nope',
+        ),
+      ).rejects.toThrow(/Unknown model catalog/);
     });
   });
 });
