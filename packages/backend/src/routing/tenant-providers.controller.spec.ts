@@ -53,6 +53,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -87,6 +89,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -107,6 +111,8 @@ describe('TenantProvidersController', () => {
       providerRepo as never,
       { getAll: jest.fn().mockReturnValue([]) } as never,
       { list: jest.fn().mockResolvedValue([]) } as never,
+      {} as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -138,6 +144,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -152,6 +160,8 @@ describe('TenantProvidersController', () => {
       providerRepo as never,
       { getAll: jest.fn().mockReturnValue([]) } as never,
       customProviderService as never,
+      {} as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -197,6 +207,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -229,6 +241,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -247,6 +261,8 @@ describe('TenantProvidersController', () => {
       providerRepo as never,
       { getAll: jest.fn().mockReturnValue([]) } as never,
       { list: jest.fn().mockResolvedValue([]) } as never,
+      {} as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -277,6 +293,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -297,6 +315,8 @@ describe('TenantProvidersController', () => {
       providerRepo as never,
       { getAll: jest.fn().mockReturnValue([]) } as never,
       customProviderService as never,
+      {} as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -329,6 +349,8 @@ describe('TenantProvidersController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const result = await controller.listProviders(ctx);
@@ -356,10 +378,24 @@ describe('TenantProvidersController mutations (no harness required)', () => {
         label: 'Renamed',
         priority: 0,
       }),
+      changeKey: jest.fn().mockResolvedValue({
+        id: 'p1',
+        provider: 'openai',
+        auth_type: 'api_key',
+        label: 'Default',
+        key_prefix: 'sk-newkey',
+        region: null,
+        is_active: true,
+      }),
       listOwnedAgentIds: jest.fn().mockResolvedValue(['agent-a', 'agent-b']),
     };
-    const discoveryService = { discoverAllForAgent: jest.fn().mockResolvedValue(undefined) };
+    const discoveryService = {
+      discoverAllForAgent: jest.fn().mockResolvedValue(undefined),
+      discoverModels: jest.fn().mockResolvedValue([]),
+    };
     const routingCache = { invalidateAgent: jest.fn(), invalidateTenant: jest.fn() };
+    const modelEgress = {};
+    const usEgress = {};
     const cacheManager = { clear: jest.fn().mockResolvedValue(undefined) };
     const controller = new TenantProvidersController(
       {} as never,
@@ -368,6 +404,8 @@ describe('TenantProvidersController mutations (no harness required)', () => {
       providerService as never,
       discoveryService as never,
       routingCache as never,
+      modelEgress as never,
+      usEgress as never,
       cacheManager as never,
     );
     return { controller, providerService, discoveryService, routingCache, cacheManager };
@@ -449,6 +487,78 @@ describe('TenantProvidersController mutations (no harness required)', () => {
     );
   });
 
+  it('changes a connection key in place at tenant scope', async () => {
+    const { controller, providerService, discoveryService, routingCache } = setup();
+
+    const result = await controller.updateProviderKey(
+      ctx,
+      { provider: 'openai', label: 'Default' },
+      { apiKey: 'sk-newkey-123' },
+    );
+
+    expect(providerService.changeKey).toHaveBeenCalledWith(
+      'tenant-1',
+      'openai',
+      'api_key',
+      'Default',
+      'sk-newkey-123',
+      undefined,
+    );
+    expectTenantInvalidated(routingCache);
+    expect(discoveryService.discoverModels).toHaveBeenCalled();
+    // The raw credential is never echoed back to the dashboard.
+    expect(result).toEqual({
+      id: 'p1',
+      provider: 'openai',
+      auth_type: 'api_key',
+      label: 'Default',
+      key_prefix: 'sk-newkey',
+      region: null,
+      is_active: true,
+    });
+    expect(JSON.stringify(result)).not.toContain('sk-newkey-123');
+  });
+
+  it('passes an explicit subscription authType and region through on key change', async () => {
+    const { controller, providerService } = setup();
+
+    await controller.updateProviderKey(
+      ctx,
+      { provider: 'anthropic', label: 'Work' },
+      { apiKey: 'token', authType: 'subscription', region: 'us' },
+    );
+
+    expect(providerService.changeKey).toHaveBeenCalledWith(
+      'tenant-1',
+      'anthropic',
+      'subscription',
+      'Work',
+      'token',
+      'us',
+    );
+  });
+
+  it('does not run discovery for custom providers on key change', async () => {
+    const { controller, providerService, discoveryService } = setup();
+    providerService.changeKey.mockResolvedValueOnce({
+      id: 'p2',
+      provider: 'custom:cp-1',
+      auth_type: 'api_key',
+      label: 'Default',
+      key_prefix: 'cust',
+      region: null,
+      is_active: true,
+    });
+
+    await controller.updateProviderKey(
+      ctx,
+      { provider: 'custom:cp-1', label: 'Default' },
+      { apiKey: 'custom-key' },
+    );
+
+    expect(discoveryService.discoverModels).not.toHaveBeenCalled();
+  });
+
   it('refreshes every connection for the tenant', async () => {
     const { controller, discoveryService, routingCache } = setup();
 
@@ -472,8 +582,135 @@ describe('TenantProvidersController mutations (no harness required)', () => {
     await expect(
       controller.renameProviderKey(noTenant, { provider: 'openai', label: 'a' }, { newLabel: 'b' }),
     ).rejects.toThrow('Provider not found');
+    await expect(
+      controller.updateProviderKey(
+        noTenant,
+        { provider: 'openai', label: 'a' },
+        { apiKey: 'new-key' },
+      ),
+    ).rejects.toThrow('Provider not found');
     expect(providerService.removeProvider).not.toHaveBeenCalled();
     expect(providerService.renameKey).not.toHaveBeenCalled();
+    expect(providerService.changeKey).not.toHaveBeenCalled();
     expect(discoveryService.discoverAllForAgent).not.toHaveBeenCalled();
+  });
+});
+
+describe('TenantProvidersController model egress', () => {
+  const ctx: TenantContext = { tenantId: 'tenant-1', userId: 'user-1' };
+  const cached = [
+    {
+      id: 'opencode-go/crouton-alpha-free',
+      displayName: 'Crouton Alpha Free',
+      provider: 'opencode-go',
+      contextWindow: 128000,
+      inputPricePerToken: 0,
+      outputPricePerToken: 0,
+      capabilityReasoning: true,
+      capabilityCode: true,
+      qualityScore: 3,
+    },
+  ];
+
+  const setup = () => {
+    const providerRepo = {
+      find: jest.fn().mockResolvedValue([{ cached_models: cached, is_active: true }]),
+    };
+    const modelEgress = {
+      overview: jest.fn().mockResolvedValue([
+        {
+          model: 'opencode-go/crouton-alpha-free',
+          display_name: 'Crouton Alpha Free',
+          egress: 'us',
+          explicit: false,
+        },
+      ]),
+      set: jest.fn().mockResolvedValue('direct'),
+    };
+    const usEgress = {
+      health: jest.fn().mockResolvedValue({
+        configured: true,
+        reachable: true,
+        status: 'ok',
+        target: 'https://opencode.ai/zen/go',
+        latency_ms: 5,
+      }),
+    };
+    const controller = new TenantProvidersController(
+      providerRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      modelEgress as never,
+      usEgress as never,
+      {} as never,
+    );
+    return { controller, providerRepo, modelEgress, usEgress };
+  };
+
+  it('lists cached models with their effective egress', async () => {
+    const { controller, providerRepo, modelEgress } = setup();
+
+    const result = await controller.listProviderModels(
+      ctx,
+      { provider: 'opencode-go' },
+      { authType: 'subscription' },
+    );
+
+    expect(providerRepo.find).toHaveBeenCalledWith({
+      where: {
+        tenant_id: 'tenant-1',
+        provider: 'opencode-go',
+        auth_type: 'subscription',
+        is_active: true,
+      },
+    });
+    expect(modelEgress.overview).toHaveBeenCalledWith(
+      'tenant-1',
+      'opencode-go',
+      'subscription',
+      cached,
+    );
+    expect(result.supports_us_egress).toBe(true);
+    expect(result.models[0].egress).toBe('us');
+  });
+
+  it('writes a model policy', async () => {
+    const { controller, modelEgress } = setup();
+
+    const result = await controller.updateModelEgress(
+      ctx,
+      { provider: 'opencode-go' },
+      {
+        model: 'opencode-go/crouton-alpha-free',
+        egress: 'direct',
+        authType: 'subscription',
+      },
+    );
+
+    expect(modelEgress.set).toHaveBeenCalledWith(
+      'tenant-1',
+      'opencode-go',
+      'subscription',
+      'opencode-go/crouton-alpha-free',
+      'direct',
+    );
+    expect(result).toEqual({
+      provider: 'opencode-go',
+      auth_type: 'subscription',
+      model: 'opencode-go/crouton-alpha-free',
+      egress: 'direct',
+    });
+  });
+
+  it('probes the gateway health', async () => {
+    const { controller, usEgress } = setup();
+
+    const result = await controller.usEgressHealth(ctx);
+
+    expect(usEgress.health).toHaveBeenCalled();
+    expect(result.reachable).toBe(true);
   });
 });

@@ -48,16 +48,21 @@ const SUBSCRIPTION_IDENTITY_BLOCK: ContentBlock = {
   text: "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
 };
 
-function safeParseArgs(args: string | undefined): unknown {
-  try {
-    return JSON.parse(args || '{}');
-  } catch {
-    return {};
-  }
-}
-
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function safeParseArgs(args: string | undefined): Record<string, unknown> {
+  try {
+    // JSON.parse('null') and JSON.parse('[]') succeed, but Anthropic
+    // tool_use.input must be an object. A no-arg tool echoed as the string
+    // "null" would otherwise be forwarded as input: null and rejected.
+    const parsed: unknown = JSON.parse(args || '{}');
+    if (isObjectRecord(parsed)) return parsed;
+  } catch {
+    // Malformed arguments are an empty object, same as a missing payload.
+  }
+  return {};
 }
 
 /**
@@ -302,14 +307,22 @@ function convertMessage(
   if (msg.role === 'system' || msg.role === 'developer') return null;
 
   if (msg.role === 'tool') {
-    const text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content ?? '');
+    // Content parts map onto tool_result content blocks. Stringifying them
+    // would hand the model the JSON wrapper instead of the tool output.
+    const blocks = Array.isArray(msg.content) ? toContentBlocks(msg.content, true) : [];
+    const content =
+      blocks.length > 0
+        ? blocks
+        : typeof msg.content === 'string'
+          ? msg.content
+          : JSON.stringify(msg.content ?? '');
     return {
       role: 'user',
       content: [
         {
           type: 'tool_result',
           tool_use_id: (msg.tool_call_id as string) || 'unknown',
-          content: text,
+          content,
         },
       ],
     };
@@ -741,8 +754,14 @@ function mapStopReason(reason: string | undefined): string {
   const map: Record<string, string> = {
     end_turn: 'stop',
     max_tokens: 'length',
+    // The reply hit the model's context window rather than max_tokens; it is
+    // still cut short, so chat clients should see it as truncated.
+    model_context_window_exceeded: 'length',
     tool_use: 'tool_calls',
     stop_sequence: 'stop',
+    // Claude's safety classifiers ended the reply; chat_completions reports a
+    // policy stop as content_filter, not as a finished turn.
+    refusal: 'content_filter',
   };
   return map[reason] ?? 'stop';
 }
@@ -762,11 +781,15 @@ export function fromAnthropicResponse(
 ): Record<string, unknown> & { _extractedThinkingBlocks?: ExtractedThinkingBlocks } {
   const content = (resp.content as Array<Record<string, unknown>>) || [];
   let textContent = '';
+  let reasoningContent = '';
   const toolCalls: Record<string, unknown>[] = [];
   const thinkingBlocks: ThinkingBlock[] = [];
 
   for (const block of content) {
     if (block.type === 'text' && typeof block.text === 'string') textContent += block.text;
+    if (block.type === 'thinking' && typeof block.thinking === 'string') {
+      reasoningContent += block.thinking;
+    }
     if (block.type === 'thinking' || block.type === 'redacted_thinking') {
       // Pass blocks through unmodified — Anthropic signs them and the
       // signature becomes invalid if any field is altered or dropped.
@@ -782,6 +805,7 @@ export function fromAnthropicResponse(
   }
 
   const message: Record<string, unknown> = { role: 'assistant', content: textContent || null };
+  if (reasoningContent) message.reasoning_content = reasoningContent;
   if (toolCalls.length > 0) message.tool_calls = toolCalls;
 
   const usage = resp.usage as Record<string, number> | undefined;
@@ -970,7 +994,9 @@ function handleContentBlockDelta(state: StreamState, data: Record<string, unknow
     if (existing) {
       existing.thinking = ((existing.thinking as string) || '') + delta.thinking;
     }
-    return null;
+    return delta.thinking
+      ? makeChunkSse(state.model, { reasoning_content: delta.thinking }, null)
+      : null;
   }
   if (delta.type === 'signature_delta' && typeof delta.signature === 'string') {
     const existing = state.thinkingBlocksByIndex.get(blockIndex);

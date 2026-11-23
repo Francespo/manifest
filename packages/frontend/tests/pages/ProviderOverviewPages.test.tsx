@@ -15,10 +15,12 @@ const apiMocks = vi.hoisted(() => ({
   getGlobalProviderUsage: vi.fn(),
   disconnectConnection: vi.fn(),
   renameConnection: vi.fn(),
+  updateConnectionKey: vi.fn(),
   refreshConnectionModels: vi.fn(),
   fetchMutate: vi.fn(),
   getOverview: vi.fn(),
-  getOverviewDetails: vi.fn(),
+  getModelUsage: vi.fn(),
+  getRecentRequests: vi.fn(),
   getOverviewAgentUsage: vi.fn(),
   getOverviewProviderUsage: vi.fn(),
   getBillingStatus: vi.fn(),
@@ -63,6 +65,7 @@ vi.mock('../../src/services/api.js', async () => {
     getCustomProviders: (...args: unknown[]) => apiMocks.getCustomProviders(...args),
     getGlobalProviders: (...args: unknown[]) => apiMocks.getGlobalProviders(...args),
     getGlobalProviderUsage: (...args: unknown[]) => apiMocks.getGlobalProviderUsage(...args),
+    getRecentRequests: (...args: unknown[]) => apiMocks.getRecentRequests(...args),
     // Real merge so the page's config+usage join stays under test.
     mergeUsage: providers.mergeUsage,
   };
@@ -71,6 +74,7 @@ vi.mock('../../src/services/api.js', async () => {
 vi.mock('../../src/services/api/routing.js', () => ({
   disconnectConnection: (...args: unknown[]) => apiMocks.disconnectConnection(...args),
   renameConnection: (...args: unknown[]) => apiMocks.renameConnection(...args),
+  updateConnectionKey: (...args: unknown[]) => apiMocks.updateConnectionKey(...args),
   refreshConnectionModels: (...args: unknown[]) => apiMocks.refreshConnectionModels(...args),
 }));
 
@@ -96,7 +100,7 @@ vi.mock('../../src/services/api/analytics.js', () => ({
   attemptSuccessRate: (row: { attempts: number; succeeded?: number }) =>
     !row.attempts || row.succeeded == null ? null : row.succeeded / row.attempts,
   getOverview: (...args: unknown[]) => apiMocks.getOverview(...args),
-  getOverviewDetails: (...args: unknown[]) => apiMocks.getOverviewDetails(...args),
+  getModelUsage: (...args: unknown[]) => apiMocks.getModelUsage(...args),
   getOverviewAgentUsage: (...args: unknown[]) => apiMocks.getOverviewAgentUsage(...args),
   getOverviewProviderUsage: (...args: unknown[]) => apiMocks.getOverviewProviderUsage(...args),
   getConnectionDetail: (...args: unknown[]) => apiMocks.getConnectionDetail(...args),
@@ -377,6 +381,8 @@ vi.mock('manifest-shared', () => ({
     m.startsWith('opencode-go/') ? m.slice('opencode-go/'.length) : null,
   inferProviderFromModel: (m: string) => (m.startsWith('custom:') ? 'custom' : null),
   isSuccessStatus: (s: string | null | undefined) => s == null || s === 'ok' || s === 'success',
+  // ConnectionDetail renders ModelEgressPanel only for US-egress providers.
+  supportsUsEgress: () => false,
 }));
 
 // Local providers only exist on self-hosted installs.
@@ -743,10 +749,12 @@ beforeEach(() => {
   apiMocks.getGlobalProviderUsage.mockResolvedValue(usageFrom(providersResponse));
   apiMocks.disconnectConnection.mockResolvedValue({ ok: true, notifications: [] });
   apiMocks.renameConnection.mockResolvedValue(undefined);
+  apiMocks.updateConnectionKey.mockResolvedValue({ id: 'conn-openai', key_prefix: 'sk-newkey' });
   apiMocks.refreshConnectionModels.mockResolvedValue({ ok: true });
   apiMocks.fetchMutate.mockResolvedValue({});
   apiMocks.getOverview.mockResolvedValue(overviewResponse);
-  apiMocks.getOverviewDetails.mockResolvedValue({});
+  apiMocks.getModelUsage.mockResolvedValue(overviewResponse.cost_by_model);
+  apiMocks.getRecentRequests.mockResolvedValue({ items: overviewResponse.recent_activity });
   apiMocks.getOverviewAgentUsage.mockResolvedValue(agentUsageTimeseries);
   apiMocks.getOverviewProviderUsage.mockResolvedValue(providerUsageTimeseries);
   apiMocks.getBillingStatus.mockResolvedValue({
@@ -833,6 +841,15 @@ describe('GlobalOverview (analytics)', () => {
     }
   });
 
+  it('opens the request in the Requests log from a Recent Requests row', async () => {
+    render(() => <GlobalOverview />);
+    const successCell = await screen.findByText('Success');
+
+    fireEvent.click(successCell.closest('tr')!);
+
+    expect(routerState.navigate).toHaveBeenCalledWith('/messages?request=msg-recent-1');
+  });
+
   it('navigates to harness and connection detail on row click', async () => {
     render(() => <GlobalOverview />);
     await waitFor(() => expect(screen.getByTestId('provider-chart-card')).toBeDefined());
@@ -888,20 +905,17 @@ describe('GlobalOverview (analytics)', () => {
     });
     // A custom model with no display_name must render its stripped name, not
     // the raw custom:<uuid>/ slug.
-    apiMocks.getOverview.mockResolvedValue({
-      ...overviewResponse,
-      cost_by_model: [
-        {
-          model: 'custom:cp-1/qwen-2.5',
-          display_name: null,
-          tokens: 300,
-          share_pct: 25,
-          estimated_cost: 0.1,
-          auth_type: 'api_key',
-          provider: 'custom:cp-1',
-        },
-      ],
-    });
+    apiMocks.getModelUsage.mockResolvedValue([
+      {
+        model: 'custom:cp-1/qwen-2.5',
+        display_name: null,
+        tokens: 300,
+        share_pct: 25,
+        estimated_cost: 0.1,
+        auth_type: 'api_key',
+        provider: 'custom:cp-1',
+      },
+    ]);
 
     render(() => <GlobalOverview />);
     await waitFor(() => expect(screen.getByTestId('provider-chart-card')).toBeDefined());
@@ -1570,6 +1584,83 @@ describe('ConnectionDetail (analytics)', () => {
       ),
     );
     expect(toastMock.success).toHaveBeenCalledWith('Connection renamed');
+  });
+
+  it('changes the API key in place without deleting the connection', async () => {
+    render(() => <ConnectionDetail />);
+    await openManageModal();
+
+    const input = screen.getByLabelText('API key') as HTMLInputElement;
+    fireEvent.input(input, { target: { value: 'sk-rotated-999' } });
+    fireEvent.click(screen.getByText('Change key'));
+
+    await waitFor(() =>
+      expect(apiMocks.updateConnectionKey).toHaveBeenCalledWith(
+        'openai',
+        'Default',
+        'sk-rotated-999',
+        'api_key',
+      ),
+    );
+    expect(toastMock.success).toHaveBeenCalledWith('API key updated');
+    // The detail is refetched so the new prefix shows immediately.
+    expect(apiMocks.getConnectionDetail.mock.calls.length).toBeGreaterThan(1);
+    // The manage modal stays open and the connection is not navigated away.
+    expect(screen.getByText('Connection name')).toBeDefined();
+    expect(routerState.navigate).not.toHaveBeenCalled();
+  });
+
+  it('shows an inline error when changing the key fails', async () => {
+    apiMocks.updateConnectionKey.mockRejectedValueOnce(new Error('invalid key'));
+    render(() => <ConnectionDetail />);
+    await openManageModal();
+
+    fireEvent.input(screen.getByLabelText('API key'), { target: { value: 'bad' } });
+    fireEvent.click(screen.getByText('Change key'));
+
+    await waitFor(() => expect(screen.getByText('invalid key')).toBeDefined());
+    expect(toastMock.success).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty key without calling the API', async () => {
+    render(() => <ConnectionDetail />);
+    await openManageModal();
+
+    // The button is disabled for a blank key, so submit via Enter to exercise
+    // the handler's own guard.
+    fireEvent.input(screen.getByLabelText('API key'), { target: { value: '   ' } });
+    fireEvent.keyDown(screen.getByLabelText('API key'), { key: 'Enter' });
+
+    await waitFor(() => expect(screen.getByText('Enter the new key')).toBeDefined());
+    expect(apiMocks.updateConnectionKey).not.toHaveBeenCalled();
+  });
+
+  it('rotates a subscription token with its own auth type', async () => {
+    apiMocks.getConnectionDetail.mockResolvedValueOnce({
+      ...connectionDetail,
+      connection: {
+        ...connectionDetail.connection,
+        provider: 'anthropic',
+        auth_type: 'subscription',
+      },
+    });
+    render(() => <ConnectionDetail />);
+    await openManageModal();
+
+    fireEvent.input(screen.getByLabelText('Subscription token'), {
+      target: { value: 'new-token' },
+    });
+    fireEvent.click(screen.getByText('Change key'));
+
+    await waitFor(() =>
+      expect(apiMocks.updateConnectionKey).toHaveBeenCalledWith(
+        'anthropic',
+        'Default',
+        'new-token',
+        'subscription',
+      ),
+    );
+    expect(toastMock.success).toHaveBeenCalledWith('Token updated');
   });
 
   it('disconnects a connection and navigates back on success', async () => {

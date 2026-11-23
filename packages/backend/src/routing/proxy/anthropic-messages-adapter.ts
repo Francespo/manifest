@@ -5,6 +5,7 @@
  * for the OpenAI Responses API.
  */
 import { randomUUID } from 'crypto';
+import { resolveToolCallIndex } from 'manifest-shared';
 
 import { OpenAIMessage } from './proxy-types';
 
@@ -322,7 +323,13 @@ const STOP_REASON_MAP: Record<string, string> = {
   content_filter: 'refusal',
 };
 
-function toAnthropicStopReason(finishReason: unknown): string {
+function toAnthropicStopReason(finishReason: unknown, hasToolCalls: boolean): string {
+  // Some OpenAI-compatible providers finish a tool-calling turn with
+  // `stop` (or no reason at all); the client must still see `tool_use`
+  // or it treats the turn as finished and never runs the tools.
+  if (hasToolCalls && (finishReason === 'stop' || typeof finishReason !== 'string')) {
+    return 'tool_use';
+  }
   if (typeof finishReason !== 'string') return 'end_turn';
   return STOP_REASON_MAP[finishReason] ?? 'end_turn';
 }
@@ -418,7 +425,10 @@ export function chatCompletionsResponseToMessages(body: JsonRecord, model: strin
     }
   }
 
-  const stopReason = toAnthropicStopReason(firstChoice.finish_reason);
+  const stopReason = toAnthropicStopReason(
+    firstChoice.finish_reason,
+    content.some((b) => b.type === 'tool_use'),
+  );
 
   return {
     id: typeof body.id === 'string' ? body.id : `msg_${randomUUID().replace(/-/g, '')}`,
@@ -444,7 +454,12 @@ interface StreamState {
   thinkingOpened: boolean;
   textIndex: number | null;
   textOpened: boolean;
-  toolCalls: Map<number, { id: string; index: number; argBuffer: string; opened: boolean }>;
+  toolCalls: Map<
+    number,
+    { id: string; upstreamId?: string; index: number; argBuffer: string; opened: boolean }
+  >;
+  // Upstream index of the latest tool call delta, used to place deltas that carry no index.
+  latestToolCallIndex?: number;
   // Monotonic counter — block indices must keep increasing across the whole
   // stream, including across reopens of the same kind.
   nextBlockIndexCounter: number;
@@ -582,14 +597,23 @@ function transformStreamChunk(chunk: string, state: StreamState): string | null 
       closeTextBlock(state, events);
       for (const call of delta.tool_calls) {
         if (!isRecord(call)) continue;
-        const callIndex = typeof call.index === 'number' ? call.index : 0;
+        const upstreamId = typeof call.id === 'string' && call.id !== '' ? call.id : undefined;
+        const latest =
+          state.latestToolCallIndex === undefined
+            ? undefined
+            : {
+                index: state.latestToolCallIndex,
+                id: state.toolCalls.get(state.latestToolCallIndex)?.upstreamId,
+              };
+        const callIndex = resolveToolCallIndex(call, latest);
+        state.latestToolCallIndex = callIndex;
         let entry = state.toolCalls.get(callIndex);
         if (!entry) {
           entry = {
-            id:
-              typeof call.id === 'string' && call.id !== ''
-                ? sanitizeToolUseId(call.id)
-                : `toolu_${randomUUID().replace(/-/g, '')}`,
+            id: upstreamId
+              ? sanitizeToolUseId(upstreamId)
+              : `toolu_${randomUUID().replace(/-/g, '')}`,
+            upstreamId,
             index: nextBlockIndex(state),
             argBuffer: '',
             opened: false,
@@ -626,7 +650,7 @@ function transformStreamChunk(chunk: string, state: StreamState): string | null 
     }
 
     if (choice.finish_reason) {
-      state.stopReason = toAnthropicStopReason(choice.finish_reason);
+      state.stopReason = toAnthropicStopReason(choice.finish_reason, state.toolCalls.size > 0);
       if (isRecord(data.usage) && !state.finalUsage) {
         state.finalUsage = toAnthropicUsage(data.usage);
       }
@@ -741,7 +765,7 @@ function closeStream(state: StreamState): string[] {
     formatMessagesEvent('message_delta', {
       type: 'message_delta',
       delta: {
-        stop_reason: state.stopReason ?? 'end_turn',
+        stop_reason: state.stopReason ?? toAnthropicStopReason(undefined, state.toolCalls.size > 0),
         stop_sequence: null,
       },
       usage: state.finalUsage ?? toAnthropicUsage({}),

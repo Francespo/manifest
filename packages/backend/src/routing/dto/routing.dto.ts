@@ -18,9 +18,11 @@ import { Transform, Type } from 'class-transformer';
 import {
   AUTH_TYPES,
   MAX_FALLBACKS,
+  MODEL_EGRESS_SETTINGS,
   OUTPUT_MODALITIES,
   RESPONSE_MODES,
   TIER_SLOTS,
+  type ModelEgressSetting,
   type OutputModality,
   type ResponseMode,
 } from 'manifest-shared';
@@ -178,6 +180,24 @@ export class RenameProviderKeyDto {
   authType?: 'api_key' | 'subscription';
 }
 
+/** Credentials that can be replaced in place on an existing connection. */
+const KEY_AUTH_TYPES = ['api_key', 'subscription'] as const;
+
+export class UpdateProviderKeyDto {
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/\S/, { message: 'apiKey must not be blank' })
+  apiKey!: string;
+
+  @IsOptional()
+  @IsIn(KEY_AUTH_TYPES)
+  authType?: (typeof KEY_AUTH_TYPES)[number];
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+}
+
 export class ReorderProviderKeysDto {
   @IsArray()
   @ArrayMinSize(1)
@@ -325,4 +345,26 @@ export class UpdateRecordingDto {
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;
+}
+
+/** Query for the per-provider model list used by the US-egress panel. */
+export class ProviderModelsQueryDto {
+  @IsOptional()
+  @IsIn(AUTH_TYPES)
+  authType?: AuthType;
+}
+
+/** Set or clear the US-egress policy for one model. */
+export class UpdateModelEgressDto {
+  @IsOptional()
+  @IsIn(AUTH_TYPES)
+  authType?: AuthType;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  model!: string;
+
+  @IsIn(MODEL_EGRESS_SETTINGS)
+  egress!: ModelEgressSetting;
 }

@@ -6,6 +6,7 @@ import { applyRequestParamDefaults, KEY_LABEL_ROTATION } from 'manifest-shared';
 import { AgentModelParamsService } from '../routing-core/agent-model-params.service';
 import { ProviderParamSpecService } from '../routing-core/provider-param-spec.service';
 import { KeyRotationRuleService } from '../routing-core/key-rotation-rule.service';
+import { ModelEgressPolicyService } from '../routing-core/model-egress-policy.service';
 import {
   KeyRotationState,
   keyRotationStateKey,
@@ -70,6 +71,8 @@ interface ForwardProviderOptions {
    * not reach a free-tier model at all — see `opencodeZenFreeTierSkip`.
    */
   callerIsOpencode?: boolean;
+  /** Resolved outbound egress policy for this route. */
+  egress?: 'direct' | 'us';
 }
 
 import { ProviderKeyService } from '../routing-core/provider-key.service';
@@ -187,6 +190,7 @@ export class ProxyFallbackService {
     private readonly providerParamSpecs: ProviderParamSpecService,
     private readonly reasoningCache: ReasoningContentCache,
     private readonly keyRotationRules: KeyRotationRuleService,
+    private readonly modelEgress: ModelEgressPolicyService,
     private readonly autofixService: AutofixService,
   ) {}
 
@@ -1224,6 +1228,11 @@ export class ProxyFallbackService {
           ? (providerRegion ?? resourceUrl)
           : undefined;
 
+    // Resolve per-model US egress before the transport builds the request. The
+    // service short-circuits to `direct` for every provider that does not
+    // support the gateway, so this stays a no-op outside OpenCode Go/Zen.
+    const egress = await this.modelEgress.resolve(opts.tenantId, provider, authType, opts.model);
+
     const attempt = opts.startProviderAttempt?.({
       provider,
       model: opts.model,
@@ -1243,6 +1252,7 @@ export class ProxyFallbackService {
         extraHeaders,
         customEndpoint,
         authType,
+        egress,
         apiMode: opts.apiMode,
         sessionKey: opts.sessionKey,
         providerCacheKey: opts.providerCacheKey,

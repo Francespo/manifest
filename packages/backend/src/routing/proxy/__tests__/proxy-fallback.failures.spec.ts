@@ -18,6 +18,7 @@ import { ProviderParamSpecService } from '../../routing-core/provider-param-spec
 import { AutofixService } from '../../autofix/autofix.service';
 import type { StartProviderAttempt } from '../proxy-types';
 import { KeyRotationRuleService } from '../../routing-core/key-rotation-rule.service';
+import { ModelEgressPolicyService } from '../../routing-core/model-egress-policy.service';
 
 /**
  * Status-code-driven fallback chain behavior for tryFallbacks().
@@ -155,6 +156,9 @@ describe('ProxyFallbackService.tryFallbacks — failure chain by status code', (
         list: jest.fn().mockResolvedValue([]),
       } as unknown as KeyRotationRuleService,
       {
+        resolve: jest.fn().mockResolvedValue('direct'),
+      } as unknown as ModelEgressPolicyService,
+      {
         isRepairable: jest.fn().mockReturnValue(false),
         maybeHeal: jest.fn(),
       } as unknown as AutofixService,
@@ -236,7 +240,7 @@ describe('ProxyFallbackService.tryFallbacks — failure chain by status code', (
     expect(result.failures[0].providerCallStarted).toBe(false);
   });
 
-  it('advances after a fallback returns HTTP 200 with an empty completion', async () => {
+  it('treats a fallback HTTP 200 with empty content as a valid answer', async () => {
     const realClient = new ProviderClient();
     const originalFetch = global.fetch;
     const fetchMock = jest.fn(async (input: string | URL | Request) => {
@@ -289,21 +293,16 @@ describe('ProxyFallbackService.tryFallbacks — failure chain by status code', (
         'chat_completions',
       );
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      // Upstream #3128: a choice with empty content is a valid answer. The
+      // chain stops at the first successful hop instead of burning a fallback.
+      expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(result.success).toMatchObject({
-        fallbackIndex: 1,
-        provider: 'deepseek',
-        model: 'deepseek-chat',
-      });
-      expect(result.failures).toHaveLength(1);
-      expect(result.failures[0]).toMatchObject({
         fallbackIndex: 0,
         provider: 'openai',
-        status: 502,
+        model: 'gpt-4o-mini',
       });
-      expect(JSON.parse(result.failures[0].errorBody)).toMatchObject({
-        error: { code: 'empty_response' },
-      });
+      expect(result.success!.forward.response.status).toBe(200);
+      expect(result.failures).toHaveLength(0);
     } finally {
       global.fetch = originalFetch;
     }

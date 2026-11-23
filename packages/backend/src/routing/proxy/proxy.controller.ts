@@ -20,6 +20,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { v4 as uuid } from 'uuid';
 import {
   MODEL_CATALOG_VARIANTS,
+  currentMinimaxModelChoices,
   isModelCatalogVariant,
   type ModelCatalogVariant,
 } from 'manifest-shared';
@@ -81,6 +82,7 @@ import {
   type OpenAiModelObject,
 } from './openai-model-list';
 import { mediaCostProjection } from '../media/media-pricing';
+import { audioCostProjection } from '../audio/audio-pricing';
 import { buildSyntheticTierProfile } from './synthetic-model-profile';
 import {
   CLASSIFIER_MODELS,
@@ -332,7 +334,9 @@ export class ProxyController {
     // the default payload (no flags) must not pay for it. The output filter
     // needs the facts even when the caller did not ask to see them.
     const needMetadata = includeCapabilities || includeCost || filter !== undefined;
-    const models = await this.modelDiscovery.getModelsForAgent(ctx.tenantId, ctx.agentId);
+    const models = currentMinimaxModelChoices(
+      await this.modelDiscovery.getModelsForAgent(ctx.tenantId, ctx.agentId),
+    );
 
     // Scoped catalogs narrow only the discovered-model half. The `auto` marker
     // and header-tier `auto-*` models are synthetic in every variant, and the
@@ -406,8 +410,20 @@ export class ProxyController {
         if (mediaCost) {
           entry.media_cost = mediaCost;
         } else {
-          const modelCost = openAiModelCost(model.inputPricePerToken, model.outputPricePerToken);
-          if (modelCost) entry.cost = modelCost;
+          // Speech-to-text models are billed per audio minute, not per token.
+          const audioCost = audioCostProjection(model.provider, model.id);
+          if (audioCost) {
+            entry.audio_cost = {
+              unit: 'minute',
+              rates: audioCost.rates,
+              ...(audioCost.minimumBillableSeconds !== undefined
+                ? { minimum_billable_seconds: audioCost.minimumBillableSeconds }
+                : {}),
+            };
+          } else {
+            const modelCost = openAiModelCost(model.inputPricePerToken, model.outputPricePerToken);
+            if (modelCost) entry.cost = modelCost;
+          }
         }
       }
       if (filter && !servesOutput(modelCapabilities, filter)) continue;
@@ -1196,7 +1212,7 @@ export class ProxyController {
           if (typeof nested === 'string') return nested;
         }
         const code = record.code;
-        if (code === 'PLAN_LIMIT_REQUESTS') return 'Free plan monthly request limit reached';
+        if (code === 'PLAN_LIMIT_REQUESTS') return 'Manifest Cloud subscription required';
         if (typeof code === 'string') return code;
       }
     }

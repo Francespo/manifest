@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { ProviderClient } from '../provider-client';
+import { messagesToChatCompletionsRequest } from '../anthropic-messages-adapter';
 import { ManifestError } from '../../../common/errors/manifest-error';
 import { buildCustomEndpoint, buildEndpointOverride } from '../provider-endpoints';
 import { ThinkingBlockCache, type ThinkingBlockRouteContext } from '../thinking-block-cache';
@@ -107,54 +108,7 @@ describe('ProviderClient', () => {
       expect(result.isAnthropic).toBe(false);
     });
 
-    it('turns an empty non-streaming Chat Completions response into a provider failure', async () => {
-      const upstreamBody = {
-        id: 'chatcmpl-empty',
-        choices: [
-          {
-            index: 0,
-            message: { role: 'assistant', content: '', tool_calls: [] },
-            finish_reason: 'stop',
-          },
-        ],
-      };
-      mockFetch.mockResolvedValue(
-        new Response(JSON.stringify(upstreamBody), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        }),
-      );
-      const finishRecording = jest.fn().mockResolvedValue(undefined);
-
-      const result = await client.forward({
-        provider: 'openai',
-        apiKey: 'sk-test',
-        model: 'gpt-4o',
-        body,
-        stream: false,
-        apiMode: 'chat_completions',
-        attempt: {
-          id: 'attempt-empty',
-          attemptNumber: 1,
-          startedAtMs: 0,
-          startedAt: new Date(0).toISOString(),
-          pendingWrite: Promise.resolve(true),
-          finishRecording,
-        },
-      });
-
-      expect(result.response.status).toBe(502);
-      expect(finishRecording).toHaveBeenCalledWith({ type: 'json', body: upstreamBody });
-      await expect(result.response.json()).resolves.toEqual({
-        error: {
-          message: 'Upstream provider returned an empty Chat Completions response',
-          type: 'server_error',
-          code: 'empty_response',
-        },
-      });
-    });
-
-    it('turns an empty choices list into a provider failure', async () => {
+    it('turns a Chat Completions response with an empty choices list into a provider failure', async () => {
       mockFetch.mockResolvedValue(
         new Response(JSON.stringify({ choices: [] }), {
           status: 200,
@@ -173,11 +127,11 @@ describe('ProviderClient', () => {
 
       expect(result.response.status).toBe(502);
       await expect(result.response.json()).resolves.toMatchObject({
-        error: { code: 'empty_response' },
+        error: { code: 'malformed_response' },
       });
     });
 
-    it('records an empty retry response against the retry attempt', async () => {
+    it('records a choiceless retry response against the retry attempt', async () => {
       const retryBody = { choices: [] };
       mockFetch
         .mockResolvedValueOnce(
@@ -235,6 +189,8 @@ describe('ProviderClient', () => {
 
     it.each([
       ['content', { role: 'assistant', content: 'Hello' }],
+      ['empty content (#3128)', { role: 'assistant', content: null }],
+      ['empty string content', { role: 'assistant', content: '' }],
       [
         'tool call',
         {
@@ -806,6 +762,81 @@ describe('ProviderClient', () => {
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(sentBody.max_completion_tokens).toBe(512);
       expect(sentBody.max_tokens).toBeUndefined();
+    });
+
+    describe('reasoning_effort on Bedrock Runtime GPT Chat Completions', () => {
+      // Runtime applies a default reasoning effort and then rejects it next to
+      // function tools (mnfst/llm-gateway#3065).
+      const tools = [
+        {
+          type: 'function',
+          function: { name: 'get_weather', parameters: { type: 'object', properties: {} } },
+        },
+      ];
+      const sentBodyFor = async (model: string, extra: Record<string, unknown>) => {
+        mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+        await client.forward({
+          provider: 'bedrock',
+          apiKey: 'bedrock-api-key-test',
+          model,
+          body: { ...body, ...extra },
+          stream: false,
+          apiMode: 'chat_completions',
+        });
+        return JSON.parse(mockFetch.mock.calls[0][1].body);
+      };
+
+      it('sends reasoning_effort none when the caller sent none', async () => {
+        const sent = await sentBodyFor('us.openai.gpt-6-luna', { tools });
+
+        expect(sent.reasoning_effort).toBe('none');
+        expect(sent.tools).toEqual(tools);
+      });
+
+      it('sends reasoning_effort none for an Anthropic Messages request with tools', async () => {
+        mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+        const messagesBody = {
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: 'Hello' }],
+          tools: [{ name: 'get_weather', input_schema: { type: 'object', properties: {} } }],
+        };
+        await client.forward({
+          provider: 'bedrock',
+          apiKey: 'bedrock-api-key-test',
+          model: 'us.openai.gpt-6-luna',
+          body: messagesBody,
+          resolveChatBody: async () => messagesToChatCompletionsRequest(messagesBody),
+          stream: false,
+          apiMode: 'messages',
+        });
+
+        expect(mockFetch.mock.calls[0][0]).toBe(
+          'https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/chat/completions',
+        );
+        const sent = JSON.parse(mockFetch.mock.calls[0][1].body);
+        expect(sent.tools[0].type).toBe('function');
+        expect(sent.reasoning_effort).toBe('none');
+      });
+
+      // With function tools, effort high goes to Responses instead; see
+      // provider-client.bedrock-gpt-responses.spec.ts.
+      it('forwards the caller reasoning_effort', async () => {
+        const sent = await sentBodyFor('us.openai.gpt-6-luna', { reasoning_effort: 'high' });
+
+        expect(sent.reasoning_effort).toBe('high');
+      });
+
+      it('leaves reasoning_effort out when neither tools nor an effort are sent', async () => {
+        const sent = await sentBodyFor('us.openai.gpt-6-luna', {});
+
+        expect(sent.reasoning_effort).toBeUndefined();
+      });
+
+      it('leaves reasoning_effort out for Runtime models outside the GPT family', async () => {
+        const sent = await sentBodyFor('global.moonshotai.kimi-k3', { tools });
+
+        expect(sent.reasoning_effort).toBeUndefined();
+      });
     });
 
     it('keeps max_tokens for Bedrock Runtime models that accept it', async () => {
@@ -2265,7 +2296,7 @@ describe('ProviderClient', () => {
       expect(result.wireRequestBody).toEqual(JSON.parse(mockFetch.mock.calls[0][1].body));
     });
 
-    it('adds alt=sse for streaming', async () => {
+    it('streams through streamGenerateContent with alt=sse', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       await client.forward({
@@ -2277,7 +2308,9 @@ describe('ProviderClient', () => {
       });
 
       const url = mockFetch.mock.calls[0][0] as string;
-      expect(url).toContain('alt=sse');
+      expect(url).toBe(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse',
+      );
     });
 
     it('converts request body to Gemini format', async () => {
@@ -2521,7 +2554,7 @@ describe('ProviderClient', () => {
       expect(url).toContain('api.openai.com');
     });
 
-    it('rejects an HTTP 200 Codex stream that completes without output', async () => {
+    it('delivers an HTTP 200 Codex stream that completes without output (#3128)', async () => {
       mockFetch.mockResolvedValue(
         new Response('event: response.completed\ndata: {"response":{"output":[]}}\n\n', {
           status: 200,
@@ -2538,10 +2571,7 @@ describe('ProviderClient', () => {
         authType: 'subscription',
       });
 
-      expect(result.response.status).toBe(502);
-      await expect(result.response.json()).resolves.toMatchObject({
-        error: { code: 'empty_response' },
-      });
+      expect(result.response.status).toBe(200);
     });
 
     it('does not apply Codex stream qualification to API-key Responses requests', async () => {
@@ -3528,7 +3558,30 @@ describe('ProviderClient', () => {
       expect(result.isChatGpt).toBe(false);
     });
 
-    it('routes musespark models to US Hugging Face proxy with auth and x-opencode-key headers', async () => {
+    it('routes Crouton Alpha to /v1/responses even when the docs catalog is cold', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      const result = await client.forward({
+        provider: 'opencode-go',
+        apiKey: 'og-token',
+        model: 'opencode-go/crouton-alpha-free',
+        body,
+        stream: false,
+        authType: 'subscription',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://opencode.ai/zen/go/v1/responses',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer og-token' }),
+        }),
+      );
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.model).toBe('crouton-alpha-free');
+      expect(result.isChatGpt).toBe(true);
+    });
+
+    it('routes an egress=us model to the US gateway with auth and x-opencode-key headers', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       const result = await client.forward({
@@ -3538,6 +3591,7 @@ describe('ProviderClient', () => {
         body,
         stream: false,
         authType: 'subscription',
+        egress: 'us',
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -3553,6 +3607,29 @@ describe('ProviderClient', () => {
       expect(sentBody.model).toBe('muse-spark-1.2-contributor');
       expect(result.isAnthropic).toBe(false);
       expect(result.isChatGpt).toBe(true);
+    });
+
+    it('keeps egress=direct models on the OpenCode endpoint', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'opencode-go',
+        apiKey: 'og-token',
+        model: 'opencode-go/muse-spark-1.2-contributor',
+        body,
+        stream: false,
+        authType: 'subscription',
+        egress: 'direct',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://opencode.ai/zen/go/v1/responses',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer og-token',
+          }),
+        }),
+      );
     });
 
     it('routes minimax-* models to Anthropic /v1/messages', async () => {
@@ -3826,6 +3903,26 @@ describe('ProviderClient', () => {
       },
     );
 
+    it('routes Crouton Alpha to the direct /v1/responses endpoint with Bearer auth', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      const result = await client.forward({
+        provider: 'opencode-zen',
+        apiKey: 'oz-token',
+        model: 'opencode-zen/crouton-alpha-free',
+        body,
+        stream: false,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://opencode.ai/zen/v1/responses',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer oz-token' }),
+        }),
+      );
+      expect(result.isChatGpt).toBe(true);
+    });
+
     it('routes gemini-* models to the dedicated generateContent endpoint with x-goog-api-key auth', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
@@ -3848,7 +3945,7 @@ describe('ProviderClient', () => {
       expect(result.isGoogle).toBe(true);
     });
 
-    it('routes musespark models to US Hugging Face proxy with Responses format and Zen target base', async () => {
+    it('routes an egress=us Zen model to the US gateway with Responses format and target base', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       const result = await client.forward({
@@ -3857,6 +3954,7 @@ describe('ProviderClient', () => {
         model: 'opencode-zen/muse-spark-1.2-contributor-free',
         body,
         stream: false,
+        egress: 'us',
       });
 
       expect(mockFetch).toHaveBeenCalledWith(

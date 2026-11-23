@@ -97,7 +97,8 @@ const Header: Component<HeaderProps> = (props) => {
   const effectiveName = () => user()?.name ?? 'User';
   const docsUrl = () => {
     const p = location.pathname;
-    if (p.includes('/guardrails') || p.includes('/limits')) return `${DOCS_BASE_URL}/observability/`;
+    if (p.includes('/guardrails') || p.includes('/limits'))
+      return `${DOCS_BASE_URL}/observability/`;
     if (p.includes('/routing')) return `${DOCS_BASE_URL}/llm-gateway/`;
     if (p.startsWith('/providers/subscriptions')) {
       return `${DOCS_BASE_URL}/providers/subscription-based-providers/`;

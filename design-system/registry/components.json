@@ -513,31 +513,6 @@
         "routing-providers.css"
       ]
     },
-    "api-bot-banner": {
-      "classes": [
-        "api-bot-banner",
-        "api-bot-banner__text"
-      ],
-      "files": [
-        "api-bot.css"
-      ]
-    },
-    "api-bot-btn": {
-      "classes": [
-        "api-bot-btn"
-      ],
-      "files": [
-        "api-bot.css"
-      ]
-    },
-    "api-bot-close": {
-      "classes": [
-        "api-bot-close"
-      ],
-      "files": [
-        "api-bot.css"
-      ]
-    },
     "api-key-display": {
       "classes": [
         "api-key-display__code",
@@ -1200,14 +1175,6 @@
       ],
       "files": [
         "discovery.css"
-      ]
-    },
-    "dither-ground": {
-      "classes": [
-        "dither-ground"
-      ],
-      "files": [
-        "api-bot.css"
       ]
     },
     "drag-ghost": {
@@ -2337,6 +2304,36 @@
         "agents.css"
       ]
     },
+    "model-egress": {
+      "classes": [
+        "model-egress__auto",
+        "model-egress__control",
+        "model-egress__count",
+        "model-egress__empty",
+        "model-egress__footnote",
+        "model-egress__header",
+        "model-egress__health",
+        "model-egress__health--checking",
+        "model-egress__health--offline",
+        "model-egress__health--online",
+        "model-egress__health--unconfigured",
+        "model-egress__health-dot",
+        "model-egress__list",
+        "model-egress__model",
+        "model-egress__model-id",
+        "model-egress__model-name",
+        "model-egress__notice",
+        "model-egress__row",
+        "model-egress__search",
+        "model-egress__subtitle",
+        "model-egress__toolbar",
+        "model-egress__value",
+        "model-egress__value--us"
+      ],
+      "files": [
+        "connection-detail.css"
+      ]
+    },
     "model-filter": {
       "classes": [
         "model-filter",
@@ -2685,6 +2682,14 @@
         "theme.css",
         "welcome.css",
         "wizard.css"
+      ]
+    },
+    "plan-banners": {
+      "classes": [
+        "plan-banners"
+      ],
+      "files": [
+        "modals.css"
       ]
     },
     "plan-picker": {
@@ -3291,6 +3296,7 @@
         "routing-card__desc",
         "routing-card__disabled-desc",
         "routing-card__disabled-text",
+        "routing-card__egress-tag",
         "routing-card__empty",
         "routing-card__empty-link",
         "routing-card__empty-text",
@@ -3395,6 +3401,7 @@
         "routing-modal__cap-pill",
         "routing-modal__cap-pill--active",
         "routing-modal__card",
+        "routing-modal__egress-tag",
         "routing-modal__empty",
         "routing-modal__filter-bar",
         "routing-modal__filter-check",
@@ -3630,6 +3637,19 @@
         "controls.css",
         "routing-key-order.css",
         "theme.css"
+      ]
+    },
+    "services-modal": {
+      "classes": [
+        "services-modal",
+        "services-modal__contact",
+        "services-modal__list",
+        "services-modal__offer",
+        "services-modal__sent",
+        "services-modal__textarea"
+      ],
+      "files": [
+        "modals.css"
       ]
     },
     "settings-card": {
@@ -3870,16 +3890,12 @@
         "theme.css"
       ]
     },
-    "sidebar-api-bot": {
+    "sidebar-services": {
       "classes": [
-        "sidebar-api-bot",
-        "sidebar-api-bot__close",
-        "sidebar-api-bot__image",
-        "sidebar-api-bot__text",
-        "sidebar-api-bot__title"
+        "sidebar-services"
       ],
       "files": [
-        "api-bot.css"
+        "modals.css"
       ]
     },
     "sidebar-upgrade": {
@@ -4042,6 +4058,19 @@
       ],
       "files": [
         "routing-providers.css"
+      ]
+    },
+    "subscription-required-modal": {
+      "classes": [
+        "subscription-required-modal",
+        "subscription-required-modal__actions",
+        "subscription-required-modal__body",
+        "subscription-required-modal__later",
+        "subscription-required-modal__text",
+        "subscription-required-modal__title"
+      ],
+      "files": [
+        "modals.css"
       ]
     },
     "summary-card": {
@@ -4710,154 +4739,154 @@
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px",
       "file": "theme.css",
-      "line": 197
+      "line": 196
     },
     {
       "selector": ".trend--up",
       "prop": "color",
       "value": "hsl(var(--success))",
       "file": "theme.css",
-      "line": 238
+      "line": 237
     },
     {
       "selector": ".trend--up",
       "prop": "background",
       "value": "hsl(var(--success) / 0.1)",
       "file": "theme.css",
-      "line": 239
+      "line": 238
     },
     {
       "selector": ".trend--down",
       "prop": "color",
       "value": "hsl(var(--destructive))",
       "file": "theme.css",
-      "line": 243
+      "line": 242
     },
     {
       "selector": ".trend--down",
       "prop": "background",
       "value": "hsl(var(--destructive) / 0.1)",
       "file": "theme.css",
-      "line": 244
+      "line": 243
     },
     {
       "selector": ".panel",
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px",
       "file": "theme.css",
-      "line": 269
+      "line": 268
     },
     {
       "selector": ".chart-card",
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px",
       "file": "theme.css",
-      "line": 285
+      "line": 284
     },
     {
       "selector": ".chart-card__header",
       "prop": "align-items",
       "value": "flex-end",
       "file": "theme.css",
-      "line": 291
+      "line": 290
     },
     {
       "selector": ".chart-card__value-row",
       "prop": "align-items",
       "value": "baseline",
       "file": "theme.css",
-      "line": 323
+      "line": 322
     },
     {
       "selector": ".feed-item",
       "prop": "align-items",
       "value": "center",
       "file": "theme.css",
-      "line": 587
+      "line": 586
     },
     {
       "selector": ".feed-item",
       "prop": "gap",
       "value": "var(--gap-md)",
       "file": "theme.css",
-      "line": 588
+      "line": 587
     },
     {
       "selector": ".feed-item",
       "prop": "padding",
       "value": "10px 0",
       "file": "theme.css",
-      "line": 589
+      "line": 588
     },
     {
       "selector": ".sidebar",
       "prop": "padding",
       "value": "var(--gap-lg) 0 0 0",
       "file": "theme.css",
-      "line": 785
+      "line": 784
     },
     {
       "selector": ".theme-toggle",
       "prop": "padding",
       "value": "6px 12px",
       "file": "theme.css",
-      "line": 943
+      "line": 942
     },
     {
       "selector": ".theme-toggle",
       "prop": "width",
       "value": "100%",
       "file": "theme.css",
-      "line": 952
+      "line": 951
     },
     {
       "selector": ".chart-tooltip",
       "prop": "font-size",
       "value": "var(--font-size-xs)",
       "file": "theme.css",
-      "line": 1029
+      "line": 1028
     },
     {
       "selector": ".expandable-card__fade",
       "prop": "height",
       "value": "64px",
       "file": "theme.css",
-      "line": 1060
+      "line": 1059
     },
     {
       "selector": ".expandable-card__fade",
       "prop": "background",
       "value": "linear-gradient(transparent, hsl(var(--card)) 70%)",
       "file": "theme.css",
-      "line": 1061
+      "line": 1060
     },
     {
       "selector": ".expandable-card__fade",
       "prop": "padding-bottom",
       "value": "12px",
       "file": "theme.css",
-      "line": 1066
+      "line": 1065
     },
     {
       "selector": ".modal",
       "prop": "box-shadow",
       "value": "rgba(0, 0, 0, 0.08) 0px 0px 0px 1px,\n    0 25px 50px -12px rgb(0 0 0 / 0.25)",
       "file": "theme.css",
-      "line": 1117
+      "line": 1116
     },
     {
       "selector": ".modal__close",
       "prop": "width",
       "value": "2rem",
       "file": "theme.css",
-      "line": 1142
+      "line": 1141
     },
     {
       "selector": ".modal__close",
       "prop": "height",
       "value": "2rem",
       "file": "theme.css",
-      "line": 1143
+      "line": 1142
     },
     {
       "selector": ".toast",
@@ -4973,7 +5002,7 @@
       "value": "var(--card-shadow)",
       "file": "cards.css",
       "line": 7,
-      "losesTo": "theme.css:197"
+      "losesTo": "theme.css:196"
     },
     {
       "selector": ".trend--up",
@@ -4981,31 +5010,31 @@
       "value": "hsl(var(--muted-foreground))",
       "file": "cards.css",
       "line": 48,
+      "losesTo": "theme.css:237"
+    },
+    {
+      "selector": ".trend--down",
+      "prop": "color",
+      "value": "hsl(var(--muted-foreground))",
+      "file": "cards.css",
+      "line": 48,
+      "losesTo": "theme.css:242"
+    },
+    {
+      "selector": ".trend--up",
+      "prop": "background",
+      "value": "hsl(var(--muted))",
+      "file": "cards.css",
+      "line": 49,
       "losesTo": "theme.css:238"
     },
     {
       "selector": ".trend--down",
-      "prop": "color",
-      "value": "hsl(var(--muted-foreground))",
+      "prop": "background",
+      "value": "hsl(var(--muted))",
       "file": "cards.css",
-      "line": 48,
+      "line": 49,
       "losesTo": "theme.css:243"
-    },
-    {
-      "selector": ".trend--up",
-      "prop": "background",
-      "value": "hsl(var(--muted))",
-      "file": "cards.css",
-      "line": 49,
-      "losesTo": "theme.css:239"
-    },
-    {
-      "selector": ".trend--down",
-      "prop": "background",
-      "value": "hsl(var(--muted))",
-      "file": "cards.css",
-      "line": 49,
-      "losesTo": "theme.css:244"
     },
     {
       "selector": ".panel",
@@ -5013,7 +5042,7 @@
       "value": "var(--card-shadow)",
       "file": "cards.css",
       "line": 59,
-      "losesTo": "theme.css:269"
+      "losesTo": "theme.css:268"
     },
     {
       "selector": ".view-more-link",
@@ -5029,7 +5058,7 @@
       "value": "var(--card-shadow)",
       "file": "cards.css",
       "line": 86,
-      "losesTo": "theme.css:285"
+      "losesTo": "theme.css:284"
     },
     {
       "selector": ".chart-card__header",
@@ -5037,7 +5066,7 @@
       "value": "stretch",
       "file": "cards.css",
       "line": 92,
-      "losesTo": "theme.css:291"
+      "losesTo": "theme.css:290"
     },
     {
       "selector": ".chart-card__value-row",
@@ -5045,7 +5074,7 @@
       "value": "center",
       "file": "cards.css",
       "line": 160,
-      "losesTo": "theme.css:323"
+      "losesTo": "theme.css:322"
     },
     {
       "selector": ".chart-tooltip",
@@ -5053,7 +5082,7 @@
       "value": "var(--tooltip-font-size)",
       "file": "charts.css",
       "line": 78,
-      "losesTo": "theme.css:1029"
+      "losesTo": "theme.css:1028"
     },
     {
       "selector": ".expandable-card__fade",
@@ -5061,7 +5090,7 @@
       "value": "80px",
       "file": "charts.css",
       "line": 110,
-      "losesTo": "theme.css:1060"
+      "losesTo": "theme.css:1059"
     },
     {
       "selector": ".expandable-card__fade",
@@ -5069,7 +5098,7 @@
       "value": "linear-gradient(transparent, hsl(var(--card)) 60%)",
       "file": "charts.css",
       "line": 111,
-      "losesTo": "theme.css:1061"
+      "losesTo": "theme.css:1060"
     },
     {
       "selector": ".expandable-card__fade",
@@ -5077,7 +5106,7 @@
       "value": "16px",
       "file": "charts.css",
       "line": 116,
-      "losesTo": "theme.css:1066"
+      "losesTo": "theme.css:1065"
     },
     {
       "selector": ".toast",
@@ -5125,7 +5154,7 @@
       "value": "var(--gap-md) 0",
       "file": "controls.css",
       "line": 213,
-      "losesTo": "theme.css:785"
+      "losesTo": "theme.css:784"
     },
     {
       "selector": ".custom-select__option--top > svg",
@@ -5165,7 +5194,7 @@
       "value": "flex-start",
       "file": "data.css",
       "line": 529,
-      "losesTo": "theme.css:587"
+      "losesTo": "theme.css:586"
     },
     {
       "selector": ".feed-item",
@@ -5173,7 +5202,7 @@
       "value": "12px",
       "file": "data.css",
       "line": 530,
-      "losesTo": "theme.css:588"
+      "losesTo": "theme.css:587"
     },
     {
       "selector": ".feed-item",
@@ -5181,7 +5210,7 @@
       "value": "12px 0",
       "file": "data.css",
       "line": 531,
-      "losesTo": "theme.css:589"
+      "losesTo": "theme.css:588"
     },
     {
       "selector": ".theme-toggle",
@@ -5189,7 +5218,7 @@
       "value": "2rem",
       "file": "layout.css",
       "line": 141,
-      "losesTo": "theme.css:952"
+      "losesTo": "theme.css:951"
     },
     {
       "selector": ".theme-toggle",
@@ -5197,7 +5226,7 @@
       "value": "0",
       "file": "layout.css",
       "line": 149,
-      "losesTo": "theme.css:943"
+      "losesTo": "theme.css:942"
     },
     {
       "selector": ".modal",
@@ -5205,7 +5234,7 @@
       "value": "var(--card-shadow),\n    0 25px 50px -12px rgb(0 0 0 / 0.25)",
       "file": "modals.css",
       "line": 22,
-      "losesTo": "theme.css:1117"
+      "losesTo": "theme.css:1116"
     },
     {
       "selector": ".modal__close",
@@ -5213,7 +5242,7 @@
       "value": "32px",
       "file": "modals.css",
       "line": 47,
-      "losesTo": "theme.css:1142"
+      "losesTo": "theme.css:1141"
     },
     {
       "selector": ".modal__close",
@@ -5221,7 +5250,7 @@
       "value": "32px",
       "file": "modals.css",
       "line": 48,
-      "losesTo": "theme.css:1143"
+      "losesTo": "theme.css:1142"
     },
     {
       "selector": ".setup-modal__header",
@@ -5421,7 +5450,7 @@
     "tokens": 79,
     "darkOverrides": 38,
     "blocks": 337,
-    "classes": 1789,
+    "classes": 1818,
     "canonicalRules": 50,
     "ghostRules": 50
   }

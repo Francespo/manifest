@@ -13,6 +13,7 @@ import { HeaderTiersModule } from './header-tiers/header-tiers.module';
 import { AutofixModule } from './autofix/autofix.module';
 import { CommandCodeModule } from './command-code/command-code.module';
 import { MediaModule } from './media/media.module';
+import { AudioModule } from './audio/audio.module';
 import { ProviderController } from './provider.controller';
 import { TierController } from './tier.controller';
 import { ModelController } from './model.controller';
@@ -24,6 +25,7 @@ import { AgentEnabledProvidersController } from './agent-enabled-providers.contr
 import { ManagedFreeProviderController } from './managed-free-provider/managed-free-provider.controller';
 import { KeyRulesController } from './key-rules.controller';
 import { ManagedFreeProviderService } from './managed-free-provider/managed-free-provider.service';
+import { UsEgressService } from './us-egress.service';
 import { OllamaSyncService } from '../database/ollama-sync.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TenantProvider } from '../entities/tenant-provider.entity';
@@ -63,6 +65,7 @@ import { InstallMetadata } from '../entities/install-metadata.entity';
     CommandCodeModule,
     RouteModelParamsModule,
     MediaModule,
+    AudioModule,
   ],
   controllers: [
     ProviderController,
@@ -76,7 +79,7 @@ import { InstallMetadata } from '../entities/install-metadata.entity';
     ManagedFreeProviderController,
     KeyRulesController,
   ],
-  providers: [OllamaSyncService, ManagedFreeProviderService],
+  providers: [OllamaSyncService, ManagedFreeProviderService, UsEgressService],
   exports: [RoutingCoreModule, CustomProviderModule, OAuthModule],
 })
 export class RoutingModule {}

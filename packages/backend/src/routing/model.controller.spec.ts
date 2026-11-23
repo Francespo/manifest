@@ -42,6 +42,7 @@ describe('ModelController', () => {
   let mockProviderParamSpecs: Record<string, jest.Mock>;
   let mockModelsDevSync: Record<string, jest.Mock>;
   let mockOpencodeGoCatalog: Record<string, jest.Mock>;
+  let mockModelEgress: Record<string, jest.Mock>;
   let routingCache: RoutingCacheService;
 
   beforeEach(() => {
@@ -86,6 +87,9 @@ describe('ModelController', () => {
       resolveCostPerRequest: jest.fn().mockResolvedValue(null),
       list: jest.fn().mockResolvedValue([]),
     };
+    mockModelEgress = {
+      resolve: jest.fn().mockResolvedValue('direct'),
+    };
     routingCache = new RoutingCacheService();
 
     controller = new ModelController(
@@ -98,12 +102,30 @@ describe('ModelController', () => {
       mockModelsDevSync as unknown as ModelsDevSyncService,
       mockOpencodeGoCatalog as unknown as OpencodeGoCatalogService,
       routingCache,
+      mockModelEgress as never,
     );
   });
 
   afterAll(() => {
     if (previousMode === undefined) delete process.env['MANIFEST_MODE'];
     else process.env['MANIFEST_MODE'] = previousMode;
+  });
+
+  it('advertises current MiniMax choices without mutating the routing catalog', async () => {
+    const models = ['MiniMax-M2.7', 'MiniMax-M3', 'MiniMax-M3.1-Flash'].map((id) =>
+      makeDiscovered({ id, provider: 'minimax', displayName: id }),
+    );
+    models.push(makeDiscovered({ id: 'custom:test/MiniMax-M2.7', provider: 'custom:test' }));
+    mockDiscoveryService.getModelsForAgent.mockResolvedValue(models);
+    const rows = await controller.getAvailableModels(mockCtx, mockAgentName);
+    expect(rows.map((row) => row.model_name)).toEqual([
+      'MiniMax-M3.1-Flash',
+      'MiniMax-M3',
+      'MiniMax-M2.7',
+      'custom:test/MiniMax-M2.7',
+    ]);
+    expect(models[0].id).toBe('MiniMax-M2.7');
+    expect(models).toHaveLength(4);
   });
 
   /* ── pricingHealth ── */

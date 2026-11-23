@@ -18,6 +18,7 @@ import { ModelPricingCacheService } from '../../../model-prices/model-pricing-ca
 import { AgentModelParamsService } from '../../routing-core/agent-model-params.service';
 import { ProviderParamSpecService } from '../../routing-core/provider-param-spec.service';
 import { KeyRotationRuleService } from '../../routing-core/key-rotation-rule.service';
+import { ModelEgressPolicyService } from '../../routing-core/model-egress-policy.service';
 import { AutofixService } from '../../autofix/autofix.service';
 import { getProviderParamSpecs, type ProviderParamSpecCatalog } from 'manifest-shared';
 
@@ -207,6 +208,9 @@ describe('ProxyFallbackService', () => {
         getRule: jest.fn().mockResolvedValue(null),
         list: jest.fn().mockResolvedValue([]),
       } as unknown as KeyRotationRuleService,
+      {
+        resolve: jest.fn().mockResolvedValue('direct'),
+      } as unknown as ModelEgressPolicyService,
       autofixService,
     );
   });

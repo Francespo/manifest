@@ -6,6 +6,7 @@ import { TierAssignment } from '../../entities/tier-assignment.entity';
 import { SpecificityAssignment } from '../../entities/specificity-assignment.entity';
 import { AgentModelParams } from '../../entities/agent-model-params.entity';
 import { AgentKeyRotationRule } from '../../entities/agent-key-rotation-rule.entity';
+import { ModelEgressPolicy } from '../../entities/model-egress-policy.entity';
 import { Agent } from '../../entities/agent.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { AgentMessage } from '../../entities/agent-message.entity';
@@ -23,6 +24,7 @@ import { SpecificityPenaltyService } from './specificity-penalty.service';
 import { AgentModelParamsService } from './agent-model-params.service';
 import { KeyRotationRuleService } from './key-rotation-rule.service';
 import { ProviderParamSpecService } from './provider-param-spec.service';
+import { ModelEgressPolicyService } from './model-egress-policy.service';
 
 @Module({
   imports: [
@@ -33,6 +35,7 @@ import { ProviderParamSpecService } from './provider-param-spec.service';
       SpecificityAssignment,
       AgentModelParams,
       AgentKeyRotationRule,
+      ModelEgressPolicy,
       Agent,
       Tenant,
       AgentMessage,
@@ -53,6 +56,7 @@ import { ProviderParamSpecService } from './provider-param-spec.service';
     AgentModelParamsService,
     KeyRotationRuleService,
     ProviderParamSpecService,
+    ModelEgressPolicyService,
   ],
   exports: [
     TypeOrmModule,
@@ -67,6 +71,7 @@ import { ProviderParamSpecService } from './provider-param-spec.service';
     AgentModelParamsService,
     KeyRotationRuleService,
     ProviderParamSpecService,
+    ModelEgressPolicyService,
   ],
 })
 export class RoutingCoreModule {}

@@ -1421,6 +1421,17 @@
   letter-spacing: 0.02em;
 }
 
+.routing-card__egress-tag {
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 4px;
+  background: hsl(var(--success) / 0.15);
+  color: hsl(var(--success));
+  letter-spacing: 0.04em;
+}
+
 .routing-card__empty {
   display: flex;
   flex-direction: column;

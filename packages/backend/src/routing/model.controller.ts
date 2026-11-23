@@ -9,13 +9,19 @@ import { OllamaSyncService } from '../database/ollama-sync.service';
 import { PricingSyncService } from '../database/pricing-sync.service';
 import { ModelsDevSyncService } from '../database/models-dev-sync.service';
 import { RoutingCacheService } from './routing-core/routing-cache.service';
-import { resolveProviderMetadataIdentity } from 'manifest-shared';
+import {
+  currentMinimaxModelChoices,
+  resolveProviderMetadataIdentity,
+  supportsUsEgress,
+} from 'manifest-shared';
+import { ModelEgressPolicyService } from './routing-core/model-egress-policy.service';
 import {
   inputModalitiesFromCapabilities,
   resolveModelCapabilityMetadata,
 } from '../model-discovery/model-capabilities';
 import { openAiModelCapabilities } from './proxy/openai-model-capabilities';
 import { mediaCostProjection } from './media/media-pricing';
+import { audioCostProjection } from './audio/audio-pricing';
 import {
   dropShadowedGatewayModels,
   publishedOpencodeGoIds,
@@ -71,6 +77,7 @@ export class ModelController {
     private readonly modelsDevSync: ModelsDevSyncService,
     private readonly opencodeGoCatalog: OpencodeGoCatalogService,
     private readonly routingCache: RoutingCacheService,
+    private readonly modelEgress: ModelEgressPolicyService,
   ) {}
 
   @Get('pricing-health')
@@ -133,7 +140,9 @@ export class ModelController {
     const agent = await this.resolveAgentService.resolve(ctx.tenantId, params.agentName, {
       allowPlayground: true,
     });
-    const models = await this.discoveryService.getModelsForAgent(agent.tenant_id, agent.id);
+    const models = currentMinimaxModelChoices(
+      await this.discoveryService.getModelsForAgent(agent.tenant_id, agent.id),
+    );
     // Resolved after the rows are built: whether two OpenCode Go ids are the
     // same model is a question about the names the picker prints, not the ids.
     const publishedGatewayIds = await publishedOpencodeGoIds(
@@ -183,14 +192,36 @@ export class ModelController {
         // Media generation is not billed per token, so an image/video model
         // carries its per-image / per-second rate instead.
         const mediaCost = mediaCostProjection(m.provider, m.id, m.outputModalities);
+        const audioCost = mediaCost ? undefined : audioCostProjection(m.provider, m.id);
         return {
           model_name: m.id,
           provider: m.provider,
           auth_type: authType,
+          ...(supportsUsEgress(m.provider)
+            ? {
+                us_egress: await this.modelEgress.resolve(
+                  agent.tenant_id,
+                  m.provider,
+                  authType,
+                  m.id,
+                ),
+              }
+            : {}),
           input_price_per_token: m.inputPricePerToken,
           output_price_per_token: m.outputPricePerToken,
           ...(costPerRequest != null ? { cost_per_request: costPerRequest } : {}),
           ...(mediaCost ? { media_cost: mediaCost } : {}),
+          ...(audioCost
+            ? {
+                audio_cost: {
+                  unit: 'minute' as const,
+                  rates: audioCost.rates,
+                  ...(audioCost.minimumBillableSeconds !== undefined
+                    ? { minimum_billable_seconds: audioCost.minimumBillableSeconds }
+                    : {}),
+                },
+              }
+            : {}),
           context_window: m.contextWindow,
           context_window_source: m.contextWindowSource ?? null,
           ...(projectedCapabilities?.max_output_tokens !== undefined

@@ -371,7 +371,9 @@ describe('Header - docs link', () => {
 
     mockPathname = '/providers/local';
     const local = render(() => <Header />);
-    expect(docsHref(local.container)).toBe('https://manifest.build/llm-gateway/docs/providers/local-models/');
+    expect(docsHref(local.container)).toBe(
+      'https://manifest.build/llm-gateway/docs/providers/local-models/',
+    );
   });
 
   it('falls back to introduction docs for unmapped pages', () => {

@@ -17,6 +17,7 @@ import {
   connectProvider,
   disconnectProvider,
   renameProviderKey,
+  updateConnectionKey,
   revokeOpenaiOAuth,
   type AuthType,
   type RoutingProvider,
@@ -828,10 +829,51 @@ interface KeyChainViewProps {
 const KeyChainView: Component<KeyChainViewProps> = (props) => {
   const [renamingId, setRenamingId] = createSignal<string | null>(null);
   const [renameValue, setRenameValue] = createSignal('');
+  const [changingId, setChangingId] = createSignal<string | null>(null);
+  const [newKeyValue, setNewKeyValue] = createSignal('');
+  const [keyError, setKeyError] = createSignal('');
 
   const startRename = (k: RoutingProvider) => {
+    setChangingId(null);
     setRenamingId(k.id);
     setRenameValue(k.label);
+  };
+
+  const startChange = (k: RoutingProvider) => {
+    setRenamingId(null);
+    setChangingId(k.id);
+    setNewKeyValue('');
+    setKeyError('');
+  };
+
+  const commitChange = async (k: RoutingProvider) => {
+    const apiKey = newKeyValue().replace(/\s/g, '');
+    if (!apiKey) {
+      setKeyError('Enter the new key');
+      return;
+    }
+    const result =
+      props.authType() === 'subscription'
+        ? validateSubscriptionKey(props.provDef, apiKey)
+        : validateApiKey(props.provDef, apiKey);
+    if (!result.valid) {
+      setKeyError(result.error!);
+      return;
+    }
+    setKeyError('');
+    props.setBusy(true);
+    try {
+      // The tenant-scoped endpoint pins the write to this exact label, so
+      // rotating one key of the chain never touches its siblings.
+      await updateConnectionKey(props.provId, k.label, apiKey, props.authType());
+      toast.success(`${props.provDef.name} key "${k.label}" updated`);
+      setChangingId(null);
+      props.onUpdate();
+    } catch {
+      // error toast from fetchMutate
+    } finally {
+      props.setBusy(false);
+    }
   };
 
   const commitRename = async (k: RoutingProvider) => {
@@ -867,52 +909,101 @@ const KeyChainView: Component<KeyChainViewProps> = (props) => {
               <Show
                 when={renamingId() === k.id}
                 fallback={
-                  <>
-                    <div style="flex: 1; min-width: 0;">
-                      <div style="font-weight: 500; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        {k.label}
-                      </div>
-                      <div style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground));">
-                        {[
-                          k.key_prefix ? `${k.key_prefix}${'•'.repeat(12)}` : '••••••••••••',
-                          props.endpointRegionLabel(k.region),
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </div>
-                    </div>
+                  <Show
+                    when={changingId() === k.id}
+                    fallback={
+                      <>
+                        <div style="flex: 1; min-width: 0;">
+                          <div style="font-weight: 500; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {k.label}
+                          </div>
+                          <div style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground));">
+                            {[
+                              k.key_prefix ? `${k.key_prefix}${'•'.repeat(12)}` : '••••••••••••',
+                              props.endpointRegionLabel(k.region),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </div>
+                        </div>
+                        <button
+                          class="btn btn--outline btn--sm"
+                          style="flex-shrink: 0;"
+                          disabled={props.busy()}
+                          onClick={() => startChange(k)}
+                          aria-label={`Change key ${k.label}`}
+                          title="Change key"
+                        >
+                          Change
+                        </button>
+                        <button
+                          class="btn btn--outline btn--sm"
+                          style="flex-shrink: 0;"
+                          disabled={props.busy()}
+                          onClick={() => startRename(k)}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          class="provider-detail__disconnect-icon"
+                          disabled={props.busy()}
+                          onClick={() => props.onDelete(k.label)}
+                          aria-label={`Delete key ${k.label}`}
+                          title="Delete key"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M3 6h18" />
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </>
+                    }
+                  >
+                    <input
+                      class="provider-detail__input"
+                      type="password"
+                      autocomplete="off"
+                      placeholder={props.placeholder}
+                      aria-label={`New ${k.label} key`}
+                      value={newKeyValue()}
+                      onInput={(e) => {
+                        setNewKeyValue(e.currentTarget.value);
+                        setKeyError('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitChange(k);
+                        if (e.key === 'Escape') setChangingId(null);
+                      }}
+                    />
+                    <button
+                      class="btn btn--primary btn--sm"
+                      disabled={props.busy() || !newKeyValue().trim()}
+                      onClick={() => commitChange(k)}
+                    >
+                      Save
+                    </button>
                     <button
                       class="btn btn--outline btn--sm"
-                      style="flex-shrink: 0;"
                       disabled={props.busy()}
-                      onClick={() => startRename(k)}
+                      onClick={() => setChangingId(null)}
                     >
-                      Rename
+                      Cancel
                     </button>
-                    <button
-                      class="provider-detail__disconnect-icon"
-                      disabled={props.busy()}
-                      onClick={() => props.onDelete(k.label)}
-                      aria-label={`Delete key ${k.label}`}
-                      title="Delete key"
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M3 6h18" />
-                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                      </svg>
-                    </button>
-                  </>
+                    <Show when={keyError()}>
+                      <div class="provider-detail__error">{keyError()}</div>
+                    </Show>
+                  </Show>
                 }
               >
                 <input

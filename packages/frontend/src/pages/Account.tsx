@@ -12,10 +12,7 @@ import { authClient } from '../services/auth-client.js';
 import { getBillingStatus, updateBillingEmailPreferences } from '../services/api/billing.js';
 import { toast } from '../services/toast-store.js';
 import ModelCatalogEndpoints from '../components/ModelCatalogEndpoints.jsx';
-import {
-  FREE_REQUEST_LIMIT_LABEL,
-  formatBillingPriceWithInterval,
-} from '../services/billing-display.js';
+import { formatBillingPriceWithInterval } from '../services/billing-display.js';
 
 const Account: Component = () => {
   const navigate = useNavigate();
@@ -387,7 +384,7 @@ const Account: Component = () => {
               <div class="billing-stat">
                 <span class="billing-stat__label">Current plan</span>
                 <span class="billing-stat__value">
-                  {billing()!.plan === 'pro' ? 'Pro' : 'Free'}
+                  {billing()!.plan === 'pro' ? 'Pro' : 'No subscription'}
                   {billing()!.plan === 'pro' && proPriceWithInterval()
                     ? ` · ${proPriceWithInterval()}`
                     : ''}
@@ -407,13 +404,15 @@ const Account: Component = () => {
               <div class="billing-stat">
                 <span class="billing-stat__label">Requests</span>
                 <span class="billing-stat__value">
-                  {billing()!.requests.limit != null
-                    ? billing()!.requests.used != null
-                      ? `${fmt(billing()!.requests.used!)} / ${fmt(billing()!.requests.limit!)}`
-                      : fmt(billing()!.requests.limit!)
-                    : 'Unlimited'}
+                  {billing()!.requests.limit === 0
+                    ? 'Not routed'
+                    : billing()!.requests.limit != null
+                      ? billing()!.requests.used != null
+                        ? `${fmt(billing()!.requests.used!)} / ${fmt(billing()!.requests.limit!)}`
+                        : fmt(billing()!.requests.limit!)
+                      : 'Unlimited'}
                 </span>
-                <Show when={billing()!.requests.limit != null && billing()!.requests.periodEnd}>
+                <Show when={(billing()!.requests.limit ?? 0) > 0 && billing()!.requests.periodEnd}>
                   <span class="billing-stat__meta">
                     Resets{' '}
                     {new Date(billing()!.requests.periodEnd!).toLocaleDateString(undefined, {
@@ -428,7 +427,7 @@ const Account: Component = () => {
             <div class="settings-card__footer billing-footer">
               <span class="billing-footer__note">
                 {billing()!.plan === 'free'
-                  ? `Free: ${FREE_REQUEST_LIMIT_LABEL} requests/mo · Pro: unlimited requests`
+                  ? 'No subscription. Requests are not routed until you subscribe.'
                   : 'Update your payment method and view invoices.'}
               </span>
               <Show
@@ -457,7 +456,7 @@ const Account: Component = () => {
                   disabled={billingBusy()}
                   onClick={handleUpgrade}
                 >
-                  Upgrade to Pro
+                  Subscribe
                   {proPriceWithInterval() ? ` · ${proPriceWithInterval()}` : ''}
                 </button>
               </Show>

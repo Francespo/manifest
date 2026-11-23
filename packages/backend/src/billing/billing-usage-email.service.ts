@@ -1,7 +1,10 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { Subscription } from 'rxjs';
-import { IngestEventBusService } from '../common/services/ingest-event-bus.service';
+import {
+  IngestEventBusService,
+  type IngestEvent,
+} from '../common/services/ingest-event-bus.service';
 import { isBillingEnabled } from './billing.config';
 import { PlanService } from './plan.service';
 import { BillingEmailLogService } from './billing-email-log.service';
@@ -31,7 +34,7 @@ export class BillingUsageEmailService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    this.ingestSub = this.ingestBus.all().subscribe((event) => {
+    this.ingestSub = this.ingestBus.all().subscribe((event: IngestEvent) => {
       if (event.kind !== 'message') return;
       void this.checkTenantUsage(event.tenantId).catch((err) => {
         this.logger.warn(`Billing usage email check failed for tenant ${event.tenantId}: ${err}`);

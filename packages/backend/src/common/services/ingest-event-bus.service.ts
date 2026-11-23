@@ -62,7 +62,7 @@ export class IngestEventBusService implements OnModuleDestroy {
 
   /** Null tenantId (fresh account, no tenant yet) matches no events. */
   forTenant(tenantId: string | null): Observable<IngestEvent> {
-    return this.subject.asObservable().pipe(filter((e) => e.tenantId === tenantId));
+    return this.subject.asObservable().pipe(filter((e: IngestEvent) => e.tenantId === tenantId));
   }
 
   all(): Observable<IngestEvent> {

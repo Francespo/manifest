@@ -7,7 +7,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * curates a pool or picks custom providers. The default `/v1/models` response
  * is not affected by this table.
  */
-export class CreateModelCatalogConfigs1803400000000 implements MigrationInterface {
+export class CreateModelCatalogConfigs1803600000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "model_catalog_configs" (

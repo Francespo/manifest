@@ -1,3 +1,4 @@
+import { mockScopeResolver } from '../__tests__/scope.fixture';
 import { MessagesQueryService } from './messages-query.service';
 
 function makeQb(rows: Array<Record<string, unknown>> = []) {
@@ -58,6 +59,7 @@ describe('MessagesQueryService request-first queries', () => {
     const legacyBase = makeQb();
     legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       { createQueryBuilder: jest.fn(() => legacyBase) } as never,
       { find: jest.fn() } as never,
       { createQueryBuilder: jest.fn(() => requestQb) } as never,
@@ -82,11 +84,12 @@ describe('MessagesQueryService request-first queries', () => {
     const requestQb = makeQb([{ id: 'request-1', timestamp: '2026-07-14T10:00:00Z' }]);
     const pageQb = makeQb();
     pageQb.getQuery.mockReturnValue('SELECT r.id FROM requests r ORDER BY r.timestamp DESC');
-    pageQb.getParameters.mockReturnValue({ requestTenantId: 'tenant-1' });
+    pageQb.getParameters.mockReturnValue({ tenantId: 'tenant-1' });
     requestQb.clone.mockReturnValue(pageQb);
     const legacyBase = makeQb();
     legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       { createQueryBuilder: jest.fn(() => legacyBase) } as never,
       { find: jest.fn() } as never,
       { createQueryBuilder: jest.fn(() => requestQb) } as never,
@@ -105,7 +108,7 @@ describe('MessagesQueryService request-first queries', () => {
     expect(pageQb.limit).toHaveBeenCalledWith(51);
     expect(requestQb.where).toHaveBeenCalledWith(
       expect.stringContaining('r.id IN (SELECT r.id FROM requests r'),
-      { requestTenantId: 'tenant-1' },
+      { tenantId: 'tenant-1' },
     );
     expect(requestQb.leftJoin).toHaveBeenCalledWith(
       expect.anything(),
@@ -131,6 +134,7 @@ describe('MessagesQueryService request-first queries', () => {
     legacyBase.clone.mockImplementation(() => legacyQbs.shift()!);
     const requestQuery = jest.fn().mockResolvedValue([{ total: '7' }]);
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       { createQueryBuilder: jest.fn(() => legacyBase) } as never,
       { find: jest.fn() } as never,
       { createQueryBuilder: jest.fn(() => requestQb), query: requestQuery } as never,
@@ -180,6 +184,7 @@ describe('MessagesQueryService request-first queries', () => {
       query: jest.fn().mockResolvedValue([]),
     };
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       { createQueryBuilder: jest.fn(() => legacyBase), query: jest.fn() } as never,
       { find: jest.fn() } as never,
       { createQueryBuilder: jest.fn(() => requestQb), query: jest.fn() } as never,
@@ -216,6 +221,7 @@ describe('MessagesQueryService request-first queries', () => {
     legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb(legacyRows));
 
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       {
         createQueryBuilder: jest.fn(() => legacyBase),
         query: jest.fn().mockResolvedValue([]),
@@ -251,6 +257,7 @@ describe('MessagesQueryService request-first queries', () => {
     ]);
 
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       {
         createQueryBuilder: jest.fn(() => legacyBase),
         query: jest.fn().mockResolvedValue([]),
@@ -295,6 +302,7 @@ describe('MessagesQueryService request-first queries', () => {
     legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
 
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       {
         createQueryBuilder: jest.fn(() => legacyBase),
         query: jest.fn().mockResolvedValue([]),
@@ -323,6 +331,7 @@ describe('MessagesQueryService request-first queries', () => {
     legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
 
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       {
         createQueryBuilder: jest.fn(() => legacyBase),
         query: jest.fn().mockResolvedValue([]),
@@ -365,6 +374,7 @@ describe('MessagesQueryService request-first queries', () => {
     legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
 
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       {
         createQueryBuilder: jest.fn(() => legacyBase),
         query: jest.fn().mockResolvedValue([]),
@@ -414,6 +424,7 @@ describe('MessagesQueryService request-first queries', () => {
     const legacyBase = makeQb();
     legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       { createQueryBuilder: jest.fn(() => legacyBase) } as never,
       { find: jest.fn() } as never,
       { createQueryBuilder: jest.fn(() => requestQb) } as never,
@@ -446,6 +457,7 @@ describe('MessagesQueryService request-first queries', () => {
     const legacyDataQb = makeQb([{ id: 'legacy', timestamp: '2026-07-14T10:00:00Z' }]);
     legacyBase.clone.mockReturnValueOnce(legacyCountQb).mockReturnValueOnce(legacyDataQb);
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       {
         createQueryBuilder: jest.fn(() => legacyBase),
         query: jest.fn().mockResolvedValue([]),
@@ -526,6 +538,7 @@ describe('MessagesQueryService request-first queries', () => {
     const legacyBase = makeQb();
     legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       {
         createQueryBuilder: jest.fn(() => legacyBase),
         query: jest.fn().mockResolvedValue([]),
@@ -572,6 +585,7 @@ describe('MessagesQueryService request-first queries', () => {
     const legacyBase = makeQb();
     legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
     const service = new MessagesQueryService(
+      mockScopeResolver(),
       {
         createQueryBuilder: jest.fn(() => legacyBase),
         query: jest.fn().mockResolvedValue([]),
@@ -597,6 +611,7 @@ describe('MessagesQueryService request-first queries', () => {
       const legacyBase = makeQb();
       legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
       const service = new MessagesQueryService(
+        mockScopeResolver(),
         {
           createQueryBuilder: jest.fn(() => legacyBase),
           query: jest.fn().mockResolvedValue([]),
@@ -646,6 +661,7 @@ describe('MessagesQueryService request-first queries', () => {
       const legacyBase = makeQb();
       legacyBase.clone.mockReturnValueOnce(makeQb()).mockReturnValueOnce(makeQb());
       const service = new MessagesQueryService(
+        mockScopeResolver(agentLookup),
         {
           createQueryBuilder: jest.fn(() => legacyBase),
           query: jest.fn().mockResolvedValue([]),
@@ -682,7 +698,7 @@ describe('MessagesQueryService request-first queries', () => {
       expect(withAttempts).toHaveLength(4);
       for (const clause of withAttempts) {
         for (const alias of attemptAliases(clause)) {
-          expect(clause).toContain(`${alias}.tenant_id = :requestTenantId`);
+          expect(clause).toContain(`${alias}.tenant_id = :tenantId`);
           expect(clause).toContain(
             `${alias}.timestamp >= CAST(:requestCutoff AS timestamp) - interval '1 day'`,
           );
@@ -696,7 +712,7 @@ describe('MessagesQueryService request-first queries', () => {
       const clause = requestQb.andWhere.mock.calls
         .map((call) => String(call[0]))
         .find((c) => c.includes('filtered_attempt.provider'));
-      expect(clause).toContain('filtered_attempt.tenant_id = :requestTenantId');
+      expect(clause).toContain('filtered_attempt.tenant_id = :tenantId');
       expect(clause).not.toContain('requestCutoff');
     });
 
@@ -711,38 +727,49 @@ describe('MessagesQueryService request-first queries', () => {
       expect(clause).not.toContain('autofix_applied = true OR');
     });
 
-    it('resolves the harness to its id first so Postgres plans with the value', async () => {
-      const agentLookup = jest.fn().mockResolvedValue([{ id: 'agent-9' }]);
-      const { requestQb, legacyBase } = await run(
-        { tenantId: 'tenant-1', range: '7d', agent_name: 'bot-1' },
-        agentLookup,
-      );
+    it.each([undefined, '7d'])(
+      'resolves the harness once for both branches with range %s',
+      async (range) => {
+        const agentLookup = jest.fn().mockResolvedValue([{ id: 'agent-9' }]);
+        const { requestQb, legacyBase } = await run(
+          { tenantId: 'tenant-1', range, agent_name: 'bot-1' },
+          agentLookup,
+        );
 
-      expect(agentLookup).toHaveBeenCalledWith(
-        'SELECT id FROM agents WHERE tenant_id = $1 AND name = $2 AND deleted_at IS NULL LIMIT 1',
-        ['tenant-1', 'bot-1'],
-      );
-      expect(requestQb.andWhere).toHaveBeenCalledWith('r.agent_id = :requestAgentId', {
-        requestAgentId: 'agent-9',
-      });
-      const clauses = requestQb.andWhere.mock.calls.map((call) => String(call[0]));
-      expect(clauses.some((clause) => clause.includes('FROM agents'))).toBe(false);
+        expect(agentLookup).toHaveBeenCalledWith(
+          'SELECT id FROM agents WHERE tenant_id = $1 AND name = $2 AND deleted_at IS NULL LIMIT 1',
+          ['tenant-1', 'bot-1'],
+        );
+        expect(agentLookup).toHaveBeenCalledTimes(1);
+        expect(requestQb.andWhere).toHaveBeenCalledWith('r.agent_id = :liveAgentId', {
+          liveAgentId: 'agent-9',
+        });
+        const clauses = requestQb.andWhere.mock.calls.map((call) => String(call[0]));
+        expect(clauses.some((clause) => clause.includes('FROM agents'))).toBe(false);
 
-      // The unlinked legacy branch keeps the tenant-bound lookup.
-      const legacyAgent = legacyBase.andWhere.mock.calls.find((call) =>
-        String(call[0]).includes('at.agent_id = ('),
-      );
-      expect(String(legacyAgent?.[0])).toContain('a.tenant_id = :liveTenantId');
-      expect(legacyAgent?.[1]).toEqual({ liveAgentName: 'bot-1', liveTenantId: 'tenant-1' });
-    });
+        expect(legacyBase.andWhere).toHaveBeenCalledWith('at.tenant_id = :tenantId', {
+          tenantId: 'tenant-1',
+        });
+        expect(legacyBase.andWhere).toHaveBeenCalledWith('at.agent_id = :liveAgentId', {
+          liveAgentId: 'agent-9',
+        });
+        expect(
+          legacyBase.andWhere.mock.calls.some((call) => String(call[0]).includes('FROM agents')),
+        ).toBe(false);
+      },
+    );
 
     it('matches nothing for a harness name with no live agent', async () => {
-      const { requestQb } = await run(
+      const { requestQb, legacyBase } = await run(
         { tenantId: 'tenant-1', range: '7d', agent_name: 'gone' },
         jest.fn().mockResolvedValue([]),
       );
 
-      expect(requestQb.andWhere).toHaveBeenCalledWith('1 = 0');
+      expect(requestQb.andWhere).toHaveBeenCalledWith('1 = 0', expect.any(Object));
+      expect(legacyBase.andWhere).toHaveBeenCalledWith('1 = 0', expect.any(Object));
+      expect(
+        legacyBase.andWhere.mock.calls.some((call) => String(call[0]).includes('at.agent_id')),
+      ).toBe(false);
       expect(
         requestQb.andWhere.mock.calls.some((call) => String(call[0]).includes('r.agent_id')),
       ).toBe(false);
@@ -755,9 +782,9 @@ describe('MessagesQueryService request-first queries', () => {
         provider: 'openai',
       });
 
-      expect(requestQb.andWhere).toHaveBeenCalledWith('1 = 0', { requestTenantId: null });
+      expect(requestQb.andWhere).toHaveBeenCalledWith('1 = 0', { tenantId: null });
       // The legacy branch is already empty through addTenantFilter.
-      expect(legacyBase.andWhere).toHaveBeenCalledWith('1 = 0');
+      expect(legacyBase.andWhere).toHaveBeenCalledWith('1 = 0', expect.any(Object));
       expect(
         legacyBase.andWhere.mock.calls.some((call) => String(call[0]).includes('at.agent_id')),
       ).toBe(false);

@@ -107,6 +107,30 @@ export type {
   MediaRate,
 } from './media';
 export {
+  AUDIO_TRANSCRIPTION_ENDPOINT,
+  AUDIO_TRANSLATION_ENDPOINT,
+  AUDIO_ENDPOINTS,
+  AUDIO_RESPONSE_FORMATS,
+  AUDIO_TASK_STATUSES,
+  GROQ_AUDIO_BASE_URL,
+  GROQ_TRANSCRIPTION_MODELS,
+  GROQ_TRANSCRIPTION_MODEL_BY_ID,
+  GROQ_AUDIO_PRICES,
+  PROVIDER_AUDIO_PRICES,
+  isAudioEndpoint,
+  isAudioResponseFormat,
+} from './audio';
+export type {
+  AudioEndpoint,
+  AudioResponseFormat,
+  AudioTaskStatus,
+  AudioSegment,
+  TranscriptionResult,
+  AudioTaskObject,
+  TranscriptionModelEntry,
+  AudioPriceTable,
+} from './audio';
+export {
   routeEquals,
   isModelRoute,
   isModelRouteArray,
@@ -115,6 +139,8 @@ export {
   KEY_LABEL_ROTATION,
 } from './model-route';
 export type { ModelRoute, LegacyOverrideTriple } from './model-route';
+export { MODEL_EGRESS_VALUES, MODEL_EGRESS_SETTINGS } from './model-egress';
+export type { ModelEgress, ModelEgressSetting } from './model-egress';
 export { isKeyRotationRule, isKeyRotationRuleArray } from './key-rotation-rule';
 export type { KeyRotationRule, KeyRotationRuleScope } from './key-rotation-rule';
 export { applyRequestParamDefaults } from './request-params';
@@ -159,6 +185,7 @@ export {
   modelParamsScopeForTier,
 } from './model-params-scope';
 export type { ModelParamsRoutingScopeInput } from './model-params-scope';
+export { minimaxTextModelRank, currentMinimaxModelChoices } from './minimax-model-choices';
 export { API_KEY_PREFIX } from './api-key';
 export { MAX_KEYS_PER_PROVIDER } from './provider-limits';
 export {
@@ -195,6 +222,7 @@ export {
   FAL_QUEUE_BASE_URL,
   FAL_PLATFORM_MODELS_URL,
   normalizeProviderName,
+  supportsUsEgress,
 } from './providers';
 export type {
   SharedProviderEntry,
@@ -254,6 +282,7 @@ export {
   normalizeRole,
 } from './chat-message';
 export type { ChatMessage, ChatTool, RecordedResponseBody, Role, ToolCall } from './chat-message';
+export { resolveToolCallIndex } from './tool-call-index';
 export {
   CUSTOM_PROVIDER_ALIAS_MAX_LENGTH,
   CUSTOM_PROVIDER_ALIAS_MESSAGE,
