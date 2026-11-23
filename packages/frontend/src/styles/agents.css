@@ -924,3 +924,74 @@
     word-break: break-all;
   }
 }
+
+/* ── Scoped model catalogs (Account) ─────────────── */
+.model-catalog-url {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  min-width: 0;
+}
+
+.model-catalog-url__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 8px;
+  background: hsl(var(--muted) / 0.3);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  color: hsl(var(--foreground));
+  font-size: var(--font-size-xs);
+}
+
+.model-catalog-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.model-catalog-picker__list {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+}
+
+.model-catalog-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+
+.model-catalog-picker__option:hover {
+  background: hsl(var(--muted) / 0.4);
+}
+
+.model-catalog-picker__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-catalog-picker__id {
+  font-size: var(--font-size-xs);
+  color: hsl(var(--muted-foreground));
+}
+
+.model-catalog-picker__empty,
+.model-catalog-error {
+  display: block;
+  padding: 8px;
+  font-size: var(--font-size-xs);
+  color: hsl(var(--muted-foreground));
+}
+
+.model-catalog-footer {
+  justify-content: flex-end;
+  gap: var(--gap-md);
+}

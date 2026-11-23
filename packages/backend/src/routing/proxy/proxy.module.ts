@@ -14,7 +14,9 @@ import { CustomProviderModule } from '../custom-provider/custom-provider.module'
 import { HeaderTiersModule } from '../header-tiers/header-tiers.module';
 import { BillingModule } from '../../billing/billing.module';
 import { AutofixModule } from '../autofix/autofix.module';
+import { ModelCatalogModule } from '../model-catalog/model-catalog.module';
 import { ProxyController } from './proxy.controller';
+import { CatalogProxyController } from './catalog-proxy.controller';
 import { ProxyService } from './proxy.service';
 import { ProxyFallbackService } from './proxy-fallback.service';
 import { ProviderClient } from './provider-client';
@@ -44,8 +46,9 @@ import { AttemptRecordingService } from './attempt-recording.service';
     HeaderTiersModule,
     BillingModule,
     AutofixModule,
+    ModelCatalogModule,
   ],
-  controllers: [ProxyController],
+  controllers: [ProxyController, CatalogProxyController],
   providers: [
     ProxyService,
     ProxyFallbackService,

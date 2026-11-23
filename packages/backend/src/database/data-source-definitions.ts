@@ -30,6 +30,7 @@ import { WaitlistClaim } from '../entities/waitlist-claim.entity';
 import { TenantRequestUsage } from '../entities/tenant-request-usage.entity';
 import { CliAuthCode } from '../entities/cli-auth-code.entity';
 import { AgentUsageDaily } from '../entities/agent-usage-daily.entity';
+import { ModelCatalogConfigEntity } from '../entities/model-catalog-config.entity';
 import { RenameWaitlistClaimsTable1800000000000 } from './migrations/1800000000000-RenameWaitlistClaimsTable';
 import { ReclassifyPlanRequestLimitMessages1800100000000 } from './migrations/1800100000000-ReclassifyPlanRequestLimitMessages';
 import { AddMessageErrorCode1800200000000 } from './migrations/1800200000000-AddMessageErrorCode';
@@ -46,6 +47,7 @@ import { CreateCliAuthCodes1801710000000 } from './migrations/1801710000000-Crea
 import { AddRequestApiMode1801720000000 } from './migrations/1801720000000-AddRequestApiMode';
 import { AddRequestMediaTaskId1803200000000 } from './migrations/1803200000000-AddRequestMediaTaskId';
 import { AddPlaygroundColumnMedia1803300000000 } from './migrations/1803300000000-AddPlaygroundColumnMedia';
+import { CreateModelCatalogConfigs1803400000000 } from './migrations/1803400000000-CreateModelCatalogConfigs';
 import { AddCliAuthCodeChallenge1801730000000 } from './migrations/1801730000000-AddCliAuthCodeChallenge';
 import { AddApiKeyAbsoluteExpiresAt1801740000000 } from './migrations/1801740000000-AddApiKeyAbsoluteExpiresAt';
 import { AddAutofixConsentToInstallMetadata1801900000000 } from './migrations/1801900000000-AddAutofixConsentToInstallMetadata';
@@ -211,6 +213,7 @@ export const entities = [
   TenantRequestUsage,
   CliAuthCode,
   AgentUsageDaily,
+  ModelCatalogConfigEntity,
 ];
 
 export const migrations = [
@@ -366,4 +369,5 @@ export const migrations = [
   CoverHarnessRequestsIndex1803100000000,
   AddRequestMediaTaskId1803200000000,
   AddPlaygroundColumnMedia1803300000000,
+  CreateModelCatalogConfigs1803400000000,
 ];

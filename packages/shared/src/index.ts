@@ -73,6 +73,14 @@ export type { ProviderErrorSignals } from './provider-error-semantics';
 export { MANIFEST_ERRORS_DOCS_BASE, manifestErrorDocsUrl } from './manifest-error-docs';
 export { DEFAULT_RESPONSE_MODE, RESPONSE_MODES, isResponseMode } from './response-mode';
 export type { ResponseMode } from './response-mode';
+export { MODEL_CATALOG_VARIANTS, isModelCatalogVariant, modelCatalogPath } from './model-catalog';
+export type {
+  ModelCatalogVariant,
+  ModelCatalogConfig,
+  ModelCatalogOption,
+  ModelCatalogOptions,
+  ModelCatalogResponse,
+} from './model-catalog';
 export { DEFAULT_OUTPUT_MODALITY, OUTPUT_MODALITIES, isOutputModality } from './output-modality';
 export type { OutputModality } from './output-modality';
 export {

@@ -11,6 +11,7 @@ import { Title, Meta } from '@solidjs/meta';
 import { authClient } from '../services/auth-client.js';
 import { getBillingStatus, updateBillingEmailPreferences } from '../services/api/billing.js';
 import { toast } from '../services/toast-store.js';
+import ModelCatalogEndpoints from '../components/ModelCatalogEndpoints.jsx';
 import {
   FREE_REQUEST_LIMIT_LABEL,
   formatBillingPriceWithInterval,
@@ -582,6 +583,9 @@ const Account: Component = () => {
             </div>
           </div>
         </div>
+
+        {/* Scoped model catalogs */}
+        <ModelCatalogEndpoints />
       </div>
     </div>
   );

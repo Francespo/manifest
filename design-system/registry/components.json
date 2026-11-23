@@ -2299,6 +2299,44 @@
         "routing.css"
       ]
     },
+    "model-catalog-error": {
+      "classes": [
+        "model-catalog-error"
+      ],
+      "files": [
+        "agents.css"
+      ]
+    },
+    "model-catalog-footer": {
+      "classes": [
+        "model-catalog-footer"
+      ],
+      "files": [
+        "agents.css"
+      ]
+    },
+    "model-catalog-picker": {
+      "classes": [
+        "model-catalog-picker",
+        "model-catalog-picker__empty",
+        "model-catalog-picker__id",
+        "model-catalog-picker__label",
+        "model-catalog-picker__list",
+        "model-catalog-picker__option"
+      ],
+      "files": [
+        "agents.css"
+      ]
+    },
+    "model-catalog-url": {
+      "classes": [
+        "model-catalog-url",
+        "model-catalog-url__value"
+      ],
+      "files": [
+        "agents.css"
+      ]
+    },
     "model-filter": {
       "classes": [
         "model-filter",
@@ -5382,8 +5420,8 @@
   "stats": {
     "tokens": 79,
     "darkOverrides": 38,
-    "blocks": 333,
-    "classes": 1779,
+    "blocks": 337,
+    "classes": 1789,
     "canonicalRules": 50,
     "ghostRules": 50
   }

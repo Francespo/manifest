@@ -18,6 +18,11 @@ import {
 import { Request, Response as ExpressResponse } from 'express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { v4 as uuid } from 'uuid';
+import {
+  MODEL_CATALOG_VARIANTS,
+  isModelCatalogVariant,
+  type ModelCatalogVariant,
+} from 'manifest-shared';
 import { Public } from '../../common/decorators/public.decorator';
 import { AgentKeyAuthGuard } from '../../otlp/guards/agent-key-auth.guard';
 import { IngestionContext } from '../../otlp/interfaces/ingestion-context.interface';
@@ -91,6 +96,7 @@ import {
   createAttemptRecordingCapture,
   recordingResponseFromText,
 } from './attempt-recording-capture';
+import { ModelCatalogConfigService } from '../model-catalog/model-catalog-config.service';
 
 const MAX_SEEN_TENANTS = 10_000;
 const SEEN_TENANT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -152,7 +158,35 @@ export class ProxyController {
     private readonly attemptRecording?: AttemptRecordingService,
     @Optional()
     private readonly headerTierService?: HeaderTierService,
+    @Optional()
+    private readonly modelCatalogConfig?: ModelCatalogConfigService,
   ) {}
+
+  /** Unknown variant names are a client URL mistake, not a model lookup miss. */
+  private parseVariant(variant: string): ModelCatalogVariant {
+    if (!isModelCatalogVariant(variant)) {
+      throw new NotFoundException(
+        `Unknown model catalog "${variant}". Available: ${MODEL_CATALOG_VARIANTS.join(', ')}.`,
+      );
+    }
+    return variant;
+  }
+
+  private modelListOptions(
+    capabilities?: string,
+    cost?: string,
+    routeMetadata?: string,
+    classifiers?: string,
+    output?: string,
+  ) {
+    return {
+      includeCapabilities: capabilities === 'true',
+      includeCost: cost === 'true',
+      includeRouteMetadata: routeMetadata === 'true',
+      includeClassifiers: classifiers === 'true',
+      filter: parseOutputFilter(output),
+    };
+  }
 
   @Get('models')
   async models(
@@ -163,13 +197,10 @@ export class ProxyController {
     @Query('output') output?: string,
     @Query('classifiers') classifiers?: string,
   ): Promise<OpenAiModelList> {
-    const data = await this.listModelEntries(req.ingestionContext, {
-      includeCapabilities: capabilities === 'true',
-      includeCost: cost === 'true',
-      includeRouteMetadata: routeMetadata === 'true',
-      includeClassifiers: classifiers === 'true',
-      filter: parseOutputFilter(output),
-    });
+    const data = await this.listModelEntries(
+      req.ingestionContext,
+      this.modelListOptions(capabilities, cost, routeMetadata, classifiers, output),
+    );
     return { object: 'list', data };
   }
 
@@ -189,17 +220,93 @@ export class ProxyController {
     @Query('classifiers') classifiers?: string,
   ): Promise<OpenAiModelObject> {
     const id = Array.isArray(splat) ? splat.join('/') : (splat ?? '');
-    const data = await this.listModelEntries(req.ingestionContext, {
-      includeCapabilities: capabilities === 'true',
-      includeCost: cost === 'true',
-      includeRouteMetadata: routeMetadata === 'true',
-      includeClassifiers: classifiers === 'true',
-    });
+    const data = await this.listModelEntries(
+      req.ingestionContext,
+      this.modelListOptions(capabilities, cost, routeMetadata, classifiers),
+    );
     const entry = data.find((model) => model.id === id);
     if (!entry) {
       throw new NotFoundException(`Model "${id}" is not available for this agent.`);
     }
     return entry;
+  }
+
+  /* ── Scoped catalogs ───────────────────────────────────────────────────────
+   * Legacy-compatible surface under /v1/catalog/:variant; the client-facing
+   * one is CatalogProxyController at /catalog/:variant/v1. Both delegate here.
+   * Only the model list is scoped; the other handlers are the very same
+   * methods the default routes call.
+   */
+
+  @Get('catalog/:variant/models')
+  async catalogModels(
+    @Req() req: Request & { ingestionContext: IngestionContext },
+    @Param('variant') variant: string,
+    @Query('capabilities') capabilities?: string,
+    @Query('cost') cost?: string,
+    @Query('route_metadata') routeMetadata?: string,
+    @Query('output') output?: string,
+    @Query('classifiers') classifiers?: string,
+  ): Promise<OpenAiModelList> {
+    const data = await this.listModelEntries(
+      req.ingestionContext,
+      this.modelListOptions(capabilities, cost, routeMetadata, classifiers, output),
+      this.parseVariant(variant),
+    );
+    return { object: 'list', data };
+  }
+
+  @Get('catalog/:variant/models/*splat')
+  async catalogModel(
+    @Req() req: Request & { ingestionContext: IngestionContext },
+    @Param('variant') variant: string,
+    @Param('splat') splat: string | string[] | undefined,
+    @Query('capabilities') capabilities?: string,
+    @Query('cost') cost?: string,
+    @Query('route_metadata') routeMetadata?: string,
+    @Query('classifiers') classifiers?: string,
+  ): Promise<OpenAiModelObject> {
+    const id = Array.isArray(splat) ? splat.join('/') : (splat ?? '');
+    const data = await this.listModelEntries(
+      req.ingestionContext,
+      this.modelListOptions(capabilities, cost, routeMetadata, classifiers),
+      this.parseVariant(variant),
+    );
+    const entry = data.find((model) => model.id === id);
+    if (!entry) {
+      throw new NotFoundException(`Model "${id}" is not available in this catalog.`);
+    }
+    return entry;
+  }
+
+  @Post('catalog/:variant/chat/completions')
+  async catalogChatCompletions(
+    @Req() req: Request & { ingestionContext: IngestionContext },
+    @Res() res: ExpressResponse,
+    @Param('variant') variant: string,
+  ): Promise<void> {
+    this.parseVariant(variant);
+    return this.handleProxyRequest(req, res, 'chat_completions');
+  }
+
+  @Post('catalog/:variant/responses')
+  async catalogResponses(
+    @Req() req: Request & { ingestionContext: IngestionContext },
+    @Res() res: ExpressResponse,
+    @Param('variant') variant: string,
+  ): Promise<void> {
+    this.parseVariant(variant);
+    return this.handleProxyRequest(req, res, 'responses');
+  }
+
+  @Post('catalog/:variant/messages')
+  async catalogMessages(
+    @Req() req: Request & { ingestionContext: IngestionContext },
+    @Res() res: ExpressResponse,
+    @Param('variant') variant: string,
+  ): Promise<void> {
+    this.parseVariant(variant);
+    return this.handleProxyRequest(req, res, 'messages');
   }
 
   /**
@@ -217,6 +324,7 @@ export class ProxyController {
       includeClassifiers?: boolean;
       filter?: 'text' | 'image' | 'video';
     },
+    variant?: ModelCatalogVariant,
   ): Promise<OpenAiModelObject[]> {
     const { includeCapabilities, includeCost, includeRouteMetadata, includeClassifiers, filter } =
       options;
@@ -225,6 +333,25 @@ export class ProxyController {
     // needs the facts even when the caller did not ask to see them.
     const needMetadata = includeCapabilities || includeCost || filter !== undefined;
     const models = await this.modelDiscovery.getModelsForAgent(ctx.tenantId, ctx.agentId);
+
+    // Scoped catalogs narrow only the discovered-model half. The `auto` marker
+    // and header-tier `auto-*` models are synthetic in every variant, and the
+    // full tier chain stays available to build their capabilities from.
+    let visibleModels = models;
+    if (variant === 'synthetic') {
+      visibleModels = [];
+    } else if (variant === 'synthetic-pool' || variant === 'synthetic-providers') {
+      const config = await this.modelCatalogConfig?.get(ctx.tenantId ?? '');
+      if (variant === 'synthetic-pool') {
+        const pool = new Set(config?.pool_model_ids ?? []);
+        visibleModels = models.filter((model) => pool.has(openAiModelId(model)));
+      } else {
+        const providers = new Set(
+          (config?.custom_provider_ids ?? []).map((id) => `custom:${id}`.toLowerCase()),
+        );
+        visibleModels = models.filter((model) => providers.has(model.provider.toLowerCase()));
+      }
+    }
 
     const data: OpenAiModelObject[] = [];
     const seen = new Set<string>(['auto']);
@@ -239,7 +366,7 @@ export class ProxyController {
     if (includeCapabilities) autoEntry.capabilities = autoRouterCapabilities();
     if (!filter || servesOutput(autoEntry.capabilities, filter)) data.push(autoEntry);
 
-    for (const model of models) {
+    for (const model of visibleModels) {
       const id = openAiModelId(model);
       if (seen.has(id)) continue;
       seen.add(id);
@@ -321,7 +448,11 @@ export class ProxyController {
     // only when the agent can reach OpenCode Zen, because that is the
     // credential the System One route reuses. `supported_endpoints` is what
     // tells a client to send them to the classifier route, not chat.
-    if (includeClassifiers && models.some((model) => model.provider === CLASSIFIER_PROVIDER)) {
+    if (
+      !variant &&
+      includeClassifiers &&
+      models.some((model) => model.provider === CLASSIFIER_PROVIDER)
+    ) {
       for (const classifier of CLASSIFIER_MODELS) {
         if (seen.has(classifier.publicId)) continue;
         seen.add(classifier.publicId);

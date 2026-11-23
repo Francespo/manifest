@@ -31,6 +31,7 @@ import { VersionModule } from './version/version.module';
 import { ErrorPagesModule } from './error-pages/error-pages.module';
 import { SetupModule } from './setup/setup.module';
 import { FreeModelsModule } from './free-models/free-models.module';
+import { ModelCatalogModule } from './routing/model-catalog/model-catalog.module';
 import { TelemetryModule } from './telemetry/telemetry.module';
 import { WaitlistModule } from './waitlist/waitlist.module';
 import { BillingModule } from './billing/billing.module';
@@ -118,6 +119,7 @@ const mcpImports = mcpAvailability().enabled ? [McpModule] : [];
     ErrorPagesModule,
     SetupModule,
     FreeModelsModule,
+    ModelCatalogModule,
     TelemetryModule,
     BackfillModule,
     WaitlistModule,

@@ -155,6 +155,7 @@ describe('ProxyController', () => {
   let recordingConfig: { isRecording: jest.Mock };
   let attemptRecording: { available: boolean; save: jest.Mock };
   let headerTierService: { list: jest.Mock };
+  let modelCatalogConfig: { get: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -201,6 +202,9 @@ describe('ProxyController', () => {
       save: jest.fn().mockResolvedValue(undefined),
     };
     headerTierService = { list: jest.fn().mockResolvedValue([]) };
+    modelCatalogConfig = {
+      get: jest.fn().mockResolvedValue({ pool_model_ids: [], custom_provider_ids: [] }),
+    };
     const mockCustomProviders = {
       canonicalizeAgentMessageKeys: jest
         .fn()
@@ -237,6 +241,7 @@ describe('ProxyController', () => {
       recordingConfig as never,
       attemptRecording as never,
       headerTierService as never,
+      modelCatalogConfig as never,
     );
   });
 
@@ -5086,5 +5091,79 @@ describe('ProxyController', () => {
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(headers['X-Manifest-Fallback-Exhausted']).toBeUndefined();
+  });
+
+  describe('scoped model catalogs', () => {
+    beforeEach(() => {
+      modelDiscovery.getModelsForAgent.mockResolvedValue([
+        makeDiscoveredModel({ id: 'gpt-4o', provider: 'openai', authType: 'api_key' }),
+        makeDiscoveredModel({
+          id: 'custom:provider-1/model-a',
+          provider: 'custom:provider-1',
+          providerAlias: 'my-bridge',
+          authType: 'api_key',
+        }),
+        makeDiscoveredModel({
+          id: 'custom:provider-2/model-b',
+          provider: 'custom:provider-2',
+          authType: 'api_key',
+        }),
+      ]);
+      headerTierService.list.mockResolvedValue([
+        { name: 'Fast', enabled: true, override_route: { provider: 'openai', model: 'gpt-4o' } },
+      ]);
+    });
+
+    const ids = async (variant: string): Promise<string[]> => {
+      const result = await controller.catalogModels(mockRequest({}) as never, variant);
+      return result.data.map((entry) => entry.id);
+    };
+
+    it('publishes only synthetic models in the synthetic catalog', async () => {
+      expect(await ids('synthetic')).toEqual(['auto', 'auto-fast']);
+      expect(modelCatalogConfig.get).not.toHaveBeenCalled();
+    });
+
+    it('adds the curated pool on top of synthetic models', async () => {
+      modelCatalogConfig.get.mockResolvedValue({
+        pool_model_ids: ['openai/gpt-4o', 'my-bridge/model-a'],
+        custom_provider_ids: [],
+      });
+      expect(await ids('synthetic-pool')).toEqual([
+        'auto',
+        'openai/gpt-4o',
+        'my-bridge/model-a',
+        'auto-fast',
+      ]);
+    });
+
+    it('adds whole hand-added providers on top of synthetic models', async () => {
+      modelCatalogConfig.get.mockResolvedValue({
+        pool_model_ids: [],
+        custom_provider_ids: ['provider-2'],
+      });
+      expect(await ids('synthetic-providers')).toEqual([
+        'auto',
+        'custom:provider-2/model-b',
+        'auto-fast',
+      ]);
+    });
+
+    it('leaves the default catalog untouched', async () => {
+      const result = await controller.models(mockRequest({}) as never);
+      expect(result.data.map((entry) => entry.id)).toEqual([
+        'auto',
+        'openai/gpt-4o',
+        'my-bridge/model-a',
+        'custom:provider-2/model-b',
+        'auto-fast',
+      ]);
+    });
+
+    it('rejects an unknown catalog name', async () => {
+      await expect(controller.catalogModels(mockRequest({}) as never, 'nope')).rejects.toThrow(
+        /Unknown model catalog/,
+      );
+    });
   });
 });
