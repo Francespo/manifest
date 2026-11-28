@@ -1,6 +1,8 @@
 import { A, useLocation } from '@solidjs/router';
 import { Show, createSignal, createResource, type Component } from 'solid-js';
 import { getBillingStatus } from '../services/api/billing.js';
+import { refreshConnectionModels } from '../services/api/routing.js';
+import { toast } from '../services/toast-store.js';
 import { checkIsSelfHosted, checkMcpEnabled } from '../services/setup-status.js';
 import AddAgentModal from './AddAgentModal.jsx';
 import ServicesContactModal from './ServicesContactModal.jsx';
@@ -27,6 +29,7 @@ const Sidebar: Component<SidebarProps> = (props) => {
   const isGlobalActive = makeIsGlobalActive(() => location.pathname);
   const [addModalOpen, setAddModalOpen] = createSignal(false);
   const [servicesOpen, setServicesOpen] = createSignal(false);
+  const [refreshingModels, setRefreshingModels] = createSignal(false);
   const session = authClient.useSession();
   // Local providers only exist on self-hosted installs — a cloud backend
   // can't reach the user's localhost, so the Local entry is hidden there.
@@ -52,6 +55,21 @@ const Sidebar: Component<SidebarProps> = (props) => {
   const handleNav = () => {
     props.onNavigate?.();
     window.dispatchEvent(new CustomEvent('sidebar-navigate'));
+  };
+
+  // Tenant-wide catalog refresh for every connected provider. fetchMutate
+  // already toasts on failure, so only the success path speaks here.
+  const handleRefreshModels = async () => {
+    if (refreshingModels()) return;
+    setRefreshingModels(true);
+    try {
+      await refreshConnectionModels();
+      toast.success('Model catalogs refreshed for all providers');
+    } catch {
+      // Errors are surfaced by fetchMutate — don't double-toast.
+    } finally {
+      setRefreshingModels(false);
+    }
   };
 
   return (
@@ -139,6 +157,26 @@ const Sidebar: Component<SidebarProps> = (props) => {
       >
         Subscriptions
       </A>
+      <button
+        type="button"
+        class="sidebar-refresh-models"
+        title="Refresh model catalogs for all connected providers"
+        aria-label="Refresh all models"
+        disabled={refreshingModels()}
+        onClick={handleRefreshModels}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+        </svg>
+        <span>{refreshingModels() ? 'Refreshing…' : 'Refresh all models'}</span>
+      </button>
 
       {/* Integrations: surfaces that drive Manifest from outside the dashboard.
           The "New" pills are a showcase device, not structure — delete the two

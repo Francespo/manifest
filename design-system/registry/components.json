@@ -3890,6 +3890,14 @@
         "theme.css"
       ]
     },
+    "sidebar-refresh-models": {
+      "classes": [
+        "sidebar-refresh-models"
+      ],
+      "files": [
+        "controls.css"
+      ]
+    },
     "sidebar-services": {
       "classes": [
         "sidebar-services"
@@ -5449,8 +5457,8 @@
   "stats": {
     "tokens": 79,
     "darkOverrides": 38,
-    "blocks": 337,
-    "classes": 1818,
+    "blocks": 338,
+    "classes": 1819,
     "canonicalRules": 50,
     "ghostRules": 50
   }

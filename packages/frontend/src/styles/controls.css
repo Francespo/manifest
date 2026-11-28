@@ -256,6 +256,45 @@
   font-weight: 500;
 }
 
+/* Tenant-wide model catalog refresh — an action in the PROVIDERS group, not a
+   nav destination: same metrics as .sidebar__link but quieter at rest. */
+.sidebar-refresh-models {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  width: calc(100% - 1rem);
+  padding: 6px var(--gap-lg);
+  margin: 1px 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  color: hsl(var(--muted-foreground));
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.sidebar-refresh-models svg {
+  flex-shrink: 0;
+}
+
+.sidebar-refresh-models:hover:not(:disabled) {
+  background: hsl(var(--sidebar-accent));
+  color: hsl(var(--sidebar-accent-foreground));
+}
+
+.sidebar-refresh-models:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+.sidebar-refresh-models:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* ── Header ────────────────────────────────────────── */
 .header {
   position: fixed;

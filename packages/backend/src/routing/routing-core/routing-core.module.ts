@@ -25,6 +25,7 @@ import { AgentModelParamsService } from './agent-model-params.service';
 import { KeyRotationRuleService } from './key-rotation-rule.service';
 import { ProviderParamSpecService } from './provider-param-spec.service';
 import { ModelEgressPolicyService } from './model-egress-policy.service';
+import { ModelCatalogRefreshService } from './model-catalog-refresh.service';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { ModelEgressPolicyService } from './model-egress-policy.service';
     KeyRotationRuleService,
     ProviderParamSpecService,
     ModelEgressPolicyService,
+    ModelCatalogRefreshService,
   ],
   exports: [
     TypeOrmModule,

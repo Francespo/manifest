@@ -96,7 +96,7 @@
 --z-toast: 8000
 --z-tooltip: 9999
 
-## Blocks (337 BEM blocks, 1818 classes)
+## Blocks (338 BEM blocks, 1819 classes)
 account-back-btn (agents.css): account-back-btn
 account-email-footer (agents.css): account-email-footer
 account-email-toggle (agents.css): account-email-toggle--disabled
@@ -379,6 +379,7 @@ setup-step (wizard.css): setup-step__desc setup-step__heading
 setup-step-providers (overview.css): setup-step-providers
 setup-steps (controls.css): setup-steps setup-steps__content setup-steps__divider setup-steps__number setup-steps__step
 sidebar (controls.css, theme.css): sidebar sidebar--mobile-open sidebar__badge sidebar__feedback sidebar__feedback-hint sidebar__feedback-title sidebar__footer sidebar__link sidebar__link--disabled sidebar__link-row sidebar__logo sidebar__logo-dot sidebar__section-add sidebar__section-label sidebar__spacer
+sidebar-refresh-models (controls.css): sidebar-refresh-models
 sidebar-services (modals.css): sidebar-services
 sidebar-upgrade (modals.css): sidebar-upgrade
 sidebar-usage (modals.css): sidebar-usage sidebar-usage__alert sidebar-usage__bar sidebar-usage__count sidebar-usage__count--danger sidebar-usage__fill sidebar-usage__fill--danger sidebar-usage__fill--warning sidebar-usage__header sidebar-usage__month sidebar-usage__title

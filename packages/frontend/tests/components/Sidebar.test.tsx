@@ -45,6 +45,16 @@ vi.mock('../../src/services/api/billing.js', () => ({
   getBillingStatus: (...args: unknown[]) => mockGetBillingStatus(...args),
 }));
 
+const mockRefreshConnectionModels = vi.fn();
+vi.mock('../../src/services/api/routing.js', () => ({
+  refreshConnectionModels: (...args: unknown[]) => mockRefreshConnectionModels(...args),
+}));
+
+const mockToastSuccess = vi.fn();
+vi.mock('../../src/services/toast-store.js', () => ({
+  toast: { success: (...args: unknown[]) => mockToastSuccess(...args) },
+}));
+
 // Local providers only exist on self-hosted installs; the Sidebar hides the
 // Local nav entry in cloud. Default to self-hosted so the legacy link
 // assertions keep applying; cloud tests flip the flag.
@@ -90,6 +100,7 @@ beforeEach(() => {
     plan: 'free',
     requests: { used: null, limit: null, periodEnd: null },
   });
+  mockRefreshConnectionModels.mockResolvedValue({ ok: true });
 });
 
 describe('Sidebar — global nav links', () => {
@@ -451,5 +462,62 @@ describe('Sidebar — custom development button', () => {
     expect((container.querySelector('#services-email') as HTMLInputElement).value).toBe(
       'alice@test.com',
     );
+  });
+});
+
+describe('Sidebar — refresh all models', () => {
+  const refreshButton = (container: HTMLElement) =>
+    container.querySelector('button.sidebar-refresh-models') as HTMLButtonElement;
+
+  it('renders a labelled action after Subscriptions and before Integrations', () => {
+    const { container } = render(() => <Sidebar />);
+    const btn = refreshButton(container);
+    expect(btn).not.toBeNull();
+    expect(btn.type).toBe('button');
+    expect(btn.getAttribute('aria-label')).toBe('Refresh all models');
+    expect(btn.getAttribute('title')).toBeTruthy();
+    expect(btn.textContent).toContain('Refresh all models');
+
+    const subscriptions = container.querySelector('a[href="/providers/subscriptions"]')!;
+    const integrations = Array.from(container.querySelectorAll('.sidebar__section-label')).find(
+      (label) => label.textContent === 'INTEGRATIONS',
+    )!;
+    // Subscriptions precedes the button, which precedes the INTEGRATIONS label.
+    expect(subscriptions.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(btn.compareDocumentPosition(integrations) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('calls refreshConnectionModels() once on click', async () => {
+    const { container } = render(() => <Sidebar />);
+    await fireEvent.click(refreshButton(container));
+    expect(mockRefreshConnectionModels).toHaveBeenCalledTimes(1);
+    expect(mockRefreshConnectionModels).toHaveBeenCalledWith();
+  });
+
+  it('shows the busy label and disables the button while the request is pending', async () => {
+    let resolveRefresh!: (value: { ok: boolean }) => void;
+    mockRefreshConnectionModels.mockReturnValue(
+      new Promise<{ ok: boolean }>((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+    const { container } = render(() => <Sidebar />);
+    const btn = refreshButton(container);
+
+    await fireEvent.click(btn);
+    expect(mockRefreshConnectionModels).toHaveBeenCalledTimes(1);
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toContain('Refreshing…');
+
+    resolveRefresh({ ok: true });
+    await waitFor(() => expect(btn.disabled).toBe(false));
+    expect(btn.textContent).toContain('Refresh all models');
+  });
+
+  it('shows a success toast when the refresh resolves', async () => {
+    const { container } = render(() => <Sidebar />);
+    await fireEvent.click(refreshButton(container));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledTimes(1));
+    expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringMatching(/model/i));
   });
 });
